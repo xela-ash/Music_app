@@ -1,25 +1,56 @@
-import { useEffect, useState } from "react";
-
-type ApiResponse = { message: string };
+import { useState } from "react";
+import "./App.css";
 
 export default function App() {
-  const [data, setData] = useState<ApiResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("http://localhost:4000/")
-      .then((res) => res.json())
-      .then((json) => setData(json))
-      .catch((e) => setError(String(e)));
-  }, []);
+  const createUser = async () => {
+    setError("");
+    try {
+      const res = await fetch("http://localhost:4000/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Something went wrong");
+      }
+
+      setResult(data);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
+    <div style={{ padding: 40 }}>
       <h1>MusicApp MVP</h1>
-      <p>Backend says:</p>
 
-      {error && <pre>{error}</pre>}
-      {data ? <pre>{JSON.stringify(data, null, 2)}</pre> : <p>Loading…</p>}
-    </main>
+      <input
+        placeholder="Enter email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ padding: 8, width: 300 }}
+      />
+
+      <br /><br />
+
+      <button onClick={createUser}>Create User</button>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {result && (
+        <pre style={{ marginTop: 20 }}>
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
+    </div>
   );
 }
