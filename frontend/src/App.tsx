@@ -2,8 +2,6 @@ import { apiPost } from "./api/api";
 import { useState } from "react";
 import "./App.css";
 
-const API_BASE = "http://localhost:4000";
-
 type SignupPayload = {
   email: string | null;
   phone_e164: string | null;
@@ -42,7 +40,7 @@ export default function App() {
   const [bio, setBio] = useState("");
   const [dob, setDob] = useState(""); // YYYY-MM-DD
 
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<{ user: unknown; profile: unknown } | null>(null);
 
   async function onSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -72,19 +70,12 @@ export default function App() {
         dob: dob.trim() ? dob.trim() : null,
       };
 
-      const res = await fetch(`${API_BASE}/auth/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Signup failed");
+      const data = await apiPost("/auth/signup", payload);
 
       setSession(data);
       setMode("app");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
