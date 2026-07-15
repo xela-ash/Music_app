@@ -487,6 +487,132 @@ app.get("/profiles", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// =====================
+// PROJECTS
+// =====================
+function makeProjectExternalId() {
+  return `prj_${crypto.randomBytes(10).toString("hex")}`;
+}
+
+const SAFE_PROJECT_FIELDS = `
+  id, external_id, buyer_user_id, seller_user_id, title, requirements,
+  price_amount, currency, delivery_days, revision_limit, state,
+  accepted_at, delivered_at, completed_at, created_at, updated_at
+`;
+
+// Matches the canonical 8-4-4-4-12 hex form PostgreSQL's uuid type expects,
+// rejecting malformed values before they can reach a query (avoids 22P02).
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+app.post("/projects", requireAuth, async (req, res) => {
+  try {
+    const {
+      seller_user_id,
+      title,
+      requirements,
+      price_amount,
+      delivery_days,
+      revision_limit,
+    } = req.body ?? {};
+
+    if (typeof seller_user_id !== "string" || !seller_user_id.trim()) {
+      return res.status(400).json({ error: "seller_user_id is required and must be a non-empty string" });
+    }
+    if (!UUID_PATTERN.test(seller_user_id.trim())) {
+      return res.status(400).json({ error: "seller_user_id must be a valid UUID" });
+    }
+    if (typeof title !== "string" || !title.trim()) {
+      return res.status(400).json({ error: "title is required and must be a non-empty string" });
+    }
+    if (typeof requirements !== "string" || !requirements.trim()) {
+      return res.status(400).json({ error: "requirements is required and must be a non-empty string" });
+    }
+    if (typeof price_amount !== "number" || !Number.isInteger(price_amount) || price_amount <= 0) {
+      return res.status(400).json({ error: "price_amount must be an integer greater than 0" });
+    }
+    if (typeof delivery_days !== "number" || !Number.isInteger(delivery_days) || delivery_days <= 0) {
+      return res.status(400).json({ error: "delivery_days must be an integer greater than 0" });
+    }
+
+    let revisionLimitValue = 0;
+    if (revision_limit !== undefined) {
+      if (typeof revision_limit !== "number" || !Number.isInteger(revision_limit) || revision_limit < 0) {
+        return res.status(400).json({ error: "revision_limit must be an integer greater than or equal to 0" });
+      }
+      revisionLimitValue = revision_limit;
+    }
+
+    if (seller_user_id === req.auth.sub) {
+      return res.status(400).json({ error: "You cannot start a project with yourself" });
+    }
+
+    const sellerResult = await pool.query(
+      `SELECT u.id
+       FROM users u
+       JOIN profiles p ON p.user_id = u.id
+       WHERE u.id = $1 AND u.status = 'active'::user_status`,
+      [seller_user_id]
+    );
+
+    if (sellerResult.rows.length === 0) {
+      return res.status(404).json({ error: "Seller not found" });
+    }
+
+    const externalId = makeProjectExternalId();
+
+    const result = await pool.query(
+      `INSERT INTO projects (
+         external_id, buyer_user_id, seller_user_id,
+         title, requirements, price_amount, currency, delivery_days, revision_limit
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING ${SAFE_PROJECT_FIELDS}`,
+      [
+        externalId,
+        req.auth.sub,
+        seller_user_id,
+        title.trim(),
+        requirements.trim(),
+        price_amount,
+        "USD",
+        delivery_days,
+        revisionLimitValue,
+      ]
+    );
+
+    res.status(201).json({ project: result.rows[0] });
+  } catch (err) {
+    if (err.code === "23503") {
+      return res.status(400).json({ error: "Foreign key violation" });
+    }
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Unique constraint violation" });
+    }
+    if (err.code === "23514") {
+      return res.status(400).json({ error: "Constraint violation" });
+    }
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/projects", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ${SAFE_PROJECT_FIELDS}
+       FROM projects
+       WHERE buyer_user_id = $1 OR seller_user_id = $1
+       ORDER BY created_at DESC`,
+      [req.auth.sub]
+    );
+    res.json({ projects: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 const PORT = 4000;
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);

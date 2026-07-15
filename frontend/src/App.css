@@ -600,6 +600,82 @@
   opacity: 0.75;
 }
 
+/* =====================
+   Create project screen
+   ===================== */
+.create-project {
+  max-width: 640px;
+}
+
+.collaborator-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 2rem 0 2.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.collaborator-summary-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.collaborator-summary-handle {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.collaborator-summary-artist {
+  margin: 0.2rem 0 0;
+  font-size: 0.92rem;
+  opacity: 0.8;
+}
+
+.create-project-form {
+  max-width: 100%;
+}
+
+/* =====================
+   Project detail screen
+   ===================== */
+.project-detail {
+  max-width: 720px;
+}
+
+.project-detail-banner {
+  margin-bottom: 2.5rem;
+}
+
+.project-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.project-detail-meta-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.55;
+}
+
+.project-detail-meta-value {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
 @media (prefers-color-scheme: light) {
   .auth-card {
     background: #ffffff;

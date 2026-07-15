@@ -72,6 +72,46 @@ interface LoginResponse {
 // no user/auth fields) — Profile itself stays accurate for /auth/* routes.
 type DiscoverProfile = Omit<Profile, "dob">;
 
+type ProjectState =
+  | "draft"
+  | "funded"
+  | "accepted"
+  | "in_progress"
+  | "delivered"
+  | "buyer_rated"
+  | "seller_rated"
+  | "completed"
+  | "cancelled"
+  | "disputed";
+
+interface Project {
+  id: string;
+  external_id: string;
+  buyer_user_id: string;
+  seller_user_id: string;
+  title: string;
+  requirements: string;
+  price_amount: number; // integer minor units, e.g. 15050 = USD 150.50
+  currency: string;
+  delivery_days: number;
+  revision_limit: number;
+  state: ProjectState;
+  accepted_at: string | null;
+  delivered_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreateProjectPayload {
+  seller_user_id: string;
+  title: string;
+  requirements: string;
+  price_amount: number;
+  delivery_days: number;
+  revision_limit: number;
+}
+
 type AppState = "loading" | "unauthenticated" | "authenticated";
 type AuthMode = "login" | "signup";
 
@@ -469,7 +509,7 @@ function SignupForm({ onSignupSuccess }: { onSignupSuccess: () => void }) {
 // =====================
 // App shell (authenticated)
 // =====================
-type AuthenticatedView = "home" | "discover" | "profileDetail";
+type AuthenticatedView = "home" | "discover" | "profileDetail" | "createProject" | "projectDetail";
 
 interface NavItem {
   label: string;
@@ -499,16 +539,34 @@ const DISCOVER_CATEGORIES: DiscoverCategory[] = [
 function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const [view, setView] = useState<AuthenticatedView>("home");
   const [selectedProfile, setSelectedProfile] = useState<DiscoverProfile | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const { profile } = session;
   const greetingName = profile.first_name || profile.display_name;
+
+  // Failure safety: never render a screen without the state it needs.
+  // Corrected during render (not in an effect) so the sidebar's active-item
+  // logic — which reads `view` directly below — is never out of sync with
+  // what's actually on screen. Each branch's condition is false immediately
+  // after its setView call, so this converges in a single extra render.
+  if (view === "createProject" && !selectedProfile) {
+    setView("discover");
+  } else if (view === "projectDetail" && !selectedProject) {
+    setView("home");
+  }
 
   function openProfileDetail(target: DiscoverProfile) {
     setSelectedProfile(target);
     setView("profileDetail");
   }
 
-  // Discover stays visually active while viewing a profile opened from it.
-  const isDiscoverActive = view === "discover" || view === "profileDetail";
+  function handleProjectCreated(project: Project) {
+    setSelectedProject(project);
+    setView("projectDetail");
+  }
+
+  // Discover stays visually active through the profile/create-project flow.
+  const isDiscoverActive = view === "discover" || view === "profileDetail" || view === "createProject";
+  const isProjectsActive = view === "projectDetail";
 
   return (
     <div className="app-shell">
@@ -518,7 +576,14 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
 
           <nav className="sidebar-nav">
             {NAV_ITEMS.map((item) => {
-              const isActive = item.view === "discover" ? isDiscoverActive : item.view === view;
+              let isActive: boolean;
+              if (item.label === "Discover") {
+                isActive = isDiscoverActive;
+              } else if (item.label === "Projects") {
+                isActive = isProjectsActive;
+              } else {
+                isActive = item.view === view;
+              }
               return (
                 <button
                   key={item.label}
@@ -547,7 +612,23 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
 
       <main className="main-content">
         {view === "profileDetail" && selectedProfile ? (
-          <ProfileDetailScreen profile={selectedProfile} onBack={() => setView("discover")} />
+          <ProfileDetailScreen
+            profile={selectedProfile}
+            onBack={() => setView("discover")}
+            onStartProject={() => setView("createProject")}
+          />
+        ) : view === "createProject" && selectedProfile ? (
+          <CreateProjectScreen
+            profile={selectedProfile}
+            onBack={() => setView("profileDetail")}
+            onCreated={handleProjectCreated}
+          />
+        ) : view === "projectDetail" && selectedProject ? (
+          <ProjectDetailScreen
+            project={selectedProject}
+            profile={selectedProfile}
+            onBackToProfile={() => setView("profileDetail")}
+          />
         ) : view === "discover" ? (
           <DiscoverScreen currentUserId={session.user.id} onViewProfile={openProfileDetail} />
         ) : (
@@ -773,9 +854,11 @@ function getInitials(name: string): string {
 function ProfileDetailScreen({
   profile,
   onBack,
+  onStartProject,
 }: {
   profile: DiscoverProfile;
   onBack: () => void;
+  onStartProject: () => void;
 }) {
   const bio = profile.bio?.trim() ? profile.bio.trim() : "Open to collaborations and new music projects.";
   const aboutName = profile.last_name ? `${profile.first_name} ${profile.last_name}` : profile.first_name;
@@ -801,7 +884,7 @@ function ProfileDetailScreen({
           </p>
 
           <div className="content-actions profile-detail-actions">
-            <button type="button" className="btn btn-primary">
+            <button type="button" className="btn btn-primary" onClick={onStartProject}>
               Start a project
             </button>
             <button type="button" className="btn btn-secondary" onClick={onBack}>
@@ -836,6 +919,280 @@ function ProfileDetailScreen({
           <h2 className="section-heading">About</h2>
           <p className="profile-detail-about">{aboutName}</p>
         </section>
+      </div>
+    </div>
+  );
+}
+
+// =====================
+// Create project screen
+// =====================
+
+// Converts a USD major-unit string ("150.5", "150.50") to integer minor
+// units (15050) using string/integer arithmetic only — no floating-point
+// multiplication, so there's no rounding drift for values like 150.1.
+function parseBudgetToMinorUnits(input: string): number | null {
+  const trimmed = input.trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
+
+  const [wholePart, fractionalPart = ""] = trimmed.split(".");
+  const cents = fractionalPart.padEnd(2, "0");
+  const minorUnits = Number(wholePart) * 100 + Number(cents);
+
+  return minorUnits > 0 ? minorUnits : null;
+}
+
+function parsePositiveInteger(input: string): number | null {
+  const trimmed = input.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return value > 0 ? value : null;
+}
+
+// Empty input defaults to 0 (the revision limit default); otherwise must be
+// a non-negative integer.
+function parseNonNegativeIntegerOrDefault(input: string): number | null {
+  const trimmed = input.trim();
+  if (trimmed === "") return 0;
+  if (!/^\d+$/.test(trimmed)) return null;
+  return Number(trimmed);
+}
+
+function CreateProjectScreen({
+  profile,
+  onBack,
+  onCreated,
+}: {
+  profile: DiscoverProfile;
+  onBack: () => void;
+  onCreated: (project: Project) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [requirements, setRequirements] = useState("");
+  const [budgetInput, setBudgetInput] = useState("");
+  const [deliveryDaysInput, setDeliveryDaysInput] = useState("");
+  const [revisionLimitInput, setRevisionLimitInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!title.trim()) {
+      setError("Project title is required.");
+      return;
+    }
+    if (!requirements.trim()) {
+      setError("Requirements are required.");
+      return;
+    }
+
+    const priceAmount = parseBudgetToMinorUnits(budgetInput);
+    if (priceAmount === null) {
+      setError("Enter a valid budget in USD, e.g. 150 or 150.50.");
+      return;
+    }
+
+    const deliveryDays = parsePositiveInteger(deliveryDaysInput);
+    if (deliveryDays === null) {
+      setError("Delivery days must be a whole number greater than 0.");
+      return;
+    }
+
+    const revisionLimit = parseNonNegativeIntegerOrDefault(revisionLimitInput);
+    if (revisionLimit === null) {
+      setError("Revision limit must be a whole number of 0 or more.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const payload: CreateProjectPayload = {
+        seller_user_id: profile.user_id,
+        title: title.trim(),
+        requirements: requirements.trim(),
+        price_amount: priceAmount,
+        delivery_days: deliveryDays,
+        revision_limit: revisionLimit,
+      };
+
+      const token = localStorage.getItem(TOKEN_KEY);
+      const data = (await apiPost("/projects", payload, token ?? undefined)) as { project: Project };
+      onCreated(data.project);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="create-project">
+      <button type="button" className="btn btn-secondary back-button" onClick={onBack}>
+        ← Back to profile
+      </button>
+
+      <header className="content-header">
+        <p className="eyebrow">New project</p>
+        <h1 className="content-heading">Start a project with {profile.display_name}</h1>
+        <p className="content-subcopy">
+          Define the work, budget and delivery expectations before funding begins.
+        </p>
+      </header>
+
+      <div className="collaborator-summary">
+        <p className="collaborator-summary-name">{profile.display_name}</p>
+        <p className="collaborator-summary-handle">@{profile.handle}</p>
+        <p className="collaborator-summary-artist">{profile.artist_name}</p>
+      </div>
+
+      <form className="auth-form create-project-form" onSubmit={handleSubmit}>
+        <div className="form-field">
+          <label htmlFor="create-project-title">Project title</label>
+          <input
+            id="create-project-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="create-project-requirements">Requirements</label>
+          <textarea
+            id="create-project-requirements"
+            value={requirements}
+            onChange={(e) => setRequirements(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="create-project-budget">Budget (USD)</label>
+          <input
+            id="create-project-budget"
+            type="text"
+            inputMode="decimal"
+            placeholder="150.00"
+            value={budgetInput}
+            onChange={(e) => setBudgetInput(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="create-project-delivery-days">Delivery days</label>
+          <input
+            id="create-project-delivery-days"
+            type="number"
+            min="1"
+            step="1"
+            value={deliveryDaysInput}
+            onChange={(e) => setDeliveryDaysInput(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-field">
+          <label htmlFor="create-project-revision-limit">Revision limit</label>
+          <input
+            id="create-project-revision-limit"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="0"
+            value={revisionLimitInput}
+            onChange={(e) => setRevisionLimitInput(e.target.value)}
+          />
+        </div>
+
+        {error ? <p className="error-message">{error}</p> : null}
+
+        <div className="content-actions">
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? "Creating…" : "Create draft project"}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onBack} disabled={loading}>
+            Back to profile
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// =====================
+// Project detail screen
+// =====================
+function formatUsdFromMinorUnits(minorUnits: number): string {
+  return `$${(minorUnits / 100).toFixed(2)}`;
+}
+
+function ProjectDetailScreen({
+  project,
+  profile,
+  onBackToProfile,
+}: {
+  project: Project;
+  profile: DiscoverProfile | null;
+  onBackToProfile: () => void;
+}) {
+  const createdDate = new Date(project.created_at).toLocaleDateString();
+
+  return (
+    <div className="project-detail">
+      <header className="content-header">
+        <p className="eyebrow">Project</p>
+        <h1 className="content-heading">{project.title}</h1>
+        {profile ? (
+          <p className="content-subcopy">
+            With {profile.display_name} (@{profile.handle})
+          </p>
+        ) : null}
+      </header>
+
+      <div className="empty-state project-detail-banner">
+        <p className="empty-state-title">Draft project</p>
+        <p className="empty-state-copy">
+          Funding and milestone setup will be added in the next project stage.
+        </p>
+      </div>
+
+      <div className="project-detail-meta">
+        <div className="project-detail-meta-item">
+          <p className="project-detail-meta-label">Budget</p>
+          <p className="project-detail-meta-value">
+            {formatUsdFromMinorUnits(project.price_amount)}
+          </p>
+        </div>
+        <div className="project-detail-meta-item">
+          <p className="project-detail-meta-label">Delivery</p>
+          <p className="project-detail-meta-value">{project.delivery_days} days</p>
+        </div>
+        <div className="project-detail-meta-item">
+          <p className="project-detail-meta-label">Revisions</p>
+          <p className="project-detail-meta-value">{project.revision_limit}</p>
+        </div>
+        <div className="project-detail-meta-item">
+          <p className="project-detail-meta-label">Started</p>
+          <p className="project-detail-meta-value">{createdDate}</p>
+        </div>
+      </div>
+
+      <section className="profile-detail-section">
+        <h2 className="section-heading">Requirements</h2>
+        <p className="profile-detail-bio">{project.requirements}</p>
+      </section>
+
+      <div className="content-actions">
+        <button type="button" className="btn btn-primary" onClick={onBackToProfile}>
+          Back to profile
+        </button>
+        <button type="button" className="btn btn-secondary">
+          View projects
+        </button>
       </div>
     </div>
   );
