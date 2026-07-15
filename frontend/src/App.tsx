@@ -469,7 +469,7 @@ function SignupForm({ onSignupSuccess }: { onSignupSuccess: () => void }) {
 // =====================
 // App shell (authenticated)
 // =====================
-type AuthenticatedView = "home" | "discover";
+type AuthenticatedView = "home" | "discover" | "profileDetail";
 
 interface NavItem {
   label: string;
@@ -498,8 +498,17 @@ const DISCOVER_CATEGORIES: DiscoverCategory[] = [
 
 function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const [view, setView] = useState<AuthenticatedView>("home");
+  const [selectedProfile, setSelectedProfile] = useState<DiscoverProfile | null>(null);
   const { profile } = session;
   const greetingName = profile.first_name || profile.display_name;
+
+  function openProfileDetail(target: DiscoverProfile) {
+    setSelectedProfile(target);
+    setView("profileDetail");
+  }
+
+  // Discover stays visually active while viewing a profile opened from it.
+  const isDiscoverActive = view === "discover" || view === "profileDetail";
 
   return (
     <div className="app-shell">
@@ -508,17 +517,20 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
           <div className="sidebar-brand">MusicApp</div>
 
           <nav className="sidebar-nav">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                className={`nav-item ${item.view === view ? "nav-item-active" : ""}`}
-                onClick={item.view ? () => setView(item.view as AuthenticatedView) : undefined}
-              >
-                <span className="nav-indicator" aria-hidden="true" />
-                {item.label}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const isActive = item.view === "discover" ? isDiscoverActive : item.view === view;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  className={`nav-item ${isActive ? "nav-item-active" : ""}`}
+                  onClick={item.view ? () => setView(item.view as AuthenticatedView) : undefined}
+                >
+                  <span className="nav-indicator" aria-hidden="true" />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
         </div>
 
@@ -534,8 +546,10 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
       </aside>
 
       <main className="main-content">
-        {view === "discover" ? (
-          <DiscoverScreen currentUserId={session.user.id} />
+        {view === "profileDetail" && selectedProfile ? (
+          <ProfileDetailScreen profile={selectedProfile} onBack={() => setView("discover")} />
+        ) : view === "discover" ? (
+          <DiscoverScreen currentUserId={session.user.id} onViewProfile={openProfileDetail} />
         ) : (
           <>
             <header className="content-header">
@@ -611,7 +625,13 @@ function profileMatchesQuery(profile: DiscoverProfile, query: string): boolean {
   return haystacks.some((value) => value.toLowerCase().includes(query));
 }
 
-function DiscoverScreen({ currentUserId }: { currentUserId: string }) {
+function DiscoverScreen({
+  currentUserId,
+  onViewProfile,
+}: {
+  currentUserId: string;
+  onViewProfile: (profile: DiscoverProfile) => void;
+}) {
   const [profiles, setProfiles] = useState<DiscoverProfile[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -689,7 +709,7 @@ function DiscoverScreen({ currentUserId }: { currentUserId: string }) {
       ) : (
         <div className="profile-grid">
           {filteredProfiles.map((profile) => (
-            <ProfileCard key={profile.id} profile={profile} />
+            <ProfileCard key={profile.id} profile={profile} onView={onViewProfile} />
           ))}
         </div>
       )}
@@ -697,7 +717,13 @@ function DiscoverScreen({ currentUserId }: { currentUserId: string }) {
   );
 }
 
-function ProfileCard({ profile }: { profile: DiscoverProfile }) {
+function ProfileCard({
+  profile,
+  onView,
+}: {
+  profile: DiscoverProfile;
+  onView: (profile: DiscoverProfile) => void;
+}) {
   return (
     <div className="profile-card">
       <p className="profile-card-name">{profile.display_name}</p>
@@ -720,9 +746,97 @@ function ProfileCard({ profile }: { profile: DiscoverProfile }) {
         {profile.city}, {profile.country}
       </p>
 
-      <button type="button" className="btn btn-secondary profile-card-action">
+      <button
+        type="button"
+        className="btn btn-secondary profile-card-action"
+        onClick={() => onView(profile)}
+      >
         View profile
       </button>
+    </div>
+  );
+}
+
+// =====================
+// Profile detail screen
+// =====================
+function getInitials(name: string): string {
+  const letters = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("");
+  return letters.toUpperCase() || "?";
+}
+
+function ProfileDetailScreen({
+  profile,
+  onBack,
+}: {
+  profile: DiscoverProfile;
+  onBack: () => void;
+}) {
+  const bio = profile.bio?.trim() ? profile.bio.trim() : "Open to collaborations and new music projects.";
+  const aboutName = profile.last_name ? `${profile.first_name} ${profile.last_name}` : profile.first_name;
+
+  return (
+    <div className="profile-detail">
+      <button type="button" className="btn btn-secondary back-button" onClick={onBack}>
+        ← Back to Discover
+      </button>
+
+      <div className="profile-detail-header">
+        <div className="profile-detail-avatar" aria-hidden="true">
+          {profile.profile_photo_asset_id ? null : getInitials(profile.display_name || profile.artist_name)}
+        </div>
+
+        <div className="profile-detail-identity">
+          <p className="eyebrow">Creator profile</p>
+          <h1 className="profile-detail-name">{profile.display_name}</h1>
+          <p className="profile-detail-handle">@{profile.handle}</p>
+          <p className="profile-detail-artist">{profile.artist_name}</p>
+          <p className="profile-detail-location">
+            {profile.city}, {profile.country}
+          </p>
+
+          <div className="content-actions profile-detail-actions">
+            <button type="button" className="btn btn-primary">
+              Start a project
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onBack}>
+              Back to Discover
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="profile-detail-body">
+        <section className="profile-detail-section">
+          <h2 className="section-heading">Biography</h2>
+          <p className="profile-detail-bio">{bio}</p>
+        </section>
+
+        <section className="profile-detail-section">
+          <h2 className="section-heading">Genres</h2>
+          <div className="profile-card-genres">
+            {profile.genres.length ? (
+              profile.genres.map((genre) => (
+                <span className="genre-chip" key={genre}>
+                  {genre}
+                </span>
+              ))
+            ) : (
+              <span className="genre-chip genre-chip-muted">Open to collaboration</span>
+            )}
+          </div>
+        </section>
+
+        <section className="profile-detail-section">
+          <h2 className="section-heading">About</h2>
+          <p className="profile-detail-about">{aboutName}</p>
+        </section>
+      </div>
     </div>
   );
 }

@@ -509,6 +509,97 @@
   width: 100%;
 }
 
+/* =====================
+   Profile detail screen
+   ===================== */
+.profile-detail {
+  max-width: 820px;
+}
+
+.back-button {
+  margin-bottom: 2rem;
+}
+
+.profile-detail-header {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  margin-bottom: 3rem;
+}
+
+.profile-detail-avatar {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(100, 108, 255, 0.14);
+  color: #a5b4fc;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.profile-detail-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-detail-identity .eyebrow {
+  margin-bottom: 0.5rem;
+}
+
+.profile-detail-name {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.profile-detail-handle {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  opacity: 0.55;
+}
+
+.profile-detail-artist {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  opacity: 0.85;
+}
+
+.profile-detail-location {
+  margin: 0 0 1.5rem;
+  font-size: 0.9rem;
+  opacity: 0.55;
+}
+
+.profile-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2.25rem;
+}
+
+.profile-detail-section .section-heading {
+  margin-bottom: 0.75rem;
+}
+
+.profile-detail-bio {
+  margin: 0;
+  max-width: 640px;
+  font-size: 1rem;
+  line-height: 1.7;
+  opacity: 0.85;
+}
+
+.profile-detail-about {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.75;
+}
+
 @media (prefers-color-scheme: light) {
   .auth-card {
     background: #ffffff;
@@ -610,5 +701,19 @@
 
   .profile-grid {
     grid-template-columns: 1fr;
+  }
+
+  .profile-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+
+  .profile-detail-actions {
+    flex-wrap: wrap;
+  }
+
+  .profile-detail-actions .btn {
+    width: 100%;
   }
 }
