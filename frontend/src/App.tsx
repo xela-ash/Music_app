@@ -1,10 +1,53 @@
-import { apiPost } from "./api/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { apiGet, apiPost } from "./api/api";
 import "./App.css";
 
-type SignupPayload = {
+const TOKEN_KEY = "musicapp_token";
+
+// =====================
+// Types
+// =====================
+type UserStatus = "active" | "suspended" | "deleted";
+
+interface User {
+  id: string;
+  external_id: string;
   email: string | null;
   phone_e164: string | null;
+  status: UserStatus;
+  created_at: string;
+}
+
+interface Profile {
+  id: string;
+  external_id: string;
+  user_id: string;
+  handle: string;
+  first_name: string;
+  last_name: string | null;
+  artist_name: string;
+  artist_name_is_legal_name: boolean;
+  display_name: string;
+  genres: string[];
+  city: string;
+  country: string;
+  bio: string | null;
+  profile_photo_asset_id: string | null;
+  dob: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Session {
+  user: User;
+  profile: Profile;
+}
+
+interface SignupPayload {
+  email: string | null;
+  phone_e164: string | null;
+  password: string;
 
   handle: string;
   first_name: string;
@@ -17,16 +60,202 @@ type SignupPayload = {
   country: string;
   bio: string | null;
   dob: string | null; // YYYY-MM-DD
-};
+}
 
+interface LoginResponse {
+  token: string;
+  user: User;
+  profile: Profile;
+}
+
+type AppState = "loading" | "unauthenticated" | "authenticated";
+type AuthMode = "login" | "signup";
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  return "Something went wrong. Please try again.";
+}
+
+// =====================
+// Root component
+// =====================
 export default function App() {
-  const [mode, setMode] = useState<"signup" | "app">("signup");
+  const [appState, setAppState] = useState<AppState>(() =>
+    localStorage.getItem(TOKEN_KEY) ? "loading" : "unauthenticated"
+  );
+  const [session, setSession] = useState<Session | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [signupNotice, setSignupNotice] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = (await apiGet("/auth/me", token)) as Session;
+        if (cancelled) return;
+        setSession(data);
+        setAppState("authenticated");
+      } catch {
+        if (cancelled) return;
+        localStorage.removeItem(TOKEN_KEY);
+        setAppState("unauthenticated");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function handleLoginSuccess(data: LoginResponse) {
+    localStorage.setItem(TOKEN_KEY, data.token);
+    setSession({ user: data.user, profile: data.profile });
+    setAppState("authenticated");
+  }
+
+  function handleSignupSuccess() {
+    setAuthMode("login");
+    setSignupNotice("Account created. Log in to continue.");
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(TOKEN_KEY);
+    setSession(null);
+    setAuthMode("login");
+    setAppState("unauthenticated");
+  }
+
+  function switchMode(mode: AuthMode) {
+    setAuthMode(mode);
+    setSignupNotice("");
+  }
+
+  if (appState === "loading") {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <p className="status-message">Loading session…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (appState === "authenticated" && session) {
+    return <Dashboard session={session} onLogout={handleLogout} />;
+  }
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1 className="brand">MusicApp</h1>
+
+        <div className="auth-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={authMode === "login"}
+            className={`auth-tab ${authMode === "login" ? "auth-tab-active" : ""}`}
+            onClick={() => switchMode("login")}
+          >
+            Log in
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={authMode === "signup"}
+            className={`auth-tab ${authMode === "signup" ? "auth-tab-active" : ""}`}
+            onClick={() => switchMode("signup")}
+          >
+            Sign up
+          </button>
+        </div>
+
+        {signupNotice ? <p className="success-message">{signupNotice}</p> : null}
+
+        {authMode === "login" ? (
+          <LoginForm onLoginSuccess={handleLoginSuccess} />
+        ) : (
+          <SignupForm onSignupSuccess={handleSignupSuccess} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =====================
+// Login form
+// =====================
+function LoginForm({ onLoginSuccess }: { onLoginSuccess: (data: LoginResponse) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // signup fields
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const data = (await apiPost("/auth/login", {
+        email: email.trim(),
+        password,
+      })) as LoginResponse;
+      onLoginSuccess(data);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form className="auth-form" onSubmit={handleSubmit}>
+      <div className="form-field">
+        <label htmlFor="login-email">Email</label>
+        <input
+          id="login-email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="login-password">Password</label>
+        <input
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </div>
+
+      {error ? <p className="error-message">{error}</p> : null}
+
+      <button className="btn btn-primary" type="submit" disabled={loading}>
+        {loading ? "Logging in…" : "Log in"}
+      </button>
+    </form>
+  );
+}
+
+// =====================
+// Signup form
+// =====================
+function SignupForm({ onSignupSuccess }: { onSignupSuccess: () => void }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [handle, setHandle] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -40,11 +269,18 @@ export default function App() {
   const [bio, setBio] = useState("");
   const [dob, setDob] = useState(""); // YYYY-MM-DD
 
-  const [session, setSession] = useState<{ user: unknown; profile: unknown } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  async function onSignup(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -56,6 +292,7 @@ export default function App() {
       const payload: SignupPayload = {
         email: email.trim() ? email.trim() : null,
         phone_e164: phone.trim() ? phone.trim() : null,
+        password,
 
         handle: handle.trim(),
         first_name: firstName.trim(),
@@ -70,153 +307,204 @@ export default function App() {
         dob: dob.trim() ? dob.trim() : null,
       };
 
-      const data = await apiPost("/auth/signup", payload);
-
-      setSession(data);
-      setMode("app");
+      await apiPost("/auth/signup", payload);
+      onSignupSuccess();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
   }
 
-  if (mode === "app") {
-    return (
-      <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 900, margin: "0 auto" }}>
-        <h1>MusicApp</h1>
-        <p>Signed up successfully.</p>
-
-        <h2>User</h2>
-        <pre style={{ background: "#f6f6f6", padding: 12, borderRadius: 8 }}>
-          {JSON.stringify(session?.user, null, 2)}
-        </pre>
-
-        <h2>Profile</h2>
-        <pre style={{ background: "#f6f6f6", padding: 12, borderRadius: 8 }}>
-          {JSON.stringify(session?.profile, null, 2)}
-        </pre>
-
-        <button
-          onClick={() => {
-            setSession(null);
-            setMode("signup");
-          }}
-          style={{ marginTop: 16, padding: 10 }}
-        >
-          Log out (MVP)
-        </button>
-      </div>
-    );
-  }
-
-  // SIGNUP SCREEN
   return (
-    <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 720, margin: "0 auto" }}>
-      <h1>Sign up</h1>
-      <p style={{ marginTop: 0, color: "#555" }}>
-        Creates <code>users</code> + <code>profiles</code> together.
-      </p>
+    <form className="auth-form" onSubmit={handleSubmit}>
+      <p className="form-hint">At least one of email or phone is required.</p>
 
-      <form onSubmit={onSignup} style={{ display: "grid", gap: 10 }}>
-        <h2>Contact (at least one required)</h2>
+      <div className="form-field">
+        <label htmlFor="signup-email">Email</label>
         <input
-          placeholder="Email (optional)"
+          id="signup-email"
+          type="email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: 10 }}
         />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-phone">Phone (E.164)</label>
         <input
-          placeholder="Phone E.164 (optional, +1555...)"
+          id="signup-phone"
+          type="tel"
+          placeholder="+15551234567"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          style={{ padding: 10 }}
         />
+      </div>
 
-        <h2>Profile</h2>
+      <div className="form-field">
+        <label htmlFor="signup-password">Password</label>
         <input
-          placeholder="Handle (unique, e.g. ashnav)"
+          id="signup-password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-confirm-password">Confirm password</label>
+        <input
+          id="signup-confirm-password"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-handle">Handle</label>
+        <input
+          id="signup-handle"
+          placeholder="e.g. ashnav"
           value={handle}
           onChange={(e) => setHandle(e.target.value)}
-          style={{ padding: 10 }}
           required
         />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-first-name">First name</label>
         <input
-          placeholder="First name"
+          id="signup-first-name"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          style={{ padding: 10 }}
           required
         />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-last-name">Last name</label>
+        <input id="signup-last-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-artist-name">Artist name</label>
         <input
-          placeholder="Last name (optional)"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          style={{ padding: 10 }}
-        />
-        <input
-          placeholder="Artist name"
+          id="signup-artist-name"
           value={artistName}
           onChange={(e) => setArtistName(e.target.value)}
-          style={{ padding: 10 }}
           required
         />
+      </div>
 
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={artistNameIsLegal}
-            onChange={(e) => setArtistNameIsLegal(e.target.checked)}
-          />
-          Artist name is legal name
-        </label>
-
+      <label className="checkbox-field">
         <input
-          placeholder="Display name"
+          type="checkbox"
+          checked={artistNameIsLegal}
+          onChange={(e) => setArtistNameIsLegal(e.target.checked)}
+        />
+        Artist name is my legal name
+      </label>
+
+      <div className="form-field">
+        <label htmlFor="signup-display-name">Display name</label>
+        <input
+          id="signup-display-name"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          style={{ padding: 10 }}
           required
         />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-genres">Genres (comma-separated)</label>
         <input
-          placeholder="Genres (comma-separated, e.g. pop, hiphop)"
+          id="signup-genres"
+          placeholder="pop, hip-hop"
           value={genresCsv}
           onChange={(e) => setGenresCsv(e.target.value)}
-          style={{ padding: 10 }}
         />
-        <input
-          placeholder="City"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          style={{ padding: 10 }}
-          required
-        />
-        <input
-          placeholder="Country"
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          style={{ padding: 10 }}
-          required
-        />
-        <textarea
-          placeholder="Bio (optional)"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          style={{ padding: 10, minHeight: 90 }}
-        />
-        <input
-          placeholder="DOB (optional, YYYY-MM-DD)"
-          value={dob}
-          onChange={(e) => setDob(e.target.value)}
-          style={{ padding: 10 }}
-        />
+      </div>
 
-        <button disabled={loading} type="submit" style={{ padding: 12 }}>
-          {loading ? "Creating..." : "Create account"}
-        </button>
-      </form>
+      <div className="form-field">
+        <label htmlFor="signup-city">City</label>
+        <input id="signup-city" value={city} onChange={(e) => setCity(e.target.value)} required />
+      </div>
 
-      {error ? <p style={{ color: "crimson", marginTop: 12 }}>{error}</p> : null}
+      <div className="form-field">
+        <label htmlFor="signup-country">Country</label>
+        <input id="signup-country" value={country} onChange={(e) => setCountry(e.target.value)} required />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-bio">Bio</label>
+        <textarea id="signup-bio" value={bio} onChange={(e) => setBio(e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="signup-dob">Date of birth</label>
+        <input id="signup-dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+      </div>
+
+      {error ? <p className="error-message">{error}</p> : null}
+
+      <button className="btn btn-primary" type="submit" disabled={loading}>
+        {loading ? "Creating account…" : "Create account"}
+      </button>
+    </form>
+  );
+}
+
+// =====================
+// Dashboard
+// =====================
+function Dashboard({ session, onLogout }: { session: Session; onLogout: () => void }) {
+  const { user, profile } = session;
+
+  return (
+    <div className="dashboard-page">
+      <div className="dashboard-card">
+        <div className="dashboard-header">
+          <h1 className="brand">MusicApp</h1>
+          <button className="btn btn-secondary" type="button" onClick={onLogout}>
+            Log out
+          </button>
+        </div>
+
+        <p className="welcome-message">Welcome, {profile.display_name}</p>
+
+        <dl className="dashboard-grid">
+          <div className="dashboard-item">
+            <dt>Artist name</dt>
+            <dd>{profile.artist_name}</dd>
+          </div>
+          <div className="dashboard-item">
+            <dt>Handle</dt>
+            <dd>@{profile.handle}</dd>
+          </div>
+          <div className="dashboard-item">
+            <dt>Genres</dt>
+            <dd>{profile.genres.length ? profile.genres.join(", ") : "—"}</dd>
+          </div>
+          <div className="dashboard-item">
+            <dt>Location</dt>
+            <dd>
+              {profile.city}, {profile.country}
+            </dd>
+          </div>
+          <div className="dashboard-item">
+            <dt>Email</dt>
+            <dd>{user.email ?? "—"}</dd>
+          </div>
+        </dl>
+      </div>
     </div>
   );
 }
