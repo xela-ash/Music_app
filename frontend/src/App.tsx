@@ -68,6 +68,10 @@ interface LoginResponse {
   profile: Profile;
 }
 
+// GET /profiles returns a narrowed, public-safe subset of Profile (no dob,
+// no user/auth fields) — Profile itself stays accurate for /auth/* routes.
+type DiscoverProfile = Omit<Profile, "dob">;
+
 type AppState = "loading" | "unauthenticated" | "authenticated";
 type AuthMode = "login" | "signup";
 
@@ -145,7 +149,7 @@ export default function App() {
   }
 
   if (appState === "authenticated" && session) {
-    return <Dashboard session={session} onLogout={handleLogout} />;
+    return <AppShell session={session} onLogout={handleLogout} />;
   }
 
   return (
@@ -463,48 +467,262 @@ function SignupForm({ onSignupSuccess }: { onSignupSuccess: () => void }) {
 }
 
 // =====================
-// Dashboard
+// App shell (authenticated)
 // =====================
-function Dashboard({ session, onLogout }: { session: Session; onLogout: () => void }) {
-  const { user, profile } = session;
+type AuthenticatedView = "home" | "discover";
+
+interface NavItem {
+  label: string;
+  view: AuthenticatedView | null; // null = visible but inert (no destination yet)
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { label: "Home", view: "home" },
+  { label: "Discover", view: "discover" },
+  { label: "Projects", view: null },
+  { label: "Messages", view: null },
+  { label: "Profile", view: null },
+];
+
+interface DiscoverCategory {
+  title: string;
+  description: string;
+}
+
+const DISCOVER_CATEGORIES: DiscoverCategory[] = [
+  { title: "Producers", description: "Beats, production and arrangement" },
+  { title: "Mixing Engineers", description: "Mix and polish your records" },
+  { title: "Mastering Engineers", description: "Prepare your music for release" },
+  { title: "Artists & Vocalists", description: "Features, hooks and collaborations" },
+];
+
+function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
+  const [view, setView] = useState<AuthenticatedView>("home");
+  const { profile } = session;
+  const greetingName = profile.first_name || profile.display_name;
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-card">
-        <div className="dashboard-header">
-          <h1 className="brand">MusicApp</h1>
-          <button className="btn btn-secondary" type="button" onClick={onLogout}>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="sidebar-top">
+          <div className="sidebar-brand">MusicApp</div>
+
+          <nav className="sidebar-nav">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={`nav-item ${item.view === view ? "nav-item-active" : ""}`}
+                onClick={item.view ? () => setView(item.view as AuthenticatedView) : undefined}
+              >
+                <span className="nav-indicator" aria-hidden="true" />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="sidebar-bottom">
+          <div className="sidebar-user">
+            <p className="sidebar-user-name">{profile.display_name}</p>
+            <p className="sidebar-user-handle">@{profile.handle}</p>
+          </div>
+          <button type="button" className="btn btn-secondary sidebar-logout" onClick={onLogout}>
             Log out
           </button>
         </div>
+      </aside>
 
-        <p className="welcome-message">Welcome, {profile.display_name}</p>
+      <main className="main-content">
+        {view === "discover" ? (
+          <DiscoverScreen currentUserId={session.user.id} />
+        ) : (
+          <>
+            <header className="content-header">
+              <p className="greeting">Welcome back, {greetingName}</p>
+              <h1 className="content-heading">What are you creating?</h1>
+              <p className="content-subcopy">
+                Find collaborators and manage your music projects, from the first idea through to
+                a finished, released record.
+              </p>
+              <div className="content-actions">
+                <button type="button" className="btn btn-primary" onClick={() => setView("discover")}>
+                  Discover talent
+                </button>
+                <button type="button" className="btn btn-secondary">
+                  Start a project
+                </button>
+              </div>
+            </header>
 
-        <dl className="dashboard-grid">
-          <div className="dashboard-item">
-            <dt>Artist name</dt>
-            <dd>{profile.artist_name}</dd>
-          </div>
-          <div className="dashboard-item">
-            <dt>Handle</dt>
-            <dd>@{profile.handle}</dd>
-          </div>
-          <div className="dashboard-item">
-            <dt>Genres</dt>
-            <dd>{profile.genres.length ? profile.genres.join(", ") : "—"}</dd>
-          </div>
-          <div className="dashboard-item">
-            <dt>Location</dt>
-            <dd>
-              {profile.city}, {profile.country}
-            </dd>
-          </div>
-          <div className="dashboard-item">
-            <dt>Email</dt>
-            <dd>{user.email ?? "—"}</dd>
-          </div>
-        </dl>
+            <section className="content-section">
+              <h2 className="section-heading">Active projects</h2>
+
+              <div className="empty-state">
+                <p className="empty-state-title">No active projects yet.</p>
+                <p className="empty-state-copy">
+                  When you start working with someone, your projects and milestone progress will
+                  appear here.
+                </p>
+                <button type="button" className="btn btn-primary">
+                  Start a project
+                </button>
+              </div>
+            </section>
+
+            <section className="content-section">
+              <h2 className="section-heading">Discover</h2>
+              <p className="section-subcopy">Find people to make music with.</p>
+
+              <div className="discover-grid">
+                {DISCOVER_CATEGORIES.map((category) => (
+                  <button
+                    type="button"
+                    className="discover-card"
+                    key={category.title}
+                    onClick={() => setView("discover")}
+                  >
+                    <h3 className="discover-card-title">{category.title}</h3>
+                    <p className="discover-card-copy">{category.description}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+// =====================
+// Discover screen
+// =====================
+function profileMatchesQuery(profile: DiscoverProfile, query: string): boolean {
+  if (!query) return true;
+  const haystacks = [
+    profile.display_name,
+    profile.artist_name,
+    profile.handle,
+    profile.city,
+    profile.country,
+    ...profile.genres,
+  ];
+  return haystacks.some((value) => value.toLowerCase().includes(query));
+}
+
+function DiscoverScreen({ currentUserId }: { currentUserId: string }) {
+  const [profiles, setProfiles] = useState<DiscoverProfile[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+
+    (async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        const data = (await apiGet("/profiles", token ?? undefined)) as {
+          profiles: DiscoverProfile[];
+        };
+        if (cancelled) return;
+        setProfiles(data.profiles.filter((p) => p.user_id !== currentUserId));
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setError(getErrorMessage(err));
+        setProfiles(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, reloadKey]);
+
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  const filteredProfiles = profiles ? profiles.filter((p) => profileMatchesQuery(p, trimmedQuery)) : [];
+
+  return (
+    <div className="discover-view">
+      <header className="content-header">
+        <p className="eyebrow">Discover</p>
+        <h1 className="content-heading">Find people to make music with.</h1>
+        <p className="content-subcopy">
+          Explore artists, producers and engineers ready to collaborate.
+        </p>
+
+        <input
+          type="search"
+          className="search-input"
+          placeholder="Search by name, handle, genre or location"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </header>
+
+      {loading ? (
+        <p className="status-message">Finding collaborators...</p>
+      ) : error ? (
+        <div className="empty-state">
+          <p className="error-message">{error}</p>
+          <button type="button" className="btn btn-secondary" onClick={() => setReloadKey((k) => k + 1)}>
+            Try again
+          </button>
+        </div>
+      ) : profiles && profiles.length === 0 ? (
+        <div className="empty-state">
+          <p className="empty-state-title">No collaborators found yet.</p>
+          <p className="empty-state-copy">
+            More artists and music professionals will appear here as they join MusicApp.
+          </p>
+        </div>
+      ) : filteredProfiles.length === 0 ? (
+        <div className="empty-state">
+          <p className="empty-state-title">No profiles match your search.</p>
+        </div>
+      ) : (
+        <div className="profile-grid">
+          {filteredProfiles.map((profile) => (
+            <ProfileCard key={profile.id} profile={profile} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfileCard({ profile }: { profile: DiscoverProfile }) {
+  return (
+    <div className="profile-card">
+      <p className="profile-card-name">{profile.display_name}</p>
+      <p className="profile-card-handle">@{profile.handle}</p>
+      <p className="profile-card-artist">{profile.artist_name}</p>
+
+      <div className="profile-card-genres">
+        {profile.genres.length ? (
+          profile.genres.map((genre) => (
+            <span className="genre-chip" key={genre}>
+              {genre}
+            </span>
+          ))
+        ) : (
+          <span className="genre-chip genre-chip-muted">Open to collaboration</span>
+        )}
       </div>
+
+      <p className="profile-card-location">
+        {profile.city}, {profile.country}
+      </p>
+
+      <button type="button" className="btn btn-secondary profile-card-action">
+        View profile
+      </button>
     </div>
   );
 }

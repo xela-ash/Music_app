@@ -470,13 +470,15 @@ app.get("/auth/me", requireAuth, async (req, res) => {
 // =====================
 // START SERVER
 // =====================
-app.get("/profiles", async (req, res) => {
+app.get("/profiles", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT p.*, u.email, u.phone_e164
-       FROM profiles p
-       JOIN users u ON u.id = p.user_id
-       ORDER BY p.created_at DESC
+      `SELECT
+         id, external_id, user_id, handle, first_name, last_name, artist_name,
+         artist_name_is_legal_name, display_name, genres, city, country, bio,
+         profile_photo_asset_id, created_at, updated_at
+       FROM profiles
+       ORDER BY created_at DESC
        LIMIT 100`
     );
     res.json({ profiles: result.rows });
