@@ -91,7 +91,7 @@ interface Project {
   seller_user_id: string;
   title: string;
   requirements: string;
-  price_amount: number; // integer minor units, e.g. 15050 = USD 150.50
+  price_amount: number; // integer minor units in `currency`, e.g. paise for INR, cents for USD
   currency: string;
   delivery_days: number;
   revision_limit: number;
@@ -103,6 +103,39 @@ interface Project {
   updated_at: string;
 }
 
+type MilestoneState =
+  | "planned"
+  | "funded"
+  | "in_progress"
+  | "delivered"
+  | "buyer_approved"
+  | "released"
+  | "refunded"
+  | "disputed"
+  | "cancelled";
+
+interface ProjectMilestone {
+  id: string;
+  external_id: string;
+  project_id: string;
+  milestone_no: number;
+  title: string;
+  description: string | null;
+  amount: number; // integer minor units in `currency`, e.g. paise for INR, cents for USD
+  currency: string;
+  due_at: string | null;
+  state: MilestoneState;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreateProjectMilestonePayload {
+  title: string;
+  description: string | null;
+  amount: number;
+  due_at: string | null;
+}
+
 interface CreateProjectPayload {
   seller_user_id: string;
   title: string;
@@ -110,6 +143,12 @@ interface CreateProjectPayload {
   price_amount: number;
   delivery_days: number;
   revision_limit: number;
+  milestones: CreateProjectMilestonePayload[];
+}
+
+interface CreateProjectResponse {
+  project: Project;
+  milestones: ProjectMilestone[];
 }
 
 // The minimal collaborator identity carried alongside a project — present on
@@ -560,6 +599,9 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
   const [view, setView] = useState<AuthenticatedView>("home");
   const [selectedProfile, setSelectedProfile] = useState<DiscoverProfile | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProjectMilestones, setSelectedProjectMilestones] = useState<ProjectMilestone[] | null>(
+    null
+  );
   const [selectedCollaborator, setSelectedCollaborator] = useState<ProjectPartyProfile | null>(null);
   const { profile } = session;
   const greetingName = profile.first_name || profile.display_name;
@@ -580,8 +622,9 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
     setView("profileDetail");
   }
 
-  function handleProjectCreated(project: Project) {
+  function handleProjectCreated(project: Project, milestones: ProjectMilestone[]) {
     setSelectedProject(project);
+    setSelectedProjectMilestones(milestones);
     if (selectedProfile) {
       setSelectedCollaborator({
         user_id: selectedProfile.user_id,
@@ -596,6 +639,9 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
   function openProjectDetail(project: ProjectWithParties) {
     const isBuyer = project.buyer_user_id === session.user.id;
     setSelectedProject(project);
+    // GET /projects does not include milestones yet — this stage's project
+    // detail is only guaranteed to have them right after creation.
+    setSelectedProjectMilestones(null);
     setSelectedCollaborator(isBuyer ? project.seller_profile : project.buyer_profile);
     setView("projectDetail");
   }
@@ -671,6 +717,7 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
         ) : view === "projectDetail" && selectedProject ? (
           <ProjectDetailScreen
             project={selectedProject}
+            milestones={selectedProjectMilestones}
             collaborator={selectedCollaborator}
             currentUserId={session.user.id}
             onBackToProfile={canShowBackToProfile ? () => setView("profileDetail") : null}
@@ -981,9 +1028,20 @@ function ProfileDetailScreen({
 // Create project screen
 // =====================
 
-// Converts a USD major-unit string ("150.5", "150.50") to integer minor
-// units (15050) using string/integer arithmetic only — no floating-point
-// multiplication, so there's no rounding drift for values like 150.1.
+// projects.price_amount and project_milestones.amount are PostgreSQL INTEGER
+// columns on the backend — mirrors backend/Index.js's POSTGRES_INT_MAX so the
+// form can reject an out-of-range amount before it ever reaches the API.
+const POSTGRES_INT_MAX = 2147483647;
+
+// Mirrors backend/Index.js's PROJECT_CURRENCY — every project this form can
+// create is stamped INR server-side, so the live summary and payload
+// semantics are always denominated in rupees here.
+const PROJECT_CURRENCY = "INR";
+
+// Converts a rupee major-unit string ("1500.5", "1500.50") to integer minor
+// units, i.e. paise (150050), using string/integer arithmetic only — no
+// floating-point multiplication, so there's no rounding drift for values
+// like 1500.1.
 function parseBudgetToMinorUnits(input: string): number | null {
   const trimmed = input.trim();
   if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
@@ -1011,6 +1069,18 @@ function parseNonNegativeIntegerOrDefault(input: string): number | null {
   return Number(trimmed);
 }
 
+interface MilestoneFormRow {
+  key: string;
+  title: string;
+  description: string;
+  amountInput: string;
+  dueDateInput: string; // "" or "YYYY-MM-DD" from <input type="date">
+}
+
+function makeEmptyMilestoneRow(): MilestoneFormRow {
+  return { key: crypto.randomUUID(), title: "", description: "", amountInput: "", dueDateInput: "" };
+}
+
 function CreateProjectScreen({
   profile,
   onBack,
@@ -1018,15 +1088,35 @@ function CreateProjectScreen({
 }: {
   profile: DiscoverProfile;
   onBack: () => void;
-  onCreated: (project: Project) => void;
+  onCreated: (project: Project, milestones: ProjectMilestone[]) => void;
 }) {
   const [title, setTitle] = useState("");
   const [requirements, setRequirements] = useState("");
   const [budgetInput, setBudgetInput] = useState("");
   const [deliveryDaysInput, setDeliveryDaysInput] = useState("");
   const [revisionLimitInput, setRevisionLimitInput] = useState("");
+  const [milestoneRows, setMilestoneRows] = useState<MilestoneFormRow[]>(() => [makeEmptyMilestoneRow()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  function addMilestoneRow() {
+    setMilestoneRows((rows) => [...rows, makeEmptyMilestoneRow()]);
+  }
+
+  function removeMilestoneRow(key: string) {
+    setMilestoneRows((rows) => (rows.length <= 1 ? rows : rows.filter((row) => row.key !== key)));
+  }
+
+  function updateMilestoneRow(key: string, patch: Partial<MilestoneFormRow>) {
+    setMilestoneRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
+  const budgetMinorUnits = parseBudgetToMinorUnits(budgetInput) ?? 0;
+  const milestoneTotalMinorUnits = milestoneRows.reduce(
+    (sum, row) => sum + (parseBudgetToMinorUnits(row.amountInput) ?? 0),
+    0
+  );
+  const remainingMinorUnits = budgetMinorUnits - milestoneTotalMinorUnits;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -1043,7 +1133,11 @@ function CreateProjectScreen({
 
     const priceAmount = parseBudgetToMinorUnits(budgetInput);
     if (priceAmount === null) {
-      setError("Enter a valid budget in USD, e.g. 150 or 150.50.");
+      setError("Enter a valid budget in INR, e.g. 1500 or 1500.50.");
+      return;
+    }
+    if (priceAmount > POSTGRES_INT_MAX) {
+      setError("Amount exceeds the supported project limit.");
       return;
     }
 
@@ -1059,6 +1153,35 @@ function CreateProjectScreen({
       return;
     }
 
+    const preparedMilestones: CreateProjectMilestonePayload[] = [];
+    for (const row of milestoneRows) {
+      if (!row.title.trim()) {
+        setError("Every milestone needs a title.");
+        return;
+      }
+      const milestoneAmount = parseBudgetToMinorUnits(row.amountInput);
+      if (milestoneAmount === null) {
+        setError("Enter a valid amount for every milestone in INR, e.g. 500 or 500.50.");
+        return;
+      }
+      if (milestoneAmount > POSTGRES_INT_MAX) {
+        setError("Amount exceeds the supported project limit.");
+        return;
+      }
+      preparedMilestones.push({
+        title: row.title.trim(),
+        description: row.description.trim() ? row.description.trim() : null,
+        amount: milestoneAmount,
+        due_at: row.dueDateInput.trim() ? row.dueDateInput.trim() : null,
+      });
+    }
+
+    const milestoneTotal = preparedMilestones.reduce((sum, m) => sum + m.amount, 0);
+    if (milestoneTotal !== priceAmount) {
+      setError("Milestone amounts must equal the project budget.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -1069,11 +1192,12 @@ function CreateProjectScreen({
         price_amount: priceAmount,
         delivery_days: deliveryDays,
         revision_limit: revisionLimit,
+        milestones: preparedMilestones,
       };
 
       const token = localStorage.getItem(TOKEN_KEY);
-      const data = (await apiPost("/projects", payload, token ?? undefined)) as { project: Project };
-      onCreated(data.project);
+      const data = (await apiPost("/projects", payload, token ?? undefined)) as CreateProjectResponse;
+      onCreated(data.project, data.milestones);
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -1123,16 +1247,17 @@ function CreateProjectScreen({
         </div>
 
         <div className="form-field">
-          <label htmlFor="create-project-budget">Budget (USD)</label>
+          <label htmlFor="create-project-budget">Budget (INR)</label>
           <input
             id="create-project-budget"
             type="text"
             inputMode="decimal"
-            placeholder="150.00"
+            placeholder="1500.00"
             value={budgetInput}
             onChange={(e) => setBudgetInput(e.target.value)}
             required
           />
+          <p className="form-hint">Enter the amount in rupees, for example 1500.00.</p>
         </div>
 
         <div className="form-field">
@@ -1161,6 +1286,108 @@ function CreateProjectScreen({
           />
         </div>
 
+        <div className="milestones-form-section">
+          <div className="milestones-form-header">
+            <h2 className="section-heading">Milestones</h2>
+            <p className="section-subcopy">
+              Break the work into fixed, fundable stages. Milestone totals must match the budget above.
+            </p>
+          </div>
+
+          {milestoneRows.map((row, index) => (
+            <div className="milestone-form-row" key={row.key}>
+              <div className="milestone-form-row-header">
+                <span className="milestone-form-number">Milestone {index + 1}</span>
+                {milestoneRows.length > 1 ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary milestone-remove-btn"
+                    onClick={() => removeMilestoneRow(row.key)}
+                    disabled={loading}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="form-field">
+                <label htmlFor={`milestone-title-${row.key}`}>Title</label>
+                <input
+                  id={`milestone-title-${row.key}`}
+                  value={row.title}
+                  onChange={(e) => updateMilestoneRow(row.key, { title: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor={`milestone-description-${row.key}`}>Description (optional)</label>
+                <textarea
+                  id={`milestone-description-${row.key}`}
+                  value={row.description}
+                  onChange={(e) => updateMilestoneRow(row.key, { description: e.target.value })}
+                />
+              </div>
+
+              <div className="milestone-form-row-fields">
+                <div className="form-field">
+                  <label htmlFor={`milestone-amount-${row.key}`}>Amount (INR)</label>
+                  <input
+                    id={`milestone-amount-${row.key}`}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="500.00"
+                    value={row.amountInput}
+                    onChange={(e) => updateMilestoneRow(row.key, { amountInput: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor={`milestone-due-${row.key}`}>Due date (optional)</label>
+                  <input
+                    id={`milestone-due-${row.key}`}
+                    type="date"
+                    value={row.dueDateInput}
+                    onChange={(e) => updateMilestoneRow(row.key, { dueDateInput: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            className="btn btn-secondary add-milestone-btn"
+            onClick={addMilestoneRow}
+            disabled={loading}
+          >
+            Add milestone
+          </button>
+
+          <div className="milestone-summary">
+            <div className="milestone-summary-row">
+              <span>Project budget</span>
+              <span>{formatCurrencyFromMinorUnits(budgetMinorUnits, PROJECT_CURRENCY)}</span>
+            </div>
+            <div className="milestone-summary-row">
+              <span>Milestone total</span>
+              <span>{formatCurrencyFromMinorUnits(milestoneTotalMinorUnits, PROJECT_CURRENCY)}</span>
+            </div>
+            <div
+              className={`milestone-summary-row milestone-summary-remaining ${
+                remainingMinorUnits < 0 ? "milestone-summary-negative" : ""
+              }`}
+            >
+              <span>Remaining</span>
+              <span>
+                {remainingMinorUnits < 0 ? "-" : ""}
+                {formatCurrencyFromMinorUnits(Math.abs(remainingMinorUnits), PROJECT_CURRENCY)}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {error ? <p className="error-message">{error}</p> : null}
 
         <div className="content-actions">
@@ -1179,18 +1406,34 @@ function CreateProjectScreen({
 // =====================
 // Project detail screen
 // =====================
-function formatUsdFromMinorUnits(minorUnits: number): string {
-  return `$${(minorUnits / 100).toFixed(2)}`;
+// Old development records may still carry other currencies (e.g. USD) from
+// before MusicApp locked to INR — pick a sensible display locale per
+// currency rather than assuming INR everywhere.
+function localeForCurrency(currency: string): string {
+  return currency === "INR" ? "en-IN" : "en-US";
+}
+
+function formatCurrencyFromMinorUnits(minorUnits: number, currency: string): string {
+  return new Intl.NumberFormat(localeForCurrency(currency), {
+    style: "currency",
+    currency,
+  }).format(minorUnits / 100);
+}
+
+function formatMilestoneState(state: MilestoneState): string {
+  return state.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function ProjectDetailScreen({
   project,
+  milestones,
   collaborator,
   currentUserId,
   onBackToProfile,
   onViewProjects,
 }: {
   project: Project;
+  milestones: ProjectMilestone[] | null;
   collaborator: ProjectPartyProfile | null;
   currentUserId: string;
   onBackToProfile: (() => void) | null;
@@ -1214,16 +1457,14 @@ function ProjectDetailScreen({
 
       <div className="empty-state project-detail-banner">
         <p className="empty-state-title">Draft project</p>
-        <p className="empty-state-copy">
-          Funding and milestone setup will be added in the next project stage.
-        </p>
+        <p className="empty-state-copy">Funding will be added in the next project stage.</p>
       </div>
 
       <div className="project-detail-meta">
         <div className="project-detail-meta-item">
           <p className="project-detail-meta-label">Budget</p>
           <p className="project-detail-meta-value">
-            {formatUsdFromMinorUnits(project.price_amount)}
+            {formatCurrencyFromMinorUnits(project.price_amount, project.currency)}
           </p>
         </div>
         <div className="project-detail-meta-item">
@@ -1243,6 +1484,40 @@ function ProjectDetailScreen({
       <section className="profile-detail-section">
         <h2 className="section-heading">Requirements</h2>
         <p className="profile-detail-bio">{project.requirements}</p>
+      </section>
+
+      <section className="profile-detail-section milestones-section">
+        <h2 className="section-heading">Milestones</h2>
+        {milestones === null ? (
+          <p className="section-subcopy">Milestone details will load in the next project stage.</p>
+        ) : (
+          <div className="milestone-list">
+            {milestones.map((milestone) => (
+              <div className="milestone-item" key={milestone.id}>
+                <div className="milestone-item-number" aria-hidden="true">
+                  {milestone.milestone_no}
+                </div>
+                <div className="milestone-item-body">
+                  <div className="milestone-item-header">
+                    <p className="milestone-item-title">{milestone.title}</p>
+                    <span className="status-badge">{formatMilestoneState(milestone.state)}</span>
+                  </div>
+                  {milestone.description ? (
+                    <p className="milestone-item-description">{milestone.description}</p>
+                  ) : null}
+                  <div className="milestone-item-meta">
+                    <span>{formatCurrencyFromMinorUnits(milestone.amount, milestone.currency)}</span>
+                    <span>
+                      {milestone.due_at
+                        ? new Date(milestone.due_at).toLocaleDateString()
+                        : "No due date"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="content-actions">
@@ -1379,7 +1654,7 @@ function ProjectCard({
       <p className="profile-card-handle">@{collaborator.handle}</p>
 
       <div className="project-card-terms">
-        <span>{formatUsdFromMinorUnits(project.price_amount)}</span>
+        <span>{formatCurrencyFromMinorUnits(project.price_amount, project.currency)}</span>
         <span>{project.delivery_days} days</span>
         <span>{project.revision_limit} revisions</span>
       </div>
