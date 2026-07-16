@@ -501,6 +501,17 @@ const SAFE_PROJECT_FIELDS = `
   accepted_at, delivered_at, completed_at, created_at, updated_at
 `;
 
+// Table-prefixed variant for the GET /projects listing query below, which
+// joins profiles twice (buyer + seller) — bare column names like `id` or
+// `created_at` would otherwise be ambiguous against those joined tables.
+// Kept separate from SAFE_PROJECT_FIELDS so POST /projects (no joins) is
+// untouched.
+const SAFE_PROJECT_FIELDS_JOINED = `
+  pr.id, pr.external_id, pr.buyer_user_id, pr.seller_user_id, pr.title, pr.requirements,
+  pr.price_amount, pr.currency, pr.delivery_days, pr.revision_limit, pr.state,
+  pr.accepted_at, pr.delivered_at, pr.completed_at, pr.created_at, pr.updated_at
+`;
+
 // Matches the canonical 8-4-4-4-12 hex form PostgreSQL's uuid type expects,
 // rejecting malformed values before they can reach a query (avoids 22P02).
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -600,13 +611,56 @@ app.post("/projects", requireAuth, async (req, res) => {
 app.get("/projects", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT ${SAFE_PROJECT_FIELDS}
-       FROM projects
-       WHERE buyer_user_id = $1 OR seller_user_id = $1
-       ORDER BY created_at DESC`,
+      `SELECT
+         ${SAFE_PROJECT_FIELDS_JOINED},
+         bp.user_id AS buyer_profile_user_id,
+         bp.display_name AS buyer_profile_display_name,
+         bp.handle AS buyer_profile_handle,
+         bp.artist_name AS buyer_profile_artist_name,
+         sp.user_id AS seller_profile_user_id,
+         sp.display_name AS seller_profile_display_name,
+         sp.handle AS seller_profile_handle,
+         sp.artist_name AS seller_profile_artist_name
+       FROM projects pr
+       JOIN profiles bp ON bp.user_id = pr.buyer_user_id
+       JOIN profiles sp ON sp.user_id = pr.seller_user_id
+       WHERE pr.buyer_user_id = $1 OR pr.seller_user_id = $1
+       ORDER BY pr.created_at DESC`,
       [req.auth.sub]
     );
-    res.json({ projects: result.rows });
+
+    const projects = result.rows.map((row) => ({
+      id: row.id,
+      external_id: row.external_id,
+      buyer_user_id: row.buyer_user_id,
+      seller_user_id: row.seller_user_id,
+      title: row.title,
+      requirements: row.requirements,
+      price_amount: row.price_amount,
+      currency: row.currency,
+      delivery_days: row.delivery_days,
+      revision_limit: row.revision_limit,
+      state: row.state,
+      accepted_at: row.accepted_at,
+      delivered_at: row.delivered_at,
+      completed_at: row.completed_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      buyer_profile: {
+        user_id: row.buyer_profile_user_id,
+        display_name: row.buyer_profile_display_name,
+        handle: row.buyer_profile_handle,
+        artist_name: row.buyer_profile_artist_name,
+      },
+      seller_profile: {
+        user_id: row.seller_profile_user_id,
+        display_name: row.seller_profile_display_name,
+        handle: row.seller_profile_handle,
+        artist_name: row.seller_profile_artist_name,
+      },
+    }));
+
+    res.json({ projects });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

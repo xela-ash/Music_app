@@ -112,6 +112,20 @@ interface CreateProjectPayload {
   revision_limit: number;
 }
 
+// The minimal collaborator identity carried alongside a project — present on
+// every GET /projects row, but never on the plain POST /projects response.
+interface ProjectPartyProfile {
+  user_id: string;
+  display_name: string;
+  handle: string;
+  artist_name: string;
+}
+
+interface ProjectWithParties extends Project {
+  buyer_profile: ProjectPartyProfile;
+  seller_profile: ProjectPartyProfile;
+}
+
 type AppState = "loading" | "unauthenticated" | "authenticated";
 type AuthMode = "login" | "signup";
 
@@ -509,7 +523,13 @@ function SignupForm({ onSignupSuccess }: { onSignupSuccess: () => void }) {
 // =====================
 // App shell (authenticated)
 // =====================
-type AuthenticatedView = "home" | "discover" | "profileDetail" | "createProject" | "projectDetail";
+type AuthenticatedView =
+  | "home"
+  | "discover"
+  | "profileDetail"
+  | "createProject"
+  | "projects"
+  | "projectDetail";
 
 interface NavItem {
   label: string;
@@ -519,7 +539,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "Home", view: "home" },
   { label: "Discover", view: "discover" },
-  { label: "Projects", view: null },
+  { label: "Projects", view: "projects" },
   { label: "Messages", view: null },
   { label: "Profile", view: null },
 ];
@@ -540,6 +560,7 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
   const [view, setView] = useState<AuthenticatedView>("home");
   const [selectedProfile, setSelectedProfile] = useState<DiscoverProfile | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedCollaborator, setSelectedCollaborator] = useState<ProjectPartyProfile | null>(null);
   const { profile } = session;
   const greetingName = profile.first_name || profile.display_name;
 
@@ -561,12 +582,36 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
 
   function handleProjectCreated(project: Project) {
     setSelectedProject(project);
+    if (selectedProfile) {
+      setSelectedCollaborator({
+        user_id: selectedProfile.user_id,
+        display_name: selectedProfile.display_name,
+        handle: selectedProfile.handle,
+        artist_name: selectedProfile.artist_name,
+      });
+    }
     setView("projectDetail");
   }
 
+  function openProjectDetail(project: ProjectWithParties) {
+    const isBuyer = project.buyer_user_id === session.user.id;
+    setSelectedProject(project);
+    setSelectedCollaborator(isBuyer ? project.seller_profile : project.buyer_profile);
+    setView("projectDetail");
+  }
+
+  // "Back to profile" is only safe to offer when the rich DiscoverProfile we
+  // already hold (from the Discover -> profile-detail flow) is genuinely the
+  // same person as the collaborator on the currently open project — not just
+  // a stale profile left over from viewing someone else earlier.
+  const canShowBackToProfile =
+    selectedProfile !== null &&
+    selectedCollaborator !== null &&
+    selectedProfile.user_id === selectedCollaborator.user_id;
+
   // Discover stays visually active through the profile/create-project flow.
   const isDiscoverActive = view === "discover" || view === "profileDetail" || view === "createProject";
-  const isProjectsActive = view === "projectDetail";
+  const isProjectsActive = view === "projects" || view === "projectDetail";
 
   return (
     <div className="app-shell">
@@ -626,8 +671,16 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
         ) : view === "projectDetail" && selectedProject ? (
           <ProjectDetailScreen
             project={selectedProject}
-            profile={selectedProfile}
-            onBackToProfile={() => setView("profileDetail")}
+            collaborator={selectedCollaborator}
+            currentUserId={session.user.id}
+            onBackToProfile={canShowBackToProfile ? () => setView("profileDetail") : null}
+            onViewProjects={() => setView("projects")}
+          />
+        ) : view === "projects" ? (
+          <ProjectsScreen
+            currentUserId={session.user.id}
+            onViewProject={openProjectDetail}
+            onDiscoverTalent={() => setView("discover")}
           />
         ) : view === "discover" ? (
           <DiscoverScreen currentUserId={session.user.id} onViewProfile={openProfileDetail} />
@@ -1132,23 +1185,29 @@ function formatUsdFromMinorUnits(minorUnits: number): string {
 
 function ProjectDetailScreen({
   project,
-  profile,
+  collaborator,
+  currentUserId,
   onBackToProfile,
+  onViewProjects,
 }: {
   project: Project;
-  profile: DiscoverProfile | null;
-  onBackToProfile: () => void;
+  collaborator: ProjectPartyProfile | null;
+  currentUserId: string;
+  onBackToProfile: (() => void) | null;
+  onViewProjects: () => void;
 }) {
   const createdDate = new Date(project.created_at).toLocaleDateString();
+  const isBuyer = project.buyer_user_id === currentUserId;
+  const roleContext = isBuyer ? "You are hiring" : "You are working with";
 
   return (
     <div className="project-detail">
       <header className="content-header">
         <p className="eyebrow">Project</p>
         <h1 className="content-heading">{project.title}</h1>
-        {profile ? (
+        {collaborator ? (
           <p className="content-subcopy">
-            With {profile.display_name} (@{profile.handle})
+            {roleContext} {collaborator.display_name} (@{collaborator.handle})
           </p>
         ) : null}
       </header>
@@ -1187,13 +1246,153 @@ function ProjectDetailScreen({
       </section>
 
       <div className="content-actions">
-        <button type="button" className="btn btn-primary" onClick={onBackToProfile}>
-          Back to profile
-        </button>
-        <button type="button" className="btn btn-secondary">
+        {onBackToProfile ? (
+          <button type="button" className="btn btn-primary" onClick={onBackToProfile}>
+            Back to profile
+          </button>
+        ) : null}
+        <button type="button" className="btn btn-secondary" onClick={onViewProjects}>
           View projects
         </button>
       </div>
+    </div>
+  );
+}
+
+// =====================
+// Projects screen
+// =====================
+function formatProjectState(state: ProjectState): string {
+  return state.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function ProjectsScreen({
+  currentUserId,
+  onViewProject,
+  onDiscoverTalent,
+}: {
+  currentUserId: string;
+  onViewProject: (project: ProjectWithParties) => void;
+  onDiscoverTalent: () => void;
+}) {
+  const [projects, setProjects] = useState<ProjectWithParties[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+
+    (async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        const data = (await apiGet("/projects", token ?? undefined)) as {
+          projects: ProjectWithParties[];
+        };
+        if (cancelled) return;
+        setProjects(data.projects);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setError(getErrorMessage(err));
+        setProjects(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  return (
+    <div className="projects-view">
+      <header className="content-header">
+        <p className="eyebrow">Projects</p>
+        <h1 className="content-heading">Your music projects</h1>
+        <p className="content-subcopy">
+          Track collaborations where you are hiring talent or delivering creative work.
+        </p>
+      </header>
+
+      {loading ? (
+        <p className="status-message">Loading projects...</p>
+      ) : error ? (
+        <div className="empty-state">
+          <p className="error-message">{error}</p>
+          <button type="button" className="btn btn-secondary" onClick={() => setReloadKey((k) => k + 1)}>
+            Try again
+          </button>
+        </div>
+      ) : projects && projects.length === 0 ? (
+        <div className="empty-state">
+          <p className="empty-state-title">No projects yet.</p>
+          <p className="empty-state-copy">
+            Start by discovering a collaborator and creating your first project.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={onDiscoverTalent}>
+            Discover talent
+          </button>
+        </div>
+      ) : (
+        <div className="project-grid">
+          {(projects ?? []).map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              currentUserId={currentUserId}
+              onView={onViewProject}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectCard({
+  project,
+  currentUserId,
+  onView,
+}: {
+  project: ProjectWithParties;
+  currentUserId: string;
+  onView: (project: ProjectWithParties) => void;
+}) {
+  const isBuyer = project.buyer_user_id === currentUserId;
+  const roleLabel = isBuyer ? "You are the buyer" : "You are the seller";
+  const collaborator = isBuyer ? project.seller_profile : project.buyer_profile;
+  const createdDate = new Date(project.created_at).toLocaleDateString();
+
+  return (
+    <div className="project-card">
+      <div className="project-card-header">
+        <p className="project-card-title">{project.title}</p>
+        <span className="status-badge">{formatProjectState(project.state)}</span>
+      </div>
+
+      <p className="project-card-role">{roleLabel}</p>
+
+      <p className="profile-card-name">{collaborator.display_name}</p>
+      <p className="profile-card-handle">@{collaborator.handle}</p>
+
+      <div className="project-card-terms">
+        <span>{formatUsdFromMinorUnits(project.price_amount)}</span>
+        <span>{project.delivery_days} days</span>
+        <span>{project.revision_limit} revisions</span>
+      </div>
+
+      <p className="project-card-date">Started {createdDate}</p>
+
+      <button
+        type="button"
+        className="btn btn-secondary profile-card-action"
+        onClick={() => onView(project)}
+      >
+        View project
+      </button>
     </div>
   );
 }
