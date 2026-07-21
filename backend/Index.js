@@ -502,7 +502,7 @@ function makeMilestoneExternalId() {
 const SAFE_PROJECT_FIELDS = `
   id, external_id, buyer_user_id, seller_user_id, title, requirements,
   price_amount, currency, delivery_days, revision_limit, state,
-  accepted_at, delivered_at, completed_at, created_at, updated_at
+  accepted_at, delivered_at, completed_at, milestones_locked_at, created_at, updated_at
 `;
 
 const SAFE_MILESTONE_FIELDS = `
@@ -601,7 +601,7 @@ function validateMilestonesInput(milestones) {
 const SAFE_PROJECT_FIELDS_JOINED = `
   pr.id, pr.external_id, pr.buyer_user_id, pr.seller_user_id, pr.title, pr.requirements,
   pr.price_amount, pr.currency, pr.delivery_days, pr.revision_limit, pr.state,
-  pr.accepted_at, pr.delivered_at, pr.completed_at, pr.created_at, pr.updated_at
+  pr.accepted_at, pr.delivered_at, pr.completed_at, pr.milestones_locked_at, pr.created_at, pr.updated_at
 `;
 
 // Matches the canonical 8-4-4-4-12 hex form PostgreSQL's uuid type expects,
@@ -806,6 +806,7 @@ app.get("/projects", requireAuth, async (req, res) => {
       accepted_at: row.accepted_at,
       delivered_at: row.delivered_at,
       completed_at: row.completed_at,
+      milestones_locked_at: row.milestones_locked_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
       buyer_profile: {
@@ -826,6 +827,95 @@ app.get("/projects", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Locks a project's milestone plan: after this, the protect_locked_milestones
+// trigger (migration 008) rejects any add/remove/commercial-field edit to
+// this project's milestones. Does not touch escrow, funding, or work state —
+// those are separate, later steps.
+app.post("/projects/:projectId/lock-milestones", requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { projectId } = req.params;
+
+    if (!UUID_PATTERN.test(projectId)) {
+      return res.status(400).json({ error: "projectId must be a valid UUID" });
+    }
+
+    await client.query("BEGIN");
+
+    const projectResult = await client.query(
+      `SELECT ${SAFE_PROJECT_FIELDS} FROM projects WHERE id = $1 FOR UPDATE`,
+      [projectId]
+    );
+    const project = projectResult.rows[0];
+
+    // Same safe 404 for "doesn't exist" and "exists but you're not the buyer" —
+    // sellers/unrelated users must not learn a project exists via a different
+    // error shape.
+    if (!project || project.buyer_user_id !== req.auth.sub) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    if (project.milestones_locked_at !== null) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "Project milestones are already locked" });
+    }
+
+    if (project.state !== "draft") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Only draft projects can lock milestones" });
+    }
+
+    const milestonesResult = await client.query(
+      `SELECT ${SAFE_MILESTONE_FIELDS} FROM project_milestones WHERE project_id = $1 ORDER BY milestone_no`,
+      [projectId]
+    );
+    const milestones = milestonesResult.rows;
+
+    if (milestones.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Project must have at least one milestone before locking" });
+    }
+
+    let milestoneTotal = 0;
+    for (const milestone of milestones) {
+      if (milestone.state !== "planned") {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Only planned milestones can be locked" });
+      }
+      if (milestone.currency !== project.currency) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "All milestones must use the project currency" });
+      }
+      milestoneTotal += milestone.amount;
+    }
+
+    if (milestoneTotal !== project.price_amount) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Milestone amounts must equal the project price" });
+    }
+
+    const updateResult = await client.query(
+      `UPDATE projects
+       SET milestones_locked_at = now(),
+           updated_at = now()
+       WHERE id = $1
+       RETURNING ${SAFE_PROJECT_FIELDS}`,
+      [projectId]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(200).json({ project: updateResult.rows[0], milestones });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
   }
 });
 

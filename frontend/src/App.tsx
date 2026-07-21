@@ -99,6 +99,7 @@ interface Project {
   accepted_at: string | null;
   delivered_at: string | null;
   completed_at: string | null;
+  milestones_locked_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -636,6 +637,11 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
     setView("projectDetail");
   }
 
+  function handleMilestonesLocked(project: Project, milestones: ProjectMilestone[]) {
+    setSelectedProject(project);
+    setSelectedProjectMilestones(milestones);
+  }
+
   function openProjectDetail(project: ProjectWithParties) {
     const isBuyer = project.buyer_user_id === session.user.id;
     setSelectedProject(project);
@@ -722,6 +728,7 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
             currentUserId={session.user.id}
             onBackToProfile={canShowBackToProfile ? () => setView("profileDetail") : null}
             onViewProjects={() => setView("projects")}
+            onMilestonesLocked={handleMilestonesLocked}
           />
         ) : view === "projects" ? (
           <ProjectsScreen
@@ -1431,6 +1438,7 @@ function ProjectDetailScreen({
   currentUserId,
   onBackToProfile,
   onViewProjects,
+  onMilestonesLocked,
 }: {
   project: Project;
   milestones: ProjectMilestone[] | null;
@@ -1438,6 +1446,7 @@ function ProjectDetailScreen({
   currentUserId: string;
   onBackToProfile: (() => void) | null;
   onViewProjects: () => void;
+  onMilestonesLocked: (project: Project, milestones: ProjectMilestone[]) => void;
 }) {
   const createdDate = new Date(project.created_at).toLocaleDateString();
   const isBuyer = project.buyer_user_id === currentUserId;
@@ -1520,6 +1529,13 @@ function ProjectDetailScreen({
         )}
       </section>
 
+      <MilestoneLockSection
+        project={project}
+        milestones={milestones}
+        isBuyer={isBuyer}
+        onLocked={onMilestonesLocked}
+      />
+
       <div className="content-actions">
         {onBackToProfile ? (
           <button type="button" className="btn btn-primary" onClick={onBackToProfile}>
@@ -1531,6 +1547,129 @@ function ProjectDetailScreen({
         </button>
       </div>
     </div>
+  );
+}
+
+// =====================
+// Milestone locking
+// =====================
+function MilestoneLockSection({
+  project,
+  milestones,
+  isBuyer,
+  onLocked,
+}: {
+  project: Project;
+  milestones: ProjectMilestone[] | null;
+  isBuyer: boolean;
+  onLocked: (project: Project, milestones: ProjectMilestone[]) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleConfirmLock() {
+    setError("");
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const data = (await apiPost(
+        `/projects/${project.id}/lock-milestones`,
+        {},
+        token ?? undefined
+      )) as { project: Project; milestones: ProjectMilestone[] };
+      onLocked(data.project, data.milestones);
+      setConfirming(false);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (project.milestones_locked_at !== null) {
+    const lockedDate = new Date(project.milestones_locked_at).toLocaleString();
+    return (
+      <section className="milestone-lock-section milestone-lock-locked">
+        <h2 className="section-heading">Milestone plan locked</h2>
+        <p className="section-subcopy">These milestone terms are fixed and ready for escrow funding.</p>
+        <p className="milestone-lock-date">Locked {lockedDate}</p>
+      </section>
+    );
+  }
+
+  if (!isBuyer) {
+    return (
+      <section className="milestone-lock-section">
+        <p className="milestone-lock-status">Milestones not locked</p>
+      </section>
+    );
+  }
+
+  if (milestones === null) {
+    return (
+      <section className="milestone-lock-section">
+        <p className="milestone-lock-status">Milestones not locked</p>
+        <p className="section-subcopy">Open milestone details before locking this project.</p>
+      </section>
+    );
+  }
+
+  if (project.state !== "draft" || milestones.length === 0) {
+    return (
+      <section className="milestone-lock-section">
+        <p className="milestone-lock-status">Milestones not locked</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="milestone-lock-section">
+      <h2 className="section-heading">Lock milestone plan</h2>
+      <p className="section-subcopy">
+        Review the scope, amounts and dates carefully. Once locked, milestone terms cannot be edited
+        before funding.
+      </p>
+
+      {!confirming ? (
+        <button type="button" className="btn btn-primary" onClick={() => setConfirming(true)}>
+          Lock milestones
+        </button>
+      ) : (
+        <div className="milestone-lock-confirm">
+          <p className="milestone-lock-confirm-title">Lock this milestone plan?</p>
+          <p className="milestone-lock-confirm-copy">
+            Once locked, milestone titles, descriptions, amounts, sequence, currency and due dates
+            cannot be changed.
+          </p>
+
+          {error ? <p className="error-message">{error}</p> : null}
+
+          <div className="content-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleConfirmLock}
+              disabled={loading}
+            >
+              {loading ? "Locking…" : "Confirm lock"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setConfirming(false);
+                setError("");
+              }}
+              disabled={loading}
+            >
+              Go back
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1658,6 +1797,10 @@ function ProjectCard({
         <span>{project.delivery_days} days</span>
         <span>{project.revision_limit} revisions</span>
       </div>
+
+      <p className="project-card-lock-status">
+        {project.milestones_locked_at !== null ? "Milestones locked" : "Milestones not locked"}
+      </p>
 
       <p className="project-card-date">Started {createdDate}</p>
 

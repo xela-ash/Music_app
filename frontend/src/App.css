@@ -812,6 +812,74 @@
 }
 
 /* =====================
+   Milestone locking
+   ===================== */
+.milestone-lock-section {
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  box-sizing: border-box;
+}
+
+.milestone-lock-section .section-heading {
+  margin-bottom: 0.5rem;
+}
+
+.milestone-lock-section .section-subcopy {
+  margin-bottom: 1.25rem;
+}
+
+.milestone-lock-status {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.milestone-lock-locked {
+  border-color: rgba(74, 222, 128, 0.25);
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.milestone-lock-locked .section-heading {
+  color: #4ade80;
+}
+
+.milestone-lock-date {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.milestone-lock-confirm {
+  margin-top: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+  background: rgba(251, 191, 36, 0.06);
+  box-sizing: border-box;
+}
+
+.milestone-lock-confirm-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.milestone-lock-confirm-copy {
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  opacity: 0.75;
+}
+
+.milestone-lock-confirm .content-actions {
+  margin: 0;
+}
+
+/* =====================
    Project detail screen
    ===================== */
 .project-detail {
@@ -916,6 +984,12 @@
   margin: 0.75rem 0;
   font-size: 0.85rem;
   opacity: 0.75;
+}
+
+.project-card-lock-status {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  opacity: 0.5;
 }
 
 .project-card-date {
