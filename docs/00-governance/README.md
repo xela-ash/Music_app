@@ -5,8 +5,8 @@
 | Document ID | GOV-000 |
 | Status | Approved |
 | Owner | Documentation Working Group (interim: repository maintainers) |
-| Version | 1.0.0 |
-| Last Reviewed | 2026-07-21 |
+| Version | 1.1.0 |
+| Last Reviewed | 2026-07-22 |
 | Applies To | All documentation under `docs/` in this repository |
 
 ## Documentation Map
@@ -100,7 +100,7 @@ The repository's `docs/` tree is fixed at the following top-level structure. New
 |---|---|
 | `00-governance/` | This standard and any governance sub-documents |
 | `01-foundation/` | Vision, principles, glossary, high-level architecture |
-| `02-users-roles-permissions/` | User accounts, roles, permission model |
+| `02-users-roles-permissions/` | User accounts, authentication, authorization, roles, permission model |
 | `03-identity-profiles-verification/` | Profiles, identity verification, verification documents |
 | `04-marketplace/` | Listings, discovery, services |
 | `05-projects-milestones/` | Projects, milestones, project lifecycle |
@@ -217,9 +217,31 @@ Identifiers MUST be stable, globally unique within their prefix, and MUST NOT be
 
 `[DOMAIN]` MUST be one of the short domain tokens below, matching the directory it documents:
 
-`AUTH`, `USERS`, `IDENTITY`, `MARKETPLACE`, `PROJECTS`, `ESCROW`, `MESSAGING`, `RATINGS`, `MODERATION`, `NOTIFICATIONS`, `ADMIN`, `ANALYTICS`
+`AUTH`, `AUTHZ`, `USERS`, `IDENTITY`, `MARKETPLACE`, `PROJECTS`, `ESCROW`, `MESSAGING`, `RATINGS`, `MODERATION`, `NOTIFICATIONS`, `ADMIN`, `ANALYTICS`
+
+`AUTH` and `AUTHZ` are deliberately distinct tokens and MUST NOT be merged:
+
+| Token | Domain | Answers |
+|---|---|---|
+| `AUTH` | Authentication | "Can this actor prove control of this identity?" |
+| `AUTHZ` | Authorization | "May this actor perform this action on this resource now?" |
+
+Authentication proves identity; Authorization evaluates permissions against that proven (or anonymous) identity. Business rules and requirements for the two domains MUST use their own token (`BR-AUTH-*`/`REQ-AUTH-*` vs. `BR-AUTHZ-*`/`REQ-AUTHZ-*`) and MUST NOT be filed under the other domain's token, even though both live under the same directory (`02-users-roles-permissions/`) alongside `USERS`.
 
 Every requirement and business rule ID MUST be introduced exactly once, in the domain document that owns it. Other documents MAY reference the ID but MUST NOT redefine it.
+
+### 11.1 Domain-Scoped Security, Data-Model, Interface, and Audit Identifiers
+
+In addition to the cross-cutting, domain-less `SEC-NNN` family (§18, for the centralized `15-security/` registry), a domain specification document MAY record its own domain-scoped findings using the following identifier families, using the same `[DOMAIN]` tokens as §11:
+
+| Prefix | Meaning | Format | Example |
+|---|---|---|---|
+| `SEC-[DOMAIN]-NNN` | A security finding specific to one domain's specification, distinct from the centralized `15-security/` `SEC-NNN` registry | 3-digit, zero-padded | `SEC-AUTHZ-004` |
+| `DATA-[DOMAIN]-NNN` | A target data-model entity or field set specific to one domain's specification | 3-digit, zero-padded | `DATA-AUTHZ-001` |
+| `INT-[DOMAIN]-NNN` | An interface, integration point, or shared utility specific to one domain's specification | 3-digit, zero-padded | `INT-AUTHZ-001` |
+| `AUD-[DOMAIN]-NNN` | An audit-event or audit-field requirement specific to one domain's specification | 3-digit, zero-padded | `AUD-AUTHZ-001` |
+
+These four families are subject to the same stability, uniqueness, and single-ownership rules as `REQ-*`/`BR-*` (§11). They MAY be introduced by any domain document for its own `[DOMAIN]` token without requiring a separate governance change per document — the families themselves are governed here, once, for all permitted domain tokens.
 
 ## 12. Source-of-Truth Rules
 
@@ -451,6 +473,7 @@ The following illustrate correct identifier usage and status labeling. They are 
 |---|---|---|---|
 | Authentication | `BR-AUTH-001` | A user MUST have either an email or a phone number on record. | Implemented — `users_email_or_phone_present` constraint, `backend/db/001_create_users.sql` |
 | Authentication | `API-AUTH-002` | `POST /auth/login` MUST authenticate against `auth_credentials.password_hash`. | Implemented — `backend/Index.js` |
+| Authorization | `BR-AUTHZ-021` | Anonymous access is allowed only for explicitly public resources; private User records are never public. | Not met — current implementation defect, `GET /users` is unauthenticated and returns complete records (`SEC-AUTHZ-003`) |
 | Profiles | `BR-USERS-004` | A profile's `handle` MUST be unique, case-insensitively. | Implemented — `profiles.handle CITEXT UNIQUE`, `backend/db/002_create_profiles.sql` |
 | Projects | `BR-PROJECTS-001` | A project MUST NOT have the same buyer and seller. | Implemented — see §15 |
 | Milestones | `BR-PROJECTS-002` | Locked milestone terms MUST NOT change. | Implemented — see §15 |
@@ -482,3 +505,4 @@ Before marking any document **Approved** or **Implemented**, its author and revi
 | Version | Date | Change | Author |
 |---|---|---|---|
 | 1.0.0 | 2026-07-21 | Initial governance standard established | Documentation Working Group |
+| 1.1.0 | 2026-07-22 | Added `AUTHZ` (Authorization) as a permitted domain token, distinct from and not merged with `AUTH` (Authentication) (§11). Formally defined the `SEC-[DOMAIN]-NNN`, `DATA-[DOMAIN]-NNN`, `INT-[DOMAIN]-NNN`, and `AUD-[DOMAIN]-NNN` identifier families for domain-scoped findings, target data models, interfaces, and audit requirements, distinct from the centralized `SEC-NNN` registry (§11.1). Updated the `02-users-roles-permissions/` directory description (§4) and added an Authorization worked example (§28). No existing identifier or requirement was altered or removed. | Documentation Working Group |

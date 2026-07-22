@@ -7,11 +7,11 @@
 | Document ID | SPEC-AUTH-000 (provisional — see §4.1) |
 | Type | Specification (SPEC) |
 | Status | Approved |
-| Version | 1.1.0 |
+| Version | 1.2.0 |
 | Owner | Engineering (interim: repository maintainers) |
 | Repository branch | `docs/specification-foundation` |
 | Last updated | 2026-07-22 |
-| Related documents | [`product-overview.md`](../01-foundation/product-overview.md), [`system-architecture.md`](../01-foundation/system-architecture.md), [`users.md`](users.md) |
+| Related documents | [`product-overview.md`](../01-foundation/product-overview.md), [`system-architecture.md`](../01-foundation/system-architecture.md), [`users.md`](users.md), [`authorization.md`](authorization.md) |
 | Supersedes / Superseded By | None |
 
 This document follows [`docs/00-governance/README.md`](../00-governance/README.md) (GOV-000). It converts the supplied Product Specification Pack for the Authentication domain into governed documentation, verifies every technical claim against the repository at time of writing, and preserves every approved product decision — nothing approved is removed for being unimplemented.
@@ -22,7 +22,7 @@ This document follows [`docs/00-governance/README.md`](../00-governance/README.m
 
 ## 1. Executive Summary
 
-Authentication answers one question: *"Can this actor prove control of this identity?"* It owns credentials and authentication mechanisms; it does not decide what an authenticated user may do (Authorization's role, currently unimplemented as a domain), does not own public identity (Profiles), and does not own identity-document verification (Verification, currently modeled via `profile_verifications`/`verification_documents`).
+Authentication answers one question: *"Can this actor prove control of this identity?"* It owns credentials and authentication mechanisms; it does not decide what an authenticated user may do — that is Authorization's role, documented in full in [`authorization.md`](authorization.md) — does not own public identity (Profiles), and does not own identity-document verification (Verification, currently modeled via `profile_verifications`/`verification_documents`).
 
 **Verified against the repository:** the domain is **Partially Implemented**. Registration and login are Implemented — a transactional signup (`POST /auth/signup`), a login endpoint (`POST /auth/login`) issuing a signed JWT, and a session-restoration endpoint (`GET /auth/me`) all exist and work as coded. Password hashing uses `bcryptjs` at cost factor 12. Logout is Partially Implemented — a client-side token removal exists with no server-side counterpart, because no server-side session or revocation mechanism exists at all. Password reset, authenticated password change, email verification, refresh tokens, MFA, external providers, rate limiting, and structured authentication audit logging are all **Planned** — approved future capabilities with no schema or code trace in the repository.
 
@@ -44,7 +44,7 @@ This document covers the Authentication domain: credentials, login, logout, toke
 
 - **User identity and account status** — owned by [`users.md`](users.md); Authentication consumes account status (§8) but does not define it.
 - **Public profile data** — owned by Profiles (`system-architecture.md` §10.3).
-- **Authorization** (route-level and resource-level permission decisions) — not yet a defined domain anywhere in this repository's documentation; Authentication's relationship to it is defined in §7 but Authorization's own rules are out of scope here.
+- **Authorization** (route-level and resource-level permission decisions) — a first-class domain owned by [`authorization.md`](authorization.md); Authentication's relationship to it is defined in §7 (Authentication proves identity, Authorization consumes the authenticated principal and evaluates current access policy — Authentication does not own business permission decisions), but Authorization's own rules are out of scope here and are not restated.
 - **Identity/professional verification** (documents, review workflow) — modeled by `profile_verifications`/`verification_documents`, owned at the Profiles/identity-verification boundary per `users.md` §5.2, §8.2. Explicitly distinct from email verification (§15), which this document does own.
 - Business rules and requirements already owned by [`product-overview.md`](../01-foundation/product-overview.md) or [`users.md`](users.md) — referenced here, not redefined, per GOV-000 §12.
 
@@ -61,14 +61,14 @@ This document covers the Authentication domain: credentials, login, logout, toke
 | Identity | Users | The durable record of *who* an account is (`users.id`) — see `users.md` |
 | Credentials | **Authentication** | The secret(s) that prove control of an identity (e.g., a password hash) |
 | Session / Token | **Authentication** | The artifact that carries a proven identity across requests |
-| Authorization | *Undefined domain — not yet documented* | The decision of whether a proven identity may perform a specific action |
+| Authorization | [`authorization.md`](authorization.md) | The decision of whether a proven (or anonymous) identity may perform a specific action on a specific resource now |
 | Public Profile | Profiles | The user-facing identity (artist name, bio, genres) — see `system-architecture.md` §10.3 |
 | Identity/Professional Verification | Profiles / identity-verification boundary | Document-backed trust assertions distinct from email verification (§15) — see `users.md` §8.2 |
 | Account Status | Users | Whether the account itself may access the platform at all — see `users.md` §8.1; Authentication consumes this (§8) |
 | Moderation | *Planned domain, no repository footprint* | Reports, account actions — see `system-architecture.md` §10.11 |
 | Administration | *Planned domain, no repository footprint* | Cross-domain oversight — see `system-architecture.md` §10.12 |
 
-**Authorization is explicitly out of scope and explicitly not implemented as a distinct domain in this repository.** No role, permission, or policy-evaluation code exists anywhere (`system-architecture.md` §10.1, §13). Wherever this document says "Authorization," it means the future decision layer described conceptually in §7 — not a component that exists today.
+**Authorization is explicitly out of scope of this document but is a documented, first-class domain — see [`authorization.md`](authorization.md).** No role, permission, or policy-evaluation *code* exists anywhere yet (`system-architecture.md` §10.14, `authorization.md` §30) — the domain is documented and approved, but not implemented. Wherever this document says "Authorization," it means the decision layer defined in full in `authorization.md` §6–§10 — Authentication proves identity and produces an authenticated principal; Authorization consumes that principal, evaluates current access policy (account status, roles, permissions, relationships, resource state), and decides allow or deny. Authentication never makes that decision itself.
 
 ## 5. Ownership
 
@@ -88,7 +88,7 @@ This document covers the Authentication domain: credentials, login, logout, toke
 | The User record itself | Users | — | Authentication never owns identity, only proves control of it |
 | Public profile data | Profiles | — | Authentication never owns bio/genres/portfolio |
 | Identity-verification documents/decisions | Profiles / identity-verification | — | Authentication never owns document review |
-| Route/resource permission decisions | *Authorization (undefined)* | — | Authentication never decides what an authenticated user may do |
+| Route/resource permission decisions | Authorization (`authorization.md`) | — | Authentication never decides what an authenticated user may do |
 | Organization membership | *Users/Organizations (Planned)* | — | Authentication never owns org structure |
 | Administrative roles | *Administration (Planned)* | — | Authentication never owns role assignment |
 | Project membership/state | Projects | — | Authentication never owns project data |
@@ -120,7 +120,7 @@ A linked provider (future) is not a separate MusicApp User; linking must not sil
 flowchart TB
     USR["Users<br/>(owns identity)"]
     AUTH["Authentication<br/>(owns credentials, tokens,<br/>refresh sessions, auth version)"]
-    AUTHZ["Authorization<br/>(Planned/undefined domain —<br/>owns permission decisions)"]
+    AUTHZ["Authorization<br/>(authorization.md —<br/>owns permission decisions)"]
     PRF["Profiles<br/>(owns public identity)"]
     VER["Identity Verification<br/>(Profiles boundary —<br/>owns document trust assertions)"]
 
@@ -133,13 +133,13 @@ flowchart TB
     AUTH -. "does not own or expose" .-> PRF
     AUTH -. "does not own or expose" .-> VER
 ```
-*Solid arrows = an active, defined relationship (whether Implemented or Planned in code). Dashed arrows = an explicit non-responsibility boundary. `Authorization` is drawn because the Specification Pack requires the distinction to be explicit throughout — it is not a component with any repository footprint (§4).*
+*Solid arrows = an active, defined relationship (whether Implemented or Planned in code). Dashed arrows = an explicit non-responsibility boundary. `Authorization` is a documented, first-class domain (`authorization.md`) — it is drawn here because the distinction from Authentication must be explicit throughout this document, not because its status is uncertain; it has no repository *code* footprint yet (§4, `authorization.md` §30).*
 
 ## 7. Authentication Principles
 
 | Principle | Statement | Status |
 |---|---|---|
-| Proof, not permission | Authentication determines whether credentials are valid, which User the actor represents, and whether the mechanism/token/session is acceptable. It never determines whether an action is permitted. | Canonical (Authorization does not exist as a domain yet — see §4) |
+| Proof, not permission | Authentication determines whether credentials are valid, which User the actor represents, and whether the mechanism/token/session is acceptable. It never determines whether an action is permitted — that decision belongs entirely to Authorization. | Canonical — see §4, `authorization.md` §6–§10 |
 | No permanent truth in tokens | A token may carry limited claims, but sensitive or changeable permissions (suspension, restriction, admin-role removal, payout eligibility, project participation, verification status) must be re-evaluated against current platform state where necessary, since they may change after a token is issued. | Canonical; enforced today only for `/auth/login` and `/auth/me` — see §25.5 `SEC-AUTH-002` |
 | Shared, status-aware middleware | Every protected request must be authenticated through one shared middleware component that verifies the token and evaluates current account status; route handlers must not independently recreate token-verification or status logic. | Canonical target (§12.3); **resolves the v1.0.0 open question of per-route vs. shared enforcement — the answer is shared** |
 | Immediate invalidation | Account-security changes (password reset, suspected compromise, `Disabled`, `Deleted`, administrator-triggered global sign-out) must not wait for natural token expiry. | Canonical target, combining a current-status lookup with a stored authentication version (§12.3, §23) |
@@ -451,7 +451,7 @@ flowchart TD
 | Sign out all devices | Revokes all sessions for the User (§14) | Planned |
 | Revocation triggers | Password reset, password change under global-sign-out policy, suspected compromise, `Disabled`, `Deleted`, administrator-triggered sign-out-all, other high-risk recovery actions | Planned — see §12.3, §23 `DATA-AUTH-001` for the authentication-version mechanism these triggers drive |
 
-The final schema name for the version/stamp concept described in §12.3 may be `auth_version`, `security_stamp`, or another technically appropriate name — the concept is canonical; the exact column name is an implementation choice (§30).
+**Canonical, cross-document decision:** this document's version/stamp concept is specifically `auth_version` — used for credential and session invalidation (password reset, compromised credentials, account recovery, global authentication revocation). It is deliberately separate from Authorization's own `authz_version` (`authorization.md` §12, used for stale-authorization invalidation — role changes, permission changes, explicit-deny changes, organization-role/membership changes). Neither version replaces the live current-status, restriction, relationship, or resource-state checks described elsewhere in this document and in `authorization.md` — both are additive invalidation signals, not a substitute for re-checking current state. The exact schema location (e.g., a column on `auth_credentials`) remains an implementation choice (§30).
 
 ### 13.2 Target Login-Plus-Refresh Sequence Diagram
 
@@ -806,7 +806,7 @@ These are target-architecture concepts, not mandatory table names — a future i
 
 ### 24.2 Consumers
 
-Authorization *(undefined domain)*, Profiles, Marketplace, Projects, Escrow, Messaging, Ratings, Notifications, Moderation, Administration, Analytics — per `system-architecture.md` §7–§9, only Profiles and Projects currently exist as implemented consumers of an authenticated identity (via `requireAuth`); the rest are Planned per that document.
+Authorization (`authorization.md`), Profiles, Marketplace, Projects, Escrow, Messaging, Ratings, Notifications, Moderation, Administration, Analytics — per `system-architecture.md` §7–§9, §10.14, only Profiles and Projects currently exist as implemented consumers of an authenticated identity (via `requireAuth`); the rest, including Authorization's own centralized enforcement, are Planned per those documents.
 
 ### 24.3 Interfaces (`INT-AUTH-*`)
 
@@ -835,7 +835,7 @@ flowchart LR
     PROV["Provider integrations<br/>Planned"] -.-> AUTH
     MON["Monitoring/alerting<br/>Planned"] -.-> AUTH
 
-    AUTH --> AUTHZ["Authorization<br/>(undefined domain)"]
+    AUTH --> AUTHZ["Authorization<br/>(authorization.md)"]
     AUTH --> PRF["Profiles<br/>Implemented consumer"]
     AUTH --> PRJ["Projects<br/>Implemented consumer"]
     AUTH -.-> MSG["Messaging<br/>Planned consumer"]
@@ -1017,7 +1017,7 @@ Every capability in this list is additive to the current Users/Authentication sp
 | ID | Statement (abridged) | Status |
 |---|---|---|
 | `BR-AUTH-001` | Users own identity; Authentication owns credentials. | Implemented (structural) |
-| `BR-AUTH-002` | Profiles own public identity; Authorization (undefined domain) owns permission decisions. | Implemented (structural, for the Profiles half); Authorization half not applicable — domain doesn't exist |
+| `BR-AUTH-002` | Profiles own public identity; Authorization owns permission decisions. | Implemented (structural, for the Profiles half); Authorization half — see `authorization.md`, domain documented, not yet implemented in code |
 | `BR-AUTH-003` | Authentication success does not equal authorization. | Canonical; trivially true today since no authorization layer exists to conflate with |
 | `BR-AUTH-004` | One individual User has one primary authentication identity; future provider links attach to the same User. | Implemented (current); Planned (provider links) |
 | `BR-AUTH-005` | Account status and identity-verification status are separate. | Implemented (structural) — inherited from `users.md` `BR-USERS-013` |
@@ -1074,3 +1074,4 @@ Every capability in this list is additive to the current Users/Authentication sp
 |---|---|---|---|
 | 1.0.0 | 2026-07-22 | Initial approved Authentication domain specification, converted and verified from the supplied Product Specification Pack. Verified all 12 backend routes, exact JWT/bcrypt configuration, and frontend token handling against the repository. Identified one new, previously undocumented security finding (`SEC-AUTH-002`: account-status is re-checked on only 2 of 6 authenticated routes) and seven other security findings. No architecture, schema, or implementation status was changed. | Engineering |
 | 1.1.0 | 2026-07-22 | Applied eleven canonical architecture decisions: (1) shared, status-aware authentication middleware as the canonical resolution to `SEC-AUTH-002`, added §12.3 with a new flow diagram; (2) target access-token (15 min default) and refresh-session (30 day default, rotating, revocable) model, explicitly superseding the current 7-day token as development-stage-only, added §13.1–13.3 with two new diagrams; (3) immediate invalidation via status lookup plus authentication version/security stamp, added to §12.3 and `DATA-AUTH-001`; (4) target browser token delivery (HttpOnly cookies for refresh, in-memory access tokens), current `localStorage` behavior explicitly relabeled as non-target in §19.3; (5) HS256 confirmed acceptable for the current MVP, with the missing algorithm allowlist reclassified from a suggestion to a confirmed gap (`SEC-AUTH-009`); (6)/(7) canonical email-verification (24h) and password-reset (30min) token policies added to §15.2/§16.2; (8) canonical password policy (12–128 characters) added to §11.1, alongside a new, unresolved reconciliation question against bcrypt's 72-byte limit; (9) rate-limiting endpoint coverage expanded to include refresh and provider-linking, with numeric thresholds explicitly left open; (10) `GET /users`'s unauthenticated full-record exposure reclassified from "finding" to "confirmed security defect against canonical target" (`BR-AUTH-028`); (11) login explicitly clarified as not a multi-record transaction, distinct from signup. Added `BR-AUTH-019`–`028` and `REQ-AUTH-013`–`014`. Resolved and removed nine open questions; added one new open question (the bcrypt/128-character reconciliation) and two explicit new retained questions (exact schema naming, exact `SameSite` value). Removed one v1.0.0 assumption that is now resolved by canonical decision rather than merely assumed. Updated Executive Summary, §5, §7, §8, §9–§26, §28–§31, and the metadata version. No repository code was changed; all findings from v1.0.0 were preserved. | Engineering |
+| 1.2.0 | 2026-07-22 | Cross-document alignment update: Authorization is now a documented, first-class domain (`authorization.md`, `system-architecture.md` §10.14) — every place in this document that previously described Authorization as an undefined, not-yet-documented, or future-unidentified domain (§1, §3, §4.2, §7, §5.1, §6.2, §24.2, §31.1, and both Mermaid diagram node labels) was updated to reference `authorization.md` directly, while preserving the unchanged fact that Authentication and Authorization remain strictly separate and that no Authorization *code* exists yet. Named this document's invalidation-version concept explicitly as `auth_version`, distinct from Authorization's own `authz_version` (§12.3), and added a cross-reference between the two. Added `authorization.md` to the metadata "Related documents" field. No other wording, finding, status, or architecture was changed. | Engineering |

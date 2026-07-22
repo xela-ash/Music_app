@@ -6,8 +6,8 @@
 | Type | Specification (SPEC) |
 | Status | Approved |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 1.2.0 |
-| Last Reviewed | 2026-07-21 |
+| Version | 1.3.0 |
+| Last Reviewed | 2026-07-22 |
 | Applies To | System architecture, domain boundaries, and technology stack for MusicApp |
 | Supersedes / Superseded By | None |
 
@@ -19,9 +19,11 @@ This document follows [`docs/00-governance/README.md`](../00-governance/README.m
 
 ## 1. Executive Summary
 
-MusicApp's approved architecture is a modular, domain-oriented marketplace built around **Projects** as the central collaboration object, **Escrow** as the sole financial authority, and an intended audit trail across every significant action. Thirteen domains are defined: Authentication, Users, Profiles, Marketplace, Projects, Milestones, Escrow, Messaging, Ratings, Notifications, Moderation, Administration, and Analytics. Each owns a distinct concern and is bounded by explicit "must never own" rules (§9) so that domains can evolve independently while cooperating through well-defined interactions (§8, §12).
+MusicApp's approved architecture is a modular, domain-oriented marketplace built around **Projects** as the central collaboration object, **Escrow** as the sole financial authority, and an intended audit trail across every significant action. Fourteen domains are defined: Authentication, Authorization, Users, Profiles, Marketplace, Projects, Milestones, Escrow, Messaging, Ratings, Notifications, Moderation, Administration, and Analytics. Each owns a distinct concern and is bounded by explicit "must never own" rules (§9) so that domains can evolve independently while cooperating through well-defined interactions (§8, §12).
 
-**Verified against the repository:** the current implementation is an early-stage build that fully or partially delivers six of the thirteen domains — Authentication, Users, Profiles, Marketplace, Projects, and Milestones — through registration, login, discovery, and project/milestone creation and locking. Two domains (Escrow, Ratings) have database schema in place with no executable behavior yet. Five domains (Messaging, Notifications, Moderation, Administration, Analytics) have no repository footprint and remain approved future work.
+**Authorization was added as the fourteenth domain in this revision** ([`authorization.md`](../02-users-roles-permissions/authorization.md)), formalizing a boundary this document previously left implicit: Authentication proves identity and produces an authenticated principal; Authorization consumes that principal — plus current account state, roles, permissions, relationships, and resource state — and decides allow or deny. Authorization owns that decision framework; it never owns credentials (Authentication's domain) or any resource's business lifecycle (owned by Projects, Escrow, Messaging, Ratings, etc.). Other domains call Authorization before executing protected operations; domain services retain ownership of lifecycle validity, and Authorization decides only whether the actor may request the operation (§9, §10.14).
+
+**Verified against the repository:** the current implementation is an early-stage build that fully or partially delivers seven of the fourteen domains — Authentication, Authorization, Users, Profiles, Marketplace, Projects, and Milestones — through registration, login, discovery, and project/milestone creation and locking. Authorization's contribution to that seven is informal: no centralized policy component exists, only scattered relationship/state checks inline in a handful of routes (`authorization.md` §1, §30). Two domains (Escrow, Ratings) have database schema in place with no executable behavior yet. Five domains (Messaging, Notifications, Moderation, Administration, Analytics) have no repository footprint and remain approved future work.
 
 **Architectural framing note:** the current implementation consolidates the logic for all six delivered domains into a single application module on each tier — one Express application file (`backend/Index.js`) and one React application file (`frontend/src/App.tsx`). The target architecture, expressed by the modularity and separation-of-concerns principles (§3), separates these domains into independent services or modules as the platform grows. This is recorded as the present development stage, not a deviation requiring correction (§5).
 
@@ -33,11 +35,11 @@ MusicApp's approved architecture is a modular, domain-oriented marketplace built
 
 MusicApp's architecture is designed around trust: every paid interaction is intended to happen through Projects and Escrow, every significant action is intended to be auditable, every user has a profile, and every project follows a controlled lifecycle. The architecture is approved to be modular, so that major domains can remain independent while working together through well-defined interactions.
 
-This document specifies that architecture domain by domain (§10), defines ownership and dependency boundaries across all thirteen domains (§7–§9), verifies current implementation status against the repository, and records the technology stack and deployment topology actually in use (§4).
+This document specifies that architecture domain by domain (§10), defines ownership and dependency boundaries across all fourteen domains (§7–§9), verifies current implementation status against the repository, and records the technology stack and deployment topology actually in use (§4).
 
 ### 2.2 Scope
 
-This document covers system-level architecture: domain purpose, ownership, responsibilities and non-responsibilities, business rules, lifecycle, data flow (inputs/outputs/dependencies/consumers), interfaces, security boundaries, audit requirements, failure scenarios, and extensibility — for all thirteen approved domains. It does not restate:
+This document covers system-level architecture: domain purpose, ownership, responsibilities and non-responsibilities, business rules, lifecycle, data flow (inputs/outputs/dependencies/consumers), interfaces, security boundaries, audit requirements, failure scenarios, and extensibility — for all fourteen approved domains. It does not restate:
 
 - Product vision, actor roles, or MVP scope — owned by [`product-overview.md`](product-overview.md).
 - Business rules and requirements (`BR-*`, `REQ-FOUNDATION-*`) — owned by `product-overview.md`; referenced here, not redefined.
@@ -68,7 +70,7 @@ The specification defines seven architecture principles. Each is stated as appro
 
 | Principle | Approved Intent | Verified Current Status |
 |---|---|---|
-| Separation of concerns | Each domain's logic should be isolated from others | **Planned.** All twelve currently implemented routes (Authentication, Users, Profiles, Projects, Milestones) are defined in a single application module, `backend/Index.js`, with no per-domain file, controller, or service boundary yet. |
+| Separation of concerns | Each domain's logic should be isolated from others | **Planned.** All twelve currently implemented routes (Authentication, Authorization, Users, Profiles, Projects, Milestones) are defined in a single application module, `backend/Index.js`, with no per-domain file, controller, or service boundary yet. Authorization's fragments are the clearest current example: relationship/state checks are duplicated inline rather than calling one shared policy function (`authorization.md` §24, `SEC-AUTHZ-004`). |
 | Modularity | Domains should be independently buildable/maintainable units | **Partially Implemented.** Each domain's schema is defined in its own migration file (`backend/db/001`–`008`), which delivers modularity at the data layer. The application layer (`backend/Index.js`, `frontend/src/App.tsx`) consolidates all currently-delivered domains into one module per tier; module-level separation is Planned. |
 | Auditable financial operations | Every escrow/payment action should leave a durable, reviewable record | **Schema Implemented.** The `escrow_ledger` table (`backend/db/006_create_escrow_system.sql`) is designed for this purpose (append-oriented columns, `ledger_entry_type` enum), but no financial operation yet exists to produce an entry. |
 | Secure authentication | Authentication should resist common attacks | **Partially Implemented.** Passwords are hashed (`bcryptjs`, cost 12); sessions are signed, claim-verified JWTs. Password reset, verification, MFA, rate limiting, and server-side revocation are Planned. |
@@ -133,7 +135,7 @@ Whether and when to decompose the backend and frontend application modules into 
 
 ## 6. System Domain Map
 
-The specification defines 13 domains. The diagram below shows the domains and their approved interactions, colored by verified implementation status.
+The specification defines 13 domains; this document adds Authorization as a fourteenth (§1, `authorization.md`). The diagram below shows the domains and their approved interactions, colored by verified implementation status.
 
 ```mermaid
 flowchart TB
@@ -154,6 +156,7 @@ flowchart TB
     MOD["11. Moderation"]:::planned
     ADMIN["12. Administration"]:::planned
     ANALYTICS["13. Analytics"]:::planned
+    AUTHZ["14. Authorization"]:::implemented
 
     AUTH --> USERS
     USERS --> PROFILES
@@ -172,8 +175,16 @@ flowchart TB
     MSG -.-> MOD
     RATINGS -.-> PROFILES
     RATINGS -.-> MARKET
+    AUTHZ -.-> AUTH
+    AUTHZ -.-> USERS
+    PROJECTS -.-> AUTHZ
+    ESCROW -.-> AUTHZ
+    MSG -.-> AUTHZ
+    RATINGS -.-> AUTHZ
+    ADMIN -.-> AUTHZ
+    MOD -.-> AUTHZ
 ```
-*Solid arrows = Implemented interaction. Dashed arrows = Planned interaction. Green = Implemented/Partially Implemented, amber = Schema Implemented, gray = Planned with no repository footprint.*
+*Solid arrows = Implemented interaction. Dashed arrows = Planned interaction. Green = Implemented/Partially Implemented, amber = Schema Implemented, gray = Planned with no repository footprint. Every edge touching Authorization is dashed — informal inline fragments of relationship/state checking exist in route handlers today, but no domain literally calls a centralized Authorization component yet (`authorization.md` §30), so the node is colored green (domain-level Partially Implemented) while every edge remains Planned.*
 
 | Domain | Status |
 |---|---|
@@ -190,6 +201,7 @@ flowchart TB
 | 11. Moderation | Planned — §10.11 |
 | 12. Administration | Planned — §10.12 |
 | 13. Analytics | Planned — §10.13 |
+| 14. Authorization | Partially Implemented — §10.14 |
 
 ## 7. Domain Ownership Matrix
 
@@ -208,28 +220,30 @@ flowchart TB
 | Moderation | Reports, fraud review, verification review, content review, account actions | Financial records | Planned: Administration, Users | Planned: Profiles (verification), Messaging (content) |
 | Administration | Cross-domain oversight, configuration, reporting | Direct mutation of domain-owned records outside sanctioned oversight actions | Platform operators | Users, Projects; Planned: Escrow, Profiles, Moderation, Analytics |
 | Analytics | Business intelligence, aggregated/derived metrics | Operational data mutation | Administration, platform operators | Users, Projects, Marketplace; Planned: Escrow, Ratings |
+| Authorization | Decision framework, evaluation pipeline, explicit-deny semantics, permission/relationship evaluation, authorization audit events | Credentials (Authentication's domain); any resource's business lifecycle (owned by Projects, Escrow, Messaging, Ratings, etc.) | Projects, Profiles (Implemented, informal); Planned: Escrow, Messaging, Ratings, Moderation, Administration | Authentication, Users; Planned: Profiles, Projects, Escrow, Messaging, Ratings, Moderation, Administration |
 
 ## 8. Domain Dependency Matrix
 
 The matrix below shows, for every domain (row), which other domains (columns) it depends on to fulfill its responsibilities. ● = dependency exists today and is Implemented. ◐ = dependency is approved and Planned, not yet exercised in code. A blank cell means no dependency, including the diagonal (a domain does not depend on itself).
 
-| Depends on → | AUTH | USR | PRF | MKT | PRJ | MIL | ESC | MSG | RAT | NOT | MOD | ADM | ANL |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **AUTH** Authentication |  | ● |  |  |  |  |  |  |  |  |  |  |  |
-| **USR** Users |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| **PRF** Profiles |  | ● |  |  |  |  |  |  |  |  |  |  |  |
-| **MKT** Marketplace | ● |  | ● |  |  |  |  |  |  |  |  |  |  |
-| **PRJ** Projects | ● | ● | ● |  |  | ● | ◐ | ◐ | ◐ | ◐ |  | ◐ |  |
-| **MIL** Milestones |  |  |  |  | ● |  | ◐ |  |  |  |  |  |  |
-| **ESC** Escrow |  |  |  |  | ◐ | ◐ |  |  |  | ◐ |  | ◐ |  |
-| **MSG** Messaging |  |  |  |  | ◐ |  |  |  |  | ◐ | ◐ |  |  |
-| **RAT** Ratings |  |  | ◐ |  | ◐ |  |  |  |  | ◐ |  |  |  |
-| **NOT** Notifications | ◐ |  |  |  | ◐ |  | ◐ | ◐ | ◐ |  | ◐ |  |  |
-| **MOD** Moderation |  | ◐ | ◐ |  |  |  |  | ◐ |  |  |  |  |  |
-| **ADM** Administration |  | ◐ | ◐ |  | ◐ |  | ◐ |  |  |  | ◐ |  | ◐ |
-| **ANL** Analytics |  | ◐ |  | ◐ | ◐ |  | ◐ |  | ◐ |  |  |  |  |
+| Depends on → | AUTH | USR | PRF | MKT | PRJ | MIL | ESC | MSG | RAT | NOT | MOD | ADM | ANL | ATZ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **AUTH** Authentication |  | ● |  |  |  |  |  |  |  |  |  |  |  |  |
+| **USR** Users |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| **PRF** Profiles |  | ● |  |  |  |  |  |  |  |  |  |  |  | ◐ |
+| **MKT** Marketplace | ● |  | ● |  |  |  |  |  |  |  |  |  |  | ◐ |
+| **PRJ** Projects | ● | ● | ● |  |  | ● | ◐ | ◐ | ◐ | ◐ |  | ◐ |  | ◐ |
+| **MIL** Milestones |  |  |  |  | ● |  | ◐ |  |  |  |  |  |  |  |
+| **ESC** Escrow |  |  |  |  | ◐ | ◐ |  |  |  | ◐ |  | ◐ |  | ◐ |
+| **MSG** Messaging |  |  |  |  | ◐ |  |  |  |  | ◐ | ◐ |  |  | ◐ |
+| **RAT** Ratings |  |  | ◐ |  | ◐ |  |  |  |  | ◐ |  |  |  | ◐ |
+| **NOT** Notifications | ◐ |  |  |  | ◐ |  | ◐ | ◐ | ◐ |  | ◐ |  |  |  |
+| **MOD** Moderation |  | ◐ | ◐ |  |  |  |  | ◐ |  |  |  |  |  | ◐ |
+| **ADM** Administration |  | ◐ | ◐ |  | ◐ |  | ◐ |  |  |  | ◐ |  | ◐ | ◐ |
+| **ANL** Analytics |  | ◐ |  | ◐ | ◐ |  | ◐ |  | ◐ |  |  |  |  |  |
+| **ATZ** Authorization | ◐ | ◐ | ◐ |  | ◐ |  | ◐ | ◐ | ◐ |  | ◐ | ◐ |  |  |
 
-**Reading the matrix:** row = the dependent domain, column = the domain it depends on. For example, the **PRJ** row shows Projects depends on Users (●, implemented via `buyer_user_id`/`seller_user_id`), Profiles (●, implemented via joined discovery data), and Milestones (●, implemented via `project_id`), plus five Planned dependencies (Escrow, Messaging, Ratings, Notifications, Administration). Users (**USR**) has no outgoing dependencies — it is the platform's foundational identity domain.
+**Reading the matrix:** row = the dependent domain, column = the domain it depends on. For example, the **PRJ** row shows Projects depends on Users (●, implemented via `buyer_user_id`/`seller_user_id`), Profiles (●, implemented via joined discovery data), and Milestones (●, implemented via `project_id`), plus six Planned dependencies (Escrow, Messaging, Ratings, Notifications, Administration, Authorization). Users (**USR**) has no outgoing dependencies — it is the platform's foundational identity domain. **The new ATZ row and column** (`authorization.md` §5.1, §30) reflect that Authorization is meant to be depended on by every domain with a protected action — Projects, Escrow, Messaging, Ratings, Moderation, and Administration all show a Planned (◐) dependency on Authorization, and Authorization itself depends on Authentication and Users (for the authenticated principal and account status) plus every domain whose resource state it evaluates. Every cell in the ATZ row is ◐, never ●, because no domain literally calls a centralized Authorization component today — only informal inline equivalents exist (`authorization.md` §1, §6.1).
 
 ## 9. Architecture Boundaries
 
@@ -247,6 +261,9 @@ Each boundary below is stated as approved specification intent, then checked aga
 | Notifications never create business events, only distribute them. | Not verifiable in code — Notifications is Planned with no repository footprint; retained as approved intent. |
 | Projects never own users (users participate in projects, they are not owned by them). | **Implemented and structurally confirmed** — `projects.buyer_user_id`/`seller_user_id` use `ON DELETE RESTRICT`, meaning a `users` row's lifecycle is independent of, and cannot be forced to end by, any project referencing it. |
 | Administration should view every major domain without violating audit history. | Not verifiable in code — Administration is Planned with no repository footprint; the technical enforcement mechanism (e.g., read-only database roles vs. application-layer permission checks) is an open question (§18). |
+| Authorization never owns credentials. | **Implemented and structurally confirmed** — `authorization.md` §5.1, §19.2 (carried from `authentication.md` §19.2): no authorization-relevant code path reads, compares, or returns `auth_credentials.password_hash`; that boundary belongs entirely to Authentication. |
+| Authorization never owns a resource's business lifecycle; domain services retain ownership of lifecycle validity, and Authorization decides only whether the actor may request the operation. | **Partially verifiable** — the one sensitive transition that exists today (`POST /projects/:projectId/lock-milestones`) keeps this boundary intact: Projects' own code enforces `state !== "draft"`, not a separate Authorization component (`authorization.md` §14.3, §28). Elsewhere Not verifiable — Authorization has no centralized implementation to test the boundary against (`authorization.md` §1, §30). |
+| Other domains call Authorization before executing protected operations. | **Not yet met** — no domain calls a centralized Authorization function; each currently-protected route (five in total) implements its own inline equivalent (`authorization.md` §24, `SEC-AUTHZ-004`). Retained as approved intent, not weakened. |
 
 ## 10. Domain Specifications
 
@@ -1159,6 +1176,87 @@ No analytics table, event-tracking code, aggregation route, or dashboard was fou
 #### Notes
 Analytics is architecturally the "last" domain to make sense of building in depth, since its primary Planned inputs (Escrow revenue, Ratings quality signals) are themselves not yet Implemented.
 
+### 10.14 Authorization
+
+Full detail for this domain lives in [`authorization.md`](../02-users-roles-permissions/authorization.md) (37 sections); this entry is the architecture-handbook-level summary, condensed and cross-referenced rather than restated.
+
+#### Purpose
+Authorization exists to decide, for a specific actor, action, and resource, under current platform state, whether a request may proceed — turning Authentication's proven (or anonymous) identity into a business-permitted or business-denied outcome.
+
+#### Objectives
+Deny by default, with every allow traceable to an explicit rule; keep the decision framework centralized and reusable rather than duplicated per route; evaluate current database state, not stale token claims, for sensitive rules; combine role-, relationship-, and attribute-based reasoning rather than relying on role names alone.
+
+#### Ownership
+Authorization owns the decision framework: evaluation pipeline, explicit-deny semantics, policy composition, permission and relationship evaluation, decision-result structure, common enforcement utilities, and authorization audit events (`authorization.md` §5.1).
+
+#### Responsibilities
+Evaluating actor, action, resource, relationship, account status, role, permission, ownership, project participation, organization membership, verification state, resource state, and platform policy to return an allow/deny decision (`authorization.md` §1–§10).
+
+#### Non-Responsibilities
+Authorization never owns credentials (Authentication's domain) and never owns any resource's business lifecycle — Projects owns project-state transitions, Escrow owns fund state, Messaging owns conversation content, Ratings owns rating data, exactly as this document's own §7 and §9 already state for those domains. Authorization decides only whether an actor may *request* an operation; it never performs the operation itself (§9).
+
+#### Core Business Rules
+(Owned by `authorization.md` §36.1; referenced here, not restated in full.)
+- Authorization must not rely solely on static role names. **Planned** — `authorization.md` `BR-AUTHZ-001`.
+- Current database state takes precedence over stale token claims for sensitive rules. **Partially Implemented** (2 of 6 authenticated routes today) — `BR-AUTHZ-002`.
+- Explicit deny overrides allow. **Planned** — `BR-AUTHZ-003`.
+- The payout beneficiary must be server-derived, never client-supplied. **Planned** — `BR-AUTHZ-009`.
+- Route handlers must call reusable policy functions rather than scattering role-name checks. **Planned** — `BR-AUTHZ-024`.
+
+#### Lifecycle Responsibilities
+Authorization has no entity-level lifecycle of its own; it evaluates a request once, synchronously, against the current state of whatever resource is named. Its canonical evaluation order (`authorization.md` §10.1) is: public-action check → authenticated-principal check → account-participation check → global denies → restrictions → role/permission → relationship → resource state → verification → organization scope → administrative override → decision → audit.
+
+```mermaid
+flowchart TD
+    A["Request for action on resource"] --> B{"Public action?"}
+    B -- Yes --> ALLOW["Allow"]
+    B -- No --> C{"Authenticated? Account may participate?"}
+    C -- No --> DENY["Deny — 401"]
+    C -- Yes --> D{"Deny rules, restrictions,<br/>role/permission, relationship,<br/>resource state, verification,<br/>org scope all satisfied?"}
+    D -- No --> DENY2["Deny — 403/404/409"]
+    D -- Yes --> ALLOW
+    ALLOW --> AUDIT["Audit where required"]
+```
+*Condensed from `authorization.md` §10.2. No route in the repository implements more than 2–3 of these steps today; each is ad hoc and route-specific (`authorization.md` §30).*
+
+#### Inputs
+An authenticated (or explicitly anonymous) principal from Authentication; current account status from Users; relationship and resource-state facts from the owning domain (Projects, Escrow, Messaging, Ratings, etc.); roles/permissions once they exist (`authorization.md` §9).
+
+#### Outputs
+An allow/deny decision with a reason code (target structure, `authorization.md` §9.2); currently, only an inline HTTP status code and error body per route — no structured decision object exists yet.
+
+#### Dependencies
+Authentication (§10.1, for the authenticated principal), Users (§10.2, for account status); Planned: Profiles, Projects, Escrow, Messaging, Ratings, Moderation, Administration (§8).
+
+#### Consumers
+Projects and Profiles today, informally, via inline checks in their route handlers; Planned: every domain with a protected action (Escrow, Messaging, Ratings, Moderation, Administration) once each is built.
+
+#### Interfaces
+None implemented as a shared component. **Planned:** `authorize(actor, action, resource, context)` (`authorization.md` `INT-AUTHZ-001`), a field-projection utility (`INT-AUTHZ-002`), a scoped-query helper for list endpoints (`INT-AUTHZ-003`), an audit-event writer (`INT-AUTHZ-004`).
+
+#### Security Boundaries
+Authorization is the domain responsible for enforcing that general routes never expose credential material (`authentication.md` §19.2) and that no route lists complete User records (`authorization.md` `BR-AUTHZ-028`). The second of these is **currently violated**: `GET /users` is unauthenticated and returns every user's email, phone, and status — a confirmed defect, not accepted behavior (`authorization.md` §21, `SEC-AUTHZ-003`, carried from `authentication.md` `SEC-AUTH-008`).
+
+#### Audit Requirements
+**Planned:** administrative actions, moderation actions, financial authorization decisions, role/permission grants and revocations, explicit-deny changes, temporary access grants, and step-up requirements/failures all require a permanent audit record; routine low-risk read allows do not (`authorization.md` §26, `AUD-AUTHZ-001`). Not implemented — no audit table exists, and not even today's correct denials (e.g., the milestone-locking `404`) are logged anywhere durable.
+
+#### Failure Scenarios
+- A suspended user with a still-valid token retains access to 4 of 6 protected routes today, since Authorization has no centralized status check to fall back on beyond what Authentication itself provides (`authentication.md` `SEC-AUTH-002`, `authorization.md` `SEC-AUTHZ-002`). **Not yet met against target.**
+- A client attempting to set another user's `user_id` on `POST /profiles` currently succeeds, since that route is unauthenticated and performs no ownership check at all (`authorization.md` `SEC-AUTHZ-001`). **Confirmed defect.**
+- `POST /projects/:projectId/lock-milestones` correctly denies a non-buyer with an identical `404` regardless of whether the project exists, avoiding a resource-existence oracle. **Implemented**, and the one positive template this domain has to generalize (`authorization.md` §14.3).
+
+#### Future Extensibility
+Centralized policy service; role and permission catalogs (`roles.md`, `permissions.md`, neither written yet); organization-scoped authorization; platform-administrator and moderation permissions; temporary, scoped, revocable access grants; policy versioning; step-up authentication for high-risk operations; a policy-testing framework (`authorization.md` §32).
+
+#### Implementation Status
+**Partially Implemented.**
+
+#### Repository Verification
+A repository-wide, case-insensitive search for `role`, `permission`, `admin`, `moderat`, and `organization` across `backend/Index.js` and every migration in `backend/db/` returned zero matches (`authorization.md` §1, §30.1). Five relationship/state checks exist inline: `backend/Index.js:425` (self-scoped `GET /auth/me`), `675` (self-dealing check), `704` (server-derived buyer), `791` (scoped project list), `857` (buyer-only milestone lock, safe `404`).
+
+#### Notes
+This domain was added to the architecture in this revision (§1). Its addition does not redesign any other domain — every dependency and consumer relationship recorded in §7–§9 is additive, consistent with how Authentication's addition in the original specification did not require redesigning Users (§10.2 Notes).
+
 ## 11. Data Model Overview
 
 The entity-relationship diagram below covers every table found in `backend/db/001`–`008`, grouped by the domain that owns it. Tables with no implemented route are marked accordingly in their relationship labels.
@@ -1193,7 +1291,7 @@ erDiagram
 | Authentication | `auth_credentials` | `007_create_auth_credentials.sql` | Implemented |
 | Projects (locking) | `projects.milestones_locked_at` + `protect_locked_milestones` trigger | `008_add_milestone_locking.sql` | Implemented |
 
-No table exists for Marketplace listings, Messaging, Ratings content, Notifications, Moderation reports, Administration, or Analytics — consistent with §10's per-domain findings.
+No table exists for Marketplace listings, Messaging, Ratings content, Notifications, Moderation reports, Administration, Analytics, or Authorization (roles, permissions, role assignments) — consistent with §10's per-domain findings. Authorization's target data-model concepts (`DATA-AUTHZ-001`–`008`: Permission, Role, Role Permission, User Role Assignment, Organization Membership, Organization Role Assignment, Temporary Access Grant, Authorization Decision Audit) are documented in `authorization.md` §40; none has a repository table today.
 
 ## 12. Domain Interactions
 
@@ -1232,6 +1330,18 @@ All three are Planned — Messaging itself has no repository footprint, so none 
 | Ratings ↔ Profiles | Planned — no reputation field on `profiles` |
 | Ratings ↔ Marketplace | Planned — Marketplace discovery has no rating/reputation signal to surface, sort, or filter by |
 
+### 12.5 Authorization interacts with: every domain with a protected action
+
+Unlike §12.1–§12.4, which restate the original specification's interaction groups verbatim, this group is this document's own extension, added alongside Authorization's introduction as the fourteenth domain (§1). It is stated separately, not as verbatim specification text.
+
+| Interaction | Status |
+|---|---|
+| Authorization ↔ Authentication | Planned — Authorization is meant to consume the authenticated principal Authentication produces; no centralized Authorization component exists to consume it from yet, though the underlying `requireAuth` output is already used informally by route handlers |
+| Authorization ↔ Users | Planned — account-status evaluation; today this is duplicated per-route rather than centralized (`authentication.md` `SEC-AUTH-002`) |
+| Authorization ↔ Projects | Planned, with informal precedent — the strongest existing example of relationship/state checking in the repository (`authorization.md` §14.3) |
+| Authorization ↔ Escrow, Messaging, Ratings | Planned — none of these domains exist as executable behavior yet, so Authorization has nothing to evaluate against for them |
+| Authorization ↔ Moderation, Administration | Planned — both domains' entire purpose is permission-gated action, making them Authorization's natural highest-priority future consumers |
+
 ## 13. Security Architecture Notes
 
 This section records architecturally relevant security facts found during verification. A full security posture review is out of scope for this document and belongs in `docs/15-security/` once written.
@@ -1240,6 +1350,7 @@ This section records architecturally relevant security facts found during verifi
 - **Session model:** stateless JWTs, 7-day default expiry (`JWT_EXPIRES_IN`), `issuer`/`audience` claim checks. No server-side session store, so no mechanism to revoke a token before natural expiry — "logout" is client-side only (§10.1).
 - **CORS:** `app.use(cors())` is called with no origin allowlist, which permits cross-origin requests from any origin.
 - **SEC-001 (carried from `product-overview.md` §13.4, §19):** `POST /users` and `POST /profiles` accept unauthenticated requests and create records outside the credentialed `POST /auth/signup` flow. Architecturally, this means the "Authentication owns account creation" boundary implied by the domain map (§6) is not fully enforced in code (§10.1, §10.2 Security Boundaries).
+- **Deny by default (Authorization, §10.14):** `authorization.md` §6.1's foundational principle is violated today by exactly the same three routes as SEC-001 — `POST /users`, `GET /users`, and `POST /profiles` are allow-by-default. `GET /users` additionally returns complete User records with no authentication or field projection at all — a confirmed defect against the canonical "no public API lists complete User records" rule (`authorization.md` `SEC-AUTHZ-003`, `BR-AUTHZ-028`), not accepted design.
 - **Environment secrets:** `JWT_SECRET` is required at process startup (the backend exits if unset or blank); `backend/.env.example` documents the expected shape without real values. No secrets were read from or written into this document.
 
 ## 14. Non-Functional and Operational Gaps
@@ -1269,6 +1380,7 @@ This section records architecturally relevant security facts found during verifi
 | 11 | Moderation | Planned |
 | 12 | Administration | Planned |
 | 13 | Analytics | Planned |
+| 14 | Authorization | Partially Implemented |
 
 ## 16. Assumptions
 
@@ -1276,6 +1388,7 @@ This section records architecturally relevant security facts found during verifi
 - **Assumption:** "Escrow never edits project content; Projects never directly move money" (§9) is intended to be enforced at the application-code level (e.g., service boundaries) once built, rather than at the database level — no ADR or design note confirms the intended enforcement mechanism.
 - **Assumption:** the specific mechanism by which Projects consumes a Ratings-completion event (§10.9 Notes) — a synchronous call, an internal event/message, or a polling check — is not specified anywhere in the repository or the supplied specification; this document assumes an event-based handoff exists conceptually without asserting a specific implementation mechanism.
 - **Assumption:** "future push notifications," "future SMS," and "future MFA" (each explicitly marked future by the specification itself) are lower priority than the rest of their respective domains' responsibilities, consistent with the specification's own wording, though no prioritization document exists.
+- **Assumption:** Authorization's five existing inline relationship/state checks (§10.14 Repository Verification) were each written independently by whoever built that specific route, not derived from a shared design document that predates `authorization.md` — no comment, commit message, or prior documentation describes a deliberate authorization strategy before this revision (carried from `authorization.md` §34).
 
 ## 17. Risks
 
@@ -1285,6 +1398,7 @@ This section records architecturally relevant security facts found during verifi
 - **Escrow/payment schema exists ahead of any provider integration or audit-immutability enforcement (§10.7).** Building on top of `escrow_ledger` before deciding and enforcing its immutability guarantee (`BR-ESCROW-002`, an unverified Assumption) risks having to retrofit audit guarantees after data already exists.
 - **No test suite (§14).** Every "Implemented" status in this document rests on manual code reading, not automated verification.
 - **Open CORS policy (§13) combined with no rate limiting (§14).** Both are individually minor at this stage but compound if any Implemented endpoint is exposed beyond `localhost` before either is addressed.
+- **No centralized Authorization component (§10.14).** Every new protected route added before `authorize()` exists inherits today's pattern: correct behavior only if its author happens to replicate the right inline checks. Two of the five existing write/read-sensitive routes already lack the account-status check the other two have (`authentication.md` `SEC-AUTH-002`) — this is exactly the failure mode centralization prevents (carried from `authorization.md` §33).
 
 ## 18. Open Questions
 
@@ -1313,8 +1427,9 @@ This section records architecturally relevant security facts found during verifi
 | 10.11 Moderation | — | — | None (adjacent: `profile_verifications`) |
 | 10.12 Administration | — | — | None |
 | 10.13 Analytics | — | — | None |
+| 10.14 Authorization | — | `BR-AUTHZ-001`–`035` (`authorization.md` §36.1) | None |
 
-All `REQ-FOUNDATION-*` and `BR-*` identifiers above are defined and owned by [`product-overview.md`](product-overview.md); see that document's §2.3 for the identifier-governance caveat on `REQ-FOUNDATION-*`.
+All `REQ-FOUNDATION-*` and `BR-*` (Projects/Escrow/Ratings) identifiers above are defined and owned by [`product-overview.md`](product-overview.md); see that document's §2.3 for the identifier-governance caveat on `REQ-FOUNDATION-*`. `BR-AUTHZ-*` identifiers are defined and owned by [`authorization.md`](../02-users-roles-permissions/authorization.md), using the `AUTHZ` domain token formally permitted by GOV-000 §11 as of that document's governing update — referenced here, not redefined, per GOV-000 §12.
 
 ## 20. Version History
 
@@ -1323,3 +1438,4 @@ All `REQ-FOUNDATION-*` and `BR-*` identifiers above are defined and owned by [`p
 | 1.0.0 | 2026-07-21 | Initial approved system architecture, converted and verified from the supplied Product Architecture Specification | Engineering |
 | 1.1.0 | 2026-07-21 | Expanded into a full architecture handbook: every domain restructured into 19 subsections (Purpose through Notes); added Domain Ownership Matrix (§7), Domain Dependency Matrix (§8), and Architecture Boundaries (§9); added Authentication, Milestone, and Escrow lifecycle diagrams (Project lifecycle diagram retained and expanded in place); introduced the five-value Status Taxonomy (§2.3); recorded the Ratings/`project_state` schema tension (§9, §10.9); reworded consolidated-codebase observations to describe current and target state professionally | Engineering |
 | 1.2.0 | 2026-07-21 | Clarified the Ratings/Projects architectural boundary: Ratings owns rating data, Projects owns project lifecycle state, and rating completion is an event Projects consumes as a transition input. Replaced the prior "product/schema inconsistency" framing with this ownership clarification in the Executive Summary, §7 (Domain Ownership Matrix), §9 (Architecture Boundaries), §10.5 (Projects: Inputs, Consumers), §10.9 (Ratings: Non-Responsibilities, Lifecycle Responsibilities, Notes), §16 (Assumptions), §17 (Risks), and §18 (Open Questions). No architecture, schema, or implementation status was changed. | Engineering |
+| 1.3.0 | 2026-07-22 | Added Authorization as the fourteenth system domain (`authorization.md`), resolving the prior implicit gap where Authorization was referenced only informally. Canonical boundary: Authentication proves identity and produces an authenticated principal; Authorization consumes that principal plus current account state, roles, permissions, relationships, and resource state, and returns allow/deny; Authorization owns neither credentials nor any resource's business lifecycle. Updated the Executive Summary (domain count 13→14, seven of fourteen domains now partially delivered), §2.2 Scope, §3 (Separation of Concerns principle), §6 (System Domain Map — new node, edges, status row), §7 (Domain Ownership Matrix — new row), §8 (Domain Dependency Matrix — expanded 13×13 to 14×14 with a new `ATZ` row/column), §9 (Architecture Boundaries — three new entries), added full §10.14 Authorization (19-subsection domain specification, one new Mermaid flowchart), §11 (Data Model Overview note), added §12.5 (Authorization Interactions, this document's own extension, not verbatim specification text), §13 (Security Architecture Notes — deny-by-default finding), §15 (Implementation Status Summary — new row), §16 (Assumptions), §17 (Risks), and §19 (Traceability — new row). No existing domain's architecture, schema, or implementation status was changed. | Engineering |
