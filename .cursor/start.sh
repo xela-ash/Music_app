@@ -4,6 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+if ! command -v psql >/dev/null 2>&1; then
+  sudo apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql postgresql-contrib
+fi
+
+if [[ ! -d backend/node_modules ]] || [[ ! -d frontend/node_modules ]]; then
+  ./.cursor/install.sh
+fi
+
 if ! pg_isready -q -h localhost -p 5432 2>/dev/null; then
   if command -v pg_ctlcluster >/dev/null 2>&1; then
     sudo pg_ctlcluster 16 main start
