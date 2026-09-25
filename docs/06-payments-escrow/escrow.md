@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Escrow, allocations, ledger, release, refund, and financial outcomes (governed `ESCROW` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Escrow product architecture and verified current repository comparison |
@@ -87,8 +87,8 @@ The complete current specification tree was searched before assigning identifier
 
 | Family | This document | [payments.md](payments.md) | Governed |
 | --- | --- | --- | --- |
-| `REQ-ESCROW-*` | 001–013, 015–022 | 023–035 | Yes, Governance Section 11 |
-| `BR-ESCROW-*` | 003–033 | 034–048 | Yes, Governance Section 11 |
+| `REQ-ESCROW-*` | 001–013, 015–022, 036 | 023–035 | Yes, Governance Section 11 |
+| `BR-ESCROW-*` | 003–033, 049 | 034–048 | Yes, Governance Section 11 |
 | `SEC-ESCROW-*` | 001–014 | 015–028 | Yes, Governance Section 11.1 |
 | `DATA-ESCROW-*` | 001–006 | 007–011 | Yes, Governance Section 11.1 |
 | `INT-ESCROW-*` | 001–010 | 011–020 | Yes, Governance Section 11.1 |
@@ -96,6 +96,8 @@ The complete current specification tree was searched before assigning identifier
 | `EVT-ESCROW-*` | 001–008 | 009–014 | No; provisional |
 | `OPS-ESCROW-*` | 001–006 | 007–011 | No; provisional |
 | `SPEC-ESCROW-*` | `000` | `001` | No; provisional |
+
+`REQ-ESCROW-036` and `BR-ESCROW-049` were added on 2026-09-25, continuing after both documents' prior ceilings (`REQ-ESCROW-035`, `BR-ESCROW-048`), to reconcile the Buyer non-response product decision described in [Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention).
 
 The inherited collision is a pre-existing Layer 0 and Layer 1 defect that this document neither creates nor repairs. Governance Section 28 and System Architecture Section 10.7 use `BR-ESCROW-001` for the allocation invariant `released + refunded <= allocated`. Product Overview Section 11 uses the same identifier for "a project's budget MUST be held in escrow and released only against buyer-approved milestones". `BR-ESCROW-002` (ledger immutability) has the same meaning everywhere and is unaffected. Governance controls, so `BR-ESCROW-001` below means the allocation totals invariant. The Product Overview meaning keeps its historical citation and is expressed here under new `BR-ESCROW-013` and `BR-ESCROW-014`. This document does not redefine `BR-ESCROW-001` or `BR-ESCROW-002`. It extends the first as `BR-ESCROW-011` and specifies enforcement of the second as `BR-ESCROW-009`.
 
@@ -112,6 +114,7 @@ The following contradictions and gaps between existing documents were found whil
 | ER5 | [Projects Section 20](../05-projects-milestones/projects.md#20-escrow-and-payment-relationship) fundability includes "required Seller payout verification policy"; Users `BR-USERS-011` says verification blocks only receiving releases | Whether Seller verification must precede funding is unresolved | This document defers to policy: a configurable pre-funding check, default non-blocking; Question EQ4 |
 | ER6 | [Milestones Section 19.1](../05-projects-milestones/milestones.md#191-completion-semantics) default split mapping versus this document | Milestones gave a default mapping pending this specification | Confirmed and extended in Section 12; consistent, no contradiction |
 | ER7 | User brief lists Seller activation fee, Buyer protection fee, and commission | No specification or code establishes any of them | Not adopted as canonical; fee kinds are configuration (Section 19); Question EQ1 |
+| ER8 | Product decision, 2026-09-25; [Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention) | Milestones' `delivered` → `buyer_approved` transition may now be entered through an ordinary Buyer approval (M07) or a platform non-response release authorization (M18); both are distinct Milestones-owned records | Escrow's release-eligibility fact (Section 14.1) treats both sources identically and evaluates neither Buyer intent nor non-response policy itself, which remain entirely Milestones-owned; see `BR-ESCROW-049` |
 
 ## 4. Terminology and domain boundaries
 
@@ -618,6 +621,7 @@ Release is the Escrow ledger movement that turns protected funds into a Seller e
 | Fact | Owner | Record | Meaning |
 | --- | --- | --- | --- |
 | Milestone approved | Milestones | Approval record `DATA-PROJECTS-013` | The Buyer accepted the exact submission; the allocation becomes eligible for release ([Milestones Section 18](../05-projects-milestones/milestones.md#18-buyer-approval)) |
+| Platform non-response release authorized | Milestones | Authorization record `DATA-PROJECTS-017`, distinct from `DATA-PROJECTS-013` | After a documented, exhausted Buyer-contact intervention, the platform — never the Buyer — authorizes the same release-eligibility fact; this is never Buyer approval and never itself a release ([Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention)) |
 | Escrow released | Escrow | Journal with `released_to_seller` | Protected funds moved to a Seller entitlement; the allocation is settled or reduced |
 | Seller paid out | Payments | Payout Payment and `payout_paid` entry | The provider confirmed a transfer to the Seller's payout account ([payments.md Section 11](payments.md#11-payouts)) |
 
@@ -627,7 +631,7 @@ Release requires all of the following trusted facts, each verified at commit und
 
 | Required fact | Source | Verification |
 | --- | --- | --- |
-| A valid approval-for-release for this allocation and term version | Milestones (`EVT-PROJECTS-010`) | Event ID unique; Project, Milestone, term version, currency, and amount match the allocation |
+| A valid approval-for-release for this allocation and term version, sourced from either an ordinary Buyer approval or a platform non-response release authorization | Milestones (`EVT-PROJECTS-010`, emitted identically for M07 or M18; see `EVT-PROJECTS-021` in [milestones.md Section 25.3](../05-projects-milestones/milestones.md#253-provisional-events-and-operations)) | Event ID unique; Project, Milestone, term version, currency, and amount match the allocation. Escrow does not distinguish the two sources and never itself evaluates Buyer responsiveness |
 | The allocation is `funded` with a positive remaining amount | Escrow | Recomputed from the ledger |
 | No open hold on the allocation, and no Escrow-wide hold | Escrow holds | Checked under lock |
 | The Escrow is not closed | Escrow | State check |
@@ -682,6 +686,10 @@ sequenceDiagram
 *Figure 6 — Release Sequence. Approval is an input, the payout gate is evaluated live, and release commits only as one balanced journal.*
 
 `REQ-ESCROW-009`: Escrow MUST release only from a verified approval-for-release fact that matches the allocation, with the live payout gate passing, no hold, and remaining funds, MUST NOT release on a client request or on Rating state, and MUST keep release, approval, and payout as separate records.
+
+`REQ-ESCROW-036`: Escrow MUST treat a verified platform non-response release authorization exactly as it treats an ordinary Buyer approval for release-eligibility purposes, and MUST NOT itself evaluate Buyer responsiveness, contact attempts, or non-response policy, which remain entirely Milestones-owned (Decision, 2026-09-25; [Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention)).
+
+`BR-ESCROW-049`: Escrow's release-eligibility fact MUST be sourced from either `milestone_approvals` or `milestone_platform_release_authorizations` without distinction at the Escrow layer, and Escrow MUST NOT require, infer, or record Buyer intent as a precondition of release.
 
 ## 15. Refunds
 
@@ -1421,6 +1429,7 @@ Questions owned by future domains (Disputes adjudication, tax and legal policy, 
 | `REQ-ESCROW-020` | Scheduled reconciliation and safe response | 23 | Drift-detection tests |
 | `REQ-ESCROW-021` | Separate target records, restrictive FKs | 24 | Migration and constraint tests |
 | `REQ-ESCROW-022` | Ownership preserved across deployment | 29 | Architecture and event-contract review |
+| `REQ-ESCROW-036` | Non-response authorization treated identically to Buyer approval at release eligibility | 14 | Source-agnostic eligibility tests |
 
 ### 32.2 Business-rule traceability
 
@@ -1458,6 +1467,8 @@ Questions owned by future domains (Disputes adjudication, tax and legal policy, 
 | `BR-ESCROW-032` | Internal reconciliation between the ledger, projections, allocations, holds, instructions, and Project and Milestone projections MUST run on a schedule and MUST respond to a mismatch by alert and hold, never by silent correction. | Detects drift before it compounds. | Not yet enforced. | Not Implemented | 23.3 | Drift-detection and no-silent-fix tests |
 | `BR-ESCROW-033` | A Project or Milestone row MUST NOT be migrated into a funded, released, refunded, or completed state on the strength of its own enum value alone; it MUST correspond to a reconciled ledger journal, or be held for review. | Prevents fabricating financial history during migration. | Not yet enforced; resolves part of the Projects P0 migration question (Section 24.2). | Not Implemented | 24.2 | Migration-evidence tests |
 
+| `BR-ESCROW-049` | Escrow's release-eligibility fact MUST be sourced from either `milestone_approvals` or `milestone_platform_release_authorizations` without distinction, and MUST NOT require or infer Buyer intent. | Preserves the distinction between Buyer approval, platform authorization, Escrow release, and Seller payout while keeping Escrow's own eligibility contract source-agnostic. | Not yet enforced; no release path exists. | Not Implemented | 14 | Source-agnostic eligibility tests |
+
 Inherited `BR-ESCROW-001` and `BR-ESCROW-002` are reconciled in Section 3.3 and are not newly defined here.
 
 ### 32.3 Security, data, interface, audit, event, and operations traceability
@@ -1475,7 +1486,7 @@ Every governed identifier newly defined by this document has one definition and 
 
 ## 33. Validation record
 
-The authoring validation for version 0.1.0 covers:
+The authoring validation for version 0.2.0 covers version 0.1.0's checks plus this revision's reconciliation of the Buyer non-response product decision:
 
 | Check | Result |
 | --- | --- |
@@ -1496,9 +1507,11 @@ The authoring validation for version 0.1.0 covers:
 | Financial history is non-destructive; corrections are compensating entries | Passed |
 | No trailing whitespace; `git diff --check` clean | Passed |
 | Only the new Escrow and Payments specification files changed | Passed |
+| New identifiers (`REQ-ESCROW-036`, `BR-ESCROW-049`) verified unique against the complete specification tree, continuing without reuse from this document's and `payments.md`'s prior ceiling (035/048) | Passed |
 
 ## 34. Version history
 
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial Proposed Escrow aggregate, allocations, ledger, funding model, release, refund, cancellation and dispute financial outcomes, chargebacks, fees, currency, eligibility, authorization, concurrency, audit, reconciliation, target data model, verified repository comparison, security findings, and traceability, companion to `payments.md`. | Product and Architecture |
+| 0.2.0 | 2026-09-25 | Reconciled the Buyer non-response product decision ([Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention)): Section 14's release-eligibility fact now explicitly covers a platform non-response release authorization alongside ordinary Buyer approval, treated identically at the Escrow layer without Escrow itself evaluating Buyer responsiveness. Added `REQ-ESCROW-036`, `BR-ESCROW-049`, and reconciliation item ER8. No existing identifier, section number, or unrelated content changed. | Product and Architecture |

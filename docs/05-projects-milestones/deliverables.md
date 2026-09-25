@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Deliverables (governed under the `PROJECTS` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Deliverables product architecture and verified current repository comparison |
@@ -62,8 +62,8 @@ The complete current specification tree was searched before assigning identifier
 
 | Family | Range defined here | Governed |
 | --- | --- | --- |
-| `REQ-PROJECTS-*` | 043–059 | Yes, Governance Section 11 |
-| `BR-PROJECTS-*` | 057–075 | Yes, Governance Section 11 |
+| `REQ-PROJECTS-*` | 043–059, 062 | Yes, Governance Section 11 |
+| `BR-PROJECTS-*` | 057–075, 079–080 | Yes, Governance Section 11 |
 | `SEC-PROJECTS-*` | 033–045 | Yes, Governance Section 11.1 |
 | `DATA-PROJECTS-*` | 014–016 | Yes, Governance Section 11.1 |
 | `INT-PROJECTS-*` | 027–034 | Yes, Governance Section 11.1 |
@@ -71,6 +71,8 @@ The complete current specification tree was searched before assigning identifier
 | `EVT-PROJECTS-*` | 014–018 | No; provisional |
 | `OPS-PROJECTS-*` | 013–015 | No; provisional |
 | `SPEC-PROJECTS-002` | Document ID | No; provisional |
+
+`REQ-PROJECTS-062`, `BR-PROJECTS-079`, and `BR-PROJECTS-080` were added on 2026-09-25, after `milestones.md` was revised to 1.1.0 and itself claimed `REQ-PROJECTS-060`–`061`, `BR-PROJECTS-076`–`078`, `SEC-PROJECTS-046`–`047`, `DATA-PROJECTS-017`, `INT-PROJECTS-035`, `AUD-PROJECTS-015`, `EVT-PROJECTS-019`–`021`, and `OPS-PROJECTS-016`. Those Milestones-owned identifiers are cited here, not redefined, and this document's new numbers continue after them without reuse or collision.
 
 This document does not use, redefine, or renumber `BR-PROJECTS-002`, whose Layer 0/Layer 1 collision was already recorded and resolved in favor of Governance's meaning by [Milestones Section 3.1](milestones.md#31-identifier-ranges-and-the-inherited-collision) and [Projects Section 3.1](projects.md#31-existing-project-identifier-collision). That question remains Milestones Question Q1 and is not reopened here.
 
@@ -85,6 +87,7 @@ The following findings were made while authoring. No existing document was modif
 | DR3 | Milestones Question Q7 | "Is Deliverables a separate capability with its own owner, or an internal part of Milestones?" | Resolved by this document's existence: Deliverables is a separate capability with its own document, governed under the same `PROJECTS` token as Milestones, exactly as Milestones itself is a separate document from Projects under that token. No Foundation change or ADR was required. |
 | DR4 | Milestones reconciliation item R6; Foundation domain map | Foundation has no Deliverables domain entry | Unchanged by this document; the `PROJECTS`-token precedent (point 2 of Section 3.1) makes a Foundation change unnecessary for Deliverables specifically, but the underlying Foundation domain-map gap for Deliverables, Payments, Disputes, and Reviews generally remains open governance debt, tracked once in Milestones R6 and not duplicated here. |
 | DR5 | Assets Section 16.1 binding rules; Milestones Section 22 | Assets requires an explicit Milestone foreign key for the Milestone-subject purpose, and Milestones binds Project Asset bindings (`DATA-PROJECTS-007`) with a Milestone subject rather than creating its own binding table | Deliverables follows the same pattern for its own concern: Submission-to-Asset binding is a Deliverables-owned join keyed to the Submission, referencing Asset versions by identity, never duplicating Asset storage. See Section 8. |
+| DR6 | Three product decisions confirmed 2026-09-25; Section 27.3 Questions EQ1, EQ2, EQ3; [Milestones Sections 9.2, 18.2](milestones.md#92-commercial-terms-matrix) | This document's EQ1 (minimum Asset count), EQ2 (Buyer non-response), and EQ3 (revision-limit scope) were all P0 open questions blocking a complete Submission and revision contract | All three are now resolved by product decision and are reflected in Sections 7.1, 10.1, 11.1, and 12.1: submission requirements are declared per Milestone in `deliverable_definition.submission_requirements`; Buyer non-response resolves through Milestones' Section 18.2 platform intervention, never automatic approval; revision allowance is `milestones.md`'s per-Milestone `revision_allowance`. EQ1–EQ3 are marked Resolved in Section 27.3, not deleted. |
 
 The implementation labels in this document mean:
 
@@ -200,7 +203,7 @@ erDiagram
 | Actor | The accepted Seller of the Project, or an explicitly scoped collaborator once such a role exists in Authorization | Not Implemented |
 | Milestone state | `in_progress` only, verified live at commit time, not from a client-supplied value | Not Implemented |
 | Term version | The Submission is bound to the Milestone's current agreed term version | Not Implemented |
-| Required Assets | At least one Asset version if the Milestone's `deliverable_definition` requires file evidence; the specific minimum count is a product decision not established anywhere and is Open Question EQ1 | Not Implemented |
+| Required Assets | Exactly the minimum Asset-version count and required Asset classes declared in the Milestone's agreed `deliverable_definition.submission_requirements` ([Milestones Section 9.2](milestones.md#92-commercial-terms-matrix), Decision 2026-09-25). Submission requirements are service/Milestone-dependent, not a platform-wide rule: zero Assets is valid when the agreed declaration marks the Milestone text-only-sufficient; most creative-service Milestones are expected to require at least one Asset, but Deliverables enforces the agreed declaration, never an assumed default. Once commercial terms are locked, this declaration cannot be unilaterally changed (Section 12.1) | Not Implemented |
 | Asset readiness | Every bound Asset version MUST be in Assets' `Ready` state; a `Quarantined`, `Processing`, `Failed`, `Rejected`, or `Deleted` Asset MUST NOT be bound | Not Implemented |
 | Asset ownership | Every bound Asset version MUST already carry the "Project Deliverable" (initial) or "Project Revision" (resubmission) purpose from [Assets Section 7.2](../03-identity-profiles-verification/assets-and-media.md#72-asset-purpose-matrix), scoped to this Project and Milestone | Not Implemented |
 | Textual note | Optional, bounded length, restricted from raw inclusion in events and logs, consistent with Milestones' treatment of revision reason text | Not Implemented |
@@ -227,6 +230,8 @@ erDiagram
 | `asset_count` | Count of bound Assets | Derived | Not applicable | Not Implemented |
 
 `REQ-PROJECTS-045`: Every Submission MUST be created as a single atomic transaction covering the Submission row and all of its Asset bindings, MUST NOT be created against a Milestone that is not live `in_progress`, and MUST be idempotent under a caller-supplied key.
+
+`REQ-PROJECTS-062`: Deliverables MUST evaluate Submission validity against the agreed Milestone's own `submission_requirements` declaration and MUST NOT apply a platform-wide minimum-Asset rule, a default required-Asset count, or any requirement the agreed Milestone terms do not themselves declare.
 
 ### 7.3 Initial submission sequence
 
@@ -323,6 +328,7 @@ Buyer review, revision requests, and approval are Milestone-owned commands (`del
 | Revision request after approval | Rejected: once `milestone_approvals` names a Submission, the Milestone has left `delivered` for `buyer_approved` and no further revision request is possible against that Milestone | Milestones |
 | Review after cancellation | Rejected: Deliverables' own eligibility check (Section 7.1) and Milestones' state guard both reject once the Milestone is no longer `in_progress` or `delivered` | Shared |
 | Review during dispute | Rejected: see Section 15 | Shared |
+| Buyer non-response / platform authorization | Deliverables' contract is identical to ordinary approval: it supplies the exact Current Submission `external_id`. Deliverables does not track review-period elapsed time, does not initiate or participate in platform intervention, and does not decide the authorization | Milestones' Section 18.2 process: review timeout, auditable intervention, and (if exhausted) a `milestone_platform_release_authorizations` record naming the same Submission reference, kept separate from `milestone_approvals` |
 
 `REQ-PROJECTS-048`: Deliverables MUST expose the Current Submission and its immutable history to Milestones' review and approval commands by exact, unambiguous version reference, and MUST NOT accept a Milestone-owned command's outcome as a Deliverables-owned status write.
 
@@ -339,6 +345,7 @@ Approval itself — actor, timestamp, idempotency key, correlation ID — is rec
 | Resulting Milestone fact | `buyer_approved`, per Milestones transition M07 |
 | Resulting Escrow eligibility fact | The Milestone's approval record makes the corresponding Escrow allocation eligible for release consideration; Escrow independently verifies funding, holds, and settlement state before actually releasing ([escrow.md Section 14.1](../06-payments-escrow/escrow.md#141-release-eligibility)) |
 | What approval does NOT mean | Approval MUST NOT be read, by any domain, as proof that money has moved. Buyer approval, Escrow release, and Seller payout remain three separate facts owned by three different records (Milestones' approval record, Escrow's ledger, and Payments' payout record respectively) |
+| Non-response authorization is not approval | A platform non-response release authorization ([Milestones Section 18.2](milestones.md#182-buyer-non-response-and-platform-intervention)) names the same Current Submission reference contract as ordinary approval but is recorded in a separate Milestones-owned table (`milestone_platform_release_authorizations`, distinct from `milestone_approvals`). Deliverables MUST NOT conflate the two in any read, report, or event |
 
 ```mermaid
 sequenceDiagram
@@ -358,6 +365,8 @@ sequenceDiagram
 
 `REQ-PROJECTS-049`: Deliverables MUST NOT emit, cache, or expose any signal that could be mistaken for an Escrow release or Seller payout fact; only Escrow's own records are authoritative for money movement.
 
+`BR-PROJECTS-079`: Deliverables MUST NOT present a platform non-response release authorization as, or conflate it with, an ordinary Buyer approval; both name a Submission through the identical reference contract but originate from separate Milestones-owned records.
+
 ## 12. Revision model and history
 
 ### 12.1 Revision matrix
@@ -370,11 +379,13 @@ sequenceDiagram
 | Current submission | The highest `submission_number`; the Deliverable's `latest_submission_id` projection updates transactionally with the new Submission | Deliverables |
 | Revision reason | Required code plus bounded, restricted text | Milestones |
 | Assets per submission | Each Submission has its own independent set of Asset bindings; a resubmission is not required to reuse or reference the prior Submission's Assets | Deliverables |
-| Revision limit / count | Not invented here. Milestones already derives `revision_count` from its own revision-request records (Milestones Section 17.1); Deliverables' Submission count is a distinct, larger number (it also counts the original Submission) and MUST NOT be conflated with Milestones' revision-cycle count in any report or event | Shared, not duplicated |
-| Revision timeout / automatic acceptance | Not established by any existing specification. Left as Open Question (Milestones Question Q2, restated here as EQ2) | Open |
-| Revision limit scope (per Milestone vs. per Project) | Not established; the schema-level `revision_limit` column is Project-scoped (Milestones Question Q10, restated here as EQ3) | Open |
+| Revision limit / count | Milestones derives `revision_count` from its own revision-request records and compares it against this Milestone's own agreed `revision_allowance` ([Milestones Section 17.1](milestones.md#171-revision-matrix), Decision 2026-09-25). Deliverables' Submission count is a distinct, larger number (it also counts the original Submission) and MUST NOT be conflated with Milestones' revision-cycle count or allowance in any report or event | Shared, not duplicated |
+| Revision timeout / automatic acceptance | Buyer silence is never automatic acceptance. Resolved by product decision: a configurable review timeout followed by auditable platform intervention, ending (if exhausted) in a platform non-response release authorization distinct from Buyer approval ([Milestones Section 18.2](milestones.md#182-buyer-non-response-and-platform-intervention)). Exact durations remain configuration (Milestones Question Q18) | Resolved; product behavior decided, operational timing remains open |
+| Revision limit scope (per Milestone vs. per Project) | Resolved: per Milestone. `revision_allowance` is negotiated and agreed independently for each Milestone as a commercial term ([Milestones Section 9.2](milestones.md#92-commercial-terms-matrix)); the schema-level `projects.revision_limit` column is Project-scoped legacy data that the target architecture supersedes | Resolved |
 
 `REQ-PROJECTS-050`: A Seller resubmission MUST create a new Submission with a strictly greater `submission_number` than any prior Submission for the same Deliverable, MUST NOT be accepted unless a Milestone revision request is currently open, and MUST NOT reuse or mutate a prior Submission's Asset bindings.
+
+`BR-PROJECTS-080`: Deliverables' own Submission and resubmission count MUST remain a distinct value from Milestones' `revision_count` and `revision_allowance`, and Deliverables MUST NOT enforce, cache, or duplicate the per-Milestone revision allowance, which remains Milestones-owned.
 
 ### 12.2 Revision and resubmission sequence
 
@@ -837,15 +848,16 @@ Documentation only; this stage does not modify application code or migrations.
 
 | ID | Priority | Question | Why it blocks or risks | Decision owner and resolving specification | Affected contract |
 | --- | --- | --- | --- | --- | --- |
-| EQ1 | P0 | How many Asset versions, at minimum, must a Submission bind, and does this vary by `deliverable_definition`? | Without it, an empty or trivial Submission could satisfy Milestones' readiness fact | Product; this specification's Section 7.1 | Section 7 |
-| EQ2 | P0 | What happens when the Buyer neither approves nor requests revision (review timeout, automatic acceptance, or escalation)? Restates Milestones Question Q2. | A `delivered` Milestone can stall indefinitely without it | Product with Escrow and Disputes; Milestones and this specification jointly | Sections 10, 12 |
-| EQ3 | P0 | Does the agreed `revision_limit` allowance apply per Milestone or across the whole Project? Restates Milestones Question Q10. | The enforcement scope is undefined; the column is Project-level | Product; Milestones and this specification jointly | Section 12 |
-| EQ4 | P1 | Is a minimum or maximum number of Asset versions per Submission needed for abuse prevention? | Unbounded attachment counts could be used to exhaust storage or review time | Product | Section 7 |
+| EQ1 | Resolved (2026-09-25) | ~~How many Asset versions, at minimum, must a Submission bind?~~ Service/Milestone-dependent: declared per Milestone in `deliverable_definition.submission_requirements`, not a platform-wide rule; zero is valid for a declared text-only Milestone | Resolved the minimum-count blocker; the abuse-prevention bound remains EQ4 | Product decision, 2026-09-25; [Milestones Section 9.2](milestones.md#92-commercial-terms-matrix) | Section 7 |
+| EQ2 | Resolved (2026-09-25) | ~~What happens when the Buyer neither approves nor requests revision?~~ Product behavior decided: configurable review timeout, auditable platform intervention, and (if exhausted) a platform non-response release authorization distinct from Buyer approval. Buyer silence is never automatic acceptance. Restates Milestones Question Q2 | Resolved the stall blocker; exact durations remain configuration (Milestones Question Q18) | Product decision, 2026-09-25; [Milestones Section 18.2](milestones.md#182-buyer-non-response-and-platform-intervention) | Sections 10, 12 |
+| EQ3 | Resolved (2026-09-25) | ~~Does the agreed revision allowance apply per Milestone or across the whole Project?~~ Per Milestone: `revision_allowance` is negotiated independently per Milestone. Restates Milestones Question Q10 | Resolved the enforcement-scope blocker | Product decision, 2026-09-25; [Milestones Section 9.2](milestones.md#92-commercial-terms-matrix) | Section 12 |
+| EQ4 | P1 | Is a minimum or maximum number of Asset versions per Submission needed for abuse prevention, beyond the agreed `submission_requirements` declaration? | Unbounded attachment counts could be used to exhaust storage or review time even within a declared requirement | Product | Section 7 |
 | EQ5 | P1 | What happens if a Seller never resubmits after a revision request (Seller abandonment)? | No existing specification defines a Seller-side timeout or escalation | Product, Milestones | Section 12 |
 | EQ6 | P1 | Should a Buyer be able to approve while an unrelated later Submission exists (for example, approving an earlier version by exception)? | The current model only allows approving the Current Submission; an exception path is undefined | Product | Section 10 |
-| EQ7 | P2 | What structure should `deliverable_definition` take beyond MVP bounded free text? Restates Milestones Question Q15. | Affects acceptance clarity and future Dispute evidence | Product; Milestones | Section 7.1 |
+| EQ7 | P2 | What structure should `deliverable_definition` take beyond its now-decided `submission_requirements` declaration and MVP bounded free text? Restates Milestones Question Q15. | Affects acceptance clarity and future Dispute evidence; the submission-requirements portion is resolved | Product; Milestones | Section 7.1 |
 | EQ8 | P2 | Should a Milestone ever support more than one independently approved Deliverable/work item? | Premature multiplicity increases migration cost without a proven product need | Product, Architecture | Section 6.1 |
 | EQ9 | P2 | Which governed families should replace the provisional `EVT-PROJECTS-*` and `OPS-PROJECTS-*` identifiers used here? | Governance defines no such families yet; also open in Milestones (Question Q16) | Governance | Section 20.2 |
+| EQ10 | P2 | Is a lightweight, self-serve change/add-on mechanism needed for MVP for voluntary work beyond a locked `revision_allowance`? Restates Milestones Question Q19. | Without it, exhausted-allowance disagreement has only "approve" or "open a Dispute" as exits | Product | Section 12 |
 
 ## 28. Traceability
 
@@ -870,6 +882,7 @@ Documentation only; this stage does not modify application code or migrations.
 | `REQ-PROJECTS-057` | Synchronous audit before completion | 20 | Audit tests |
 | `REQ-PROJECTS-058` | Smallest normalized schema, no owner-table alteration | 21 | Migration review |
 | `REQ-PROJECTS-059` | Contract preserved across deployment topology | 25 | Architecture review |
+| `REQ-PROJECTS-062` | Submission validity evaluated against agreed Milestone declaration only | 7 | Requirement-declaration tests |
 
 ### 28.2 Business rule traceability
 
@@ -894,13 +907,15 @@ Documentation only; this stage does not modify application code or migrations.
 | `BR-PROJECTS-073` | A Submission's Asset bindings MUST NOT be reused or mutated by a later resubmission. | Each Submission's evidence is independently complete. | Not Implemented | 8, 12 | Binding-independence tests |
 | `BR-PROJECTS-074` | Deliverables MUST NOT invent a revision limit, review timeout, or automatic-acceptance rule. | Preserves genuine Product/Legal decisions as Open Questions. | Not Implemented | 12, 27.3 | Documentation review |
 | `BR-PROJECTS-075` | Deliverables locks MUST follow Project, then Milestone, then Deliverable order. | Prevents deadlock with Milestones' and Escrow's own lock ordering. | Not Implemented | 19 | Concurrency tests |
+| `BR-PROJECTS-079` | Deliverables MUST NOT present a platform non-response release authorization as, or conflate it with, an ordinary Buyer approval. | Preserves an accurate, non-misleading acceptance history across two Milestones-owned record types. | Not Implemented | 11 | Contract/negative tests |
+| `BR-PROJECTS-080` | Deliverables' Submission/resubmission count MUST remain distinct from, and MUST NOT enforce or duplicate, Milestones' `revision_count` or `revision_allowance`. | Preserves Milestones' sole ownership of the revision allowance. | Not Implemented | 12 | Boundary tests |
 
 ### 28.3 Family range summary
 
 | Family | Range in this document |
 | --- | --- |
-| `REQ-PROJECTS-*` | 043–059 |
-| `BR-PROJECTS-*` | 057–075 |
+| `REQ-PROJECTS-*` | 043–059, 062 |
+| `BR-PROJECTS-*` | 057–075, 079–080 |
 | `SEC-PROJECTS-*` | 033–045 |
 | `DATA-PROJECTS-*` | 014–016 |
 | `INT-PROJECTS-*` | 027–034 |
@@ -910,7 +925,7 @@ Documentation only; this stage does not modify application code or migrations.
 
 ## 29. Validation record
 
-This document was validated against Governance's structural requirements before commit: exactly one H1; sequential, non-skipping H2/H3 numbering; Status Proposed and Version 0.1.0 stated once in the metadata table and not contradicted elsewhere; no placeholder or "TBD" content; all required tables (Deliverable Field Matrix, Submission Field Matrix, Asset Binding Matrix, Review Field Matrix, Deliverable State Matrix, Transition/derivation matrix, Submission Eligibility Matrix, Review/Approval Matrix, Revision Matrix, Cancellation Matrix, Milestone Integration Matrix, Escrow Integration Matrix, Dispute Integration Matrix, Authorization Matrix, Domain Dependency Matrix, Repository Comparison Matrix, Implementation Status Matrix, Security Findings Table, Open Questions Table) present and substantive; all twelve required Mermaid diagram categories present (Domain Architecture, Aggregate Relationship, State Machine, Initial Submission Sequence, Revision/Resubmission Sequence, Buyer Approval Sequence, Milestone Integration Flow, Escrow Eligibility Flow, Dispute Evidence Flow, Authorization Evaluation Flow, Future Architecture, Repository vs. Target) with balanced fences; relative links resolve to sections that exist in their target documents; identifiers verified unique across the complete specification tree with zero collisions (Section 3.2); repository claims are evidence-based per Section 22; target behavior is never mislabeled as implemented; Project, Milestone, Deliverable, Asset, Escrow, and Dispute state remain separated throughout (Sections 5, 9, 13–16); Buyer approval is never equated with money movement (Sections 5, 11, 14); Submission history is non-destructive throughout (Sections 6, 12, 16); no trailing whitespace or tabs were introduced.
+This document was validated against Governance's structural requirements before commit: exactly one H1; sequential, non-skipping H2/H3 numbering; Status Proposed and Version 0.2.0 stated once in the metadata table and not contradicted elsewhere; no placeholder or "TBD" content; all required tables (Deliverable Field Matrix, Submission Field Matrix, Asset Binding Matrix, Review Field Matrix, Deliverable State Matrix, Transition/derivation matrix, Submission Eligibility Matrix, Review/Approval Matrix, Revision Matrix, Cancellation Matrix, Milestone Integration Matrix, Escrow Integration Matrix, Dispute Integration Matrix, Authorization Matrix, Domain Dependency Matrix, Repository Comparison Matrix, Implementation Status Matrix, Security Findings Table, Open Questions Table) present and substantive; all twelve required Mermaid diagram categories present (Domain Architecture, Aggregate Relationship, State Machine, Initial Submission Sequence, Revision/Resubmission Sequence, Buyer Approval Sequence, Milestone Integration Flow, Escrow Eligibility Flow, Dispute Evidence Flow, Authorization Evaluation Flow, Future Architecture, Repository vs. Target) with balanced fences; relative links resolve to sections that exist in their target documents; identifiers verified unique across the complete specification tree with zero collisions (Section 3.2, updated for this revision against `milestones.md` 1.1.0); repository claims are evidence-based per Section 22; target behavior is never mislabeled as implemented; Project, Milestone, Deliverable, Asset, Escrow, and Dispute state remain separated throughout (Sections 5, 9, 13–16); Buyer approval is never equated with money movement (Sections 5, 11, 14); Submission history is non-destructive throughout (Sections 6, 12, 16); EQ1, EQ2, and EQ3 are reclassified Resolved with a pointer to the deciding decision and section, not silently deleted (Section 27.3); no trailing whitespace or tabs were introduced.
 
 `git diff --check`, `git status --short`, and `wc -l` on this file were run as part of the commit sequence in Section 30's companion report, and a repository-wide duplicate-identifier check confirmed no collision with any identifier defined in `projects.md`, `milestones.md`, `escrow.md`, `payments.md`, or any other existing specification.
 
@@ -919,3 +934,4 @@ This document was validated against Governance's structural requirements before 
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Deliverables domain specification: ownership resolved to the `PROJECTS` token under `docs/05-projects-milestones/`; one-Deliverable-per-Milestone aggregate model; Submission versioning; Asset binding contract; review/approval contract preserving Milestones' sole ownership of `DATA-PROJECTS-012`/`013`; Escrow and Dispute contracts; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
+| 0.2.0 | 2026-09-25 | Reconciled three confirmed product decisions against [Milestones 1.1.0](milestones.md): submission requirements are service/Milestone-dependent per `deliverable_definition.submission_requirements` (Section 7.1); Buyer non-response resolves through Milestones' Section 18.2 platform intervention, never automatic approval (Sections 10.1, 11.1); revision allowance is Milestones' per-Milestone `revision_allowance` (Section 12.1). Reclassified Questions EQ1, EQ2, and EQ3 as Resolved; added Question EQ10. Added `REQ-PROJECTS-062`, `BR-PROJECTS-079`–`080`. No existing identifier, section number, or unrelated content changed. | Product and Architecture |

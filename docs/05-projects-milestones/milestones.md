@@ -6,9 +6,9 @@
 | Type | Specification (SPEC) |
 | Domain | Milestones (governed under the `PROJECTS` token) |
 | Status | Proposed |
-| Version | 1.0.0 |
+| Version | 1.1.0 |
 | Owner | Product and Architecture |
-| Last Reviewed | 2026-09-20 |
+| Last Reviewed | 2026-09-25 |
 | Applies To | Target Milestone product architecture and verified current repository comparison |
 | Governed token | `PROJECTS` |
 | Canonical path | `docs/05-projects-milestones/milestones.md` |
@@ -105,6 +105,11 @@ The following contradictions and gaps between existing documents were found whil
 | Active Milestone | A Milestone not superseded by a later term version of the Project plan. |
 | Terminal outcome | `released`, `refunded`, or `cancelled`. |
 | Work-accepted | A Milestone in `buyer_approved` or `released`. |
+| Submission requirements | The agreed, service/Milestone-dependent declaration of what a valid Deliverable Submission must contain (minimum Asset count, optional required Asset classes, and whether a text-only Submission is sufficient), carried inside `deliverable_definition` as a commercial term (Section 9). Not a platform-wide rule; Deliverables (`deliverables.md` Section 7.1) enforces exactly the agreed declaration. |
+| Revision allowance | The agreed, per-Milestone integer count of Buyer-initiated revision requests, locked at agreement as a commercial term (Section 9); distinct from the repository's Project-level `revision_limit` column, which this specification treats as superseded target-architecture debt (Section 33). |
+| Review period | The configurable operational duration, starting when a Milestone enters `delivered`, within which the Buyer is expected to approve or request revision before the Submission is Review Overdue (Section 11.3, Section 18.2). |
+| Platform intervention | The auditable, role-restricted process by which the platform attempts to contact a non-responsive Buyer once a Submission is Review Overdue, defined in Section 18.2. It is distinct from, and never a substitute for, Buyer approval. |
+| Platform non-response release authorization | A System- or Administrator-issued record (`DATA-PROJECTS-017`) that makes an allocation eligible for release after a documented, exhausted intervention process, without being, implying, or recording a Buyer approval (Section 18.2). |
 
 The ownership map in [System Architecture Sections 9 and 10.6](../01-foundation/system-architecture.md#106-milestones) controls:
 
@@ -245,7 +250,8 @@ Storage classes: **Stored** is directly stored and authoritative; **Snapshot** i
 | `title` | Bounded non-blank text | Stored; term snapshot | Draft-editable; frozen and agreed immutable | Partially Implemented: no bound or blank check at the database |
 | `description` | Bounded text, nullable | Stored; term snapshot | Same as `title` | Implemented (nullable text) |
 | `scope` | Not a separate field; folded into `description` and `deliverable_definition` | Not adopted | Not applicable | Not Implemented |
-| `deliverable_definition` | Bounded text of expected output and acceptance criteria | Stored; term snapshot | Same as `title` | Not Implemented |
+| `deliverable_definition` | Bounded text of expected output and acceptance criteria, embedding the declarative `submission_requirements` substructure (minimum Asset count, optional required Asset classes, text-only-sufficient flag) that Deliverables enforces at Submission time (`deliverables.md` Section 7.1); not a full service-template language | Stored; term snapshot | Same as `title` | Not Implemented |
+| `revision_allowance` | Nonnegative integer; the agreed per-Milestone count of Buyer-initiated revision requests (Section 17) | Stored; term snapshot | Same as `title`; immutable after agreement except through an accepted amendment | Not Implemented; supersedes reliance on `projects.revision_limit` (Section 33) |
 | `amount` | Signed 64-bit integer minor units, positive | Stored; term snapshot | Same as `title` | Partially Implemented: `INT`, 32-bit, positive check |
 | `currency` | ISO 4217 code equal to Project currency | Stored; Project-derived value validated at write | Immutable from freeze | Partially Implemented: unconstrained `TEXT` |
 | `currency_exponent` | Small integer snapshot from the currency registry | Snapshot | Immutable with term version | Not Implemented |
@@ -267,7 +273,7 @@ Storage classes: **Stored** is directly stored and authoritative; **Snapshot** i
 | `refunded_at` | Not stored on Milestone; derived from the Escrow refund fact recorded in transitions | Escrow-derived | Not applicable | Not Implemented |
 | `resume_state`, `interruption_reason`, `interrupted_at` | Nullable exact prior state, reason code (`DISPUTE`, `ADMIN_RISK`, `MODERATION`, `CANCELLATION_PENDING`), and time | Stored; Milestones | Set on interruption, cleared on resume | Not Implemented |
 | `funded_amount`, `released_amount`, `refunded_amount` | Never stored on Milestones; read from Escrow allocation | Escrow-derived | Not applicable | Not Implemented, correctly absent |
-| `revision_count` | Count of revision request records | Derived from Section 17 records | Not applicable | Not Implemented |
+| `revision_count` | Count of revision request records, compared against this Milestone's own `revision_allowance` (never the Project-level `revision_limit`) | Derived from Section 17 records | Not applicable | Not Implemented |
 | `version` | Monotonic bigint | Stored; Milestones | Incremented on every mutation | Not Implemented |
 | `created_by_user_id` | UUID FK to Users | Stored; Milestones | Immutable | Not Implemented |
 | `created_at`, `updated_at` | Timestamptz | Stored; database | `created_at` immutable; `updated_at` trigger-maintained | Implemented and Partially Implemented respectively |
@@ -278,7 +284,7 @@ The Milestone does not copy a party identifier, an Escrow total, an Asset locato
 
 ### 9.1 Which fields are commercial terms
 
-Commercial terms are: `milestone_no`, `title`, `description`, `deliverable_definition`, `amount`, `currency` with `currency_exponent`, `due_at`, and the Milestone's membership in the plan (its existence, ordering position, and removal). The immutable identity fields (`id`, `external_id`, `project_id`, `created_at`, `created_by_user_id`) are protected always. State, lifecycle timestamps, interruption fields, term-status markers, `version`, and `updated_at` are operational.
+Commercial terms are: `milestone_no`, `title`, `description`, `deliverable_definition` (including its embedded `submission_requirements` declaration), `revision_allowance`, `amount`, `currency` with `currency_exponent`, `due_at`, and the Milestone's membership in the plan (its existence, ordering position, and removal). The immutable identity fields (`id`, `external_id`, `project_id`, `created_at`, `created_by_user_id`) are protected always. State, lifecycle timestamps, interruption fields, term-status markers, `version`, and `updated_at` are operational.
 
 The repository trigger protects a subset: after lock it blocks insert, delete, and changes to exactly `project_id`, `milestone_no`, `title`, `description`, `amount`, `currency`, and `due_at`. It does not cover `deliverable_definition` (absent), `currency_exponent` (absent), `id`, `external_id`, `created_at`, or `state`. This matches the field list in [Governance Section 15's `BR-PROJECTS-002`](../00-governance/README.md#15-business-rule-documentation) plus `project_id`, and is broader in identity and narrower than the target.
 
@@ -289,6 +295,8 @@ The repository trigger protects a subset: after lock it blocks insert, delete, a
 | Amount | Positive integer minor units; Milestones owns each line item | Draft-editable; frozen and agreed immutable; amendment supersedes | Sum equals proposed or agreed Project total | Partially Implemented |
 | Currency | Equals Project currency and exponent snapshot; MVP `INR` per `BR-PROJECTS-003` | Immutable from freeze; currency change is a Project amendment before funding and prohibited after | Must match Project, Escrow, allocation, and payment currency | Partially Implemented: checked at creation and lock in route code only |
 | Scope and title | `title`, `description`, `deliverable_definition` define what is being bought | Same lifecycle as `amount` | Agreed snapshot is the dispute reference | Partially Implemented |
+| Submission requirements | The `submission_requirements` declaration embedded in `deliverable_definition` (minimum Asset count, optional required Asset classes, text-only-sufficient flag) is negotiated and agreed per Milestone at the same time as scope; MusicApp does not impose a platform-wide minimum-Asset rule (Decision, 2026-09-25) | Same lifecycle as `deliverable_definition`; immutable once agreed except through an accepted amendment | Deliverables (`deliverables.md` Section 7.1) evaluates every Submission against exactly this declaration | Not Implemented |
+| Revision allowance | `revision_allowance` is a nonnegative integer negotiated and agreed per Milestone, independently of every other Milestone in the Project (Decision, 2026-09-25); it is not derived from or defaulted from the Project-level `revision_limit` column | Same lifecycle as `amount`; immutable once agreed except through an accepted amendment; unused revisions never transfer between Milestones | Milestones' own `revision_count` (Section 17) is compared only against this field | Not Implemented; the legacy `projects.revision_limit` column is superseded target-architecture debt (Section 33) |
 | Deadline | `due_at` is an absolute deadline; not derived from `delivery_days` | Same lifecycle as `amount`; monotonic with number (Section 13) | Last Milestone due date not after Project `due_at` when both exist | Partially Implemented: stored; no ordering or Project consistency check |
 | Sequencing | `milestone_no` gives order; activation follows it | Renumbering only while `terms_status` is `draft` | Unique among active rows; dense at proposal readiness | Partially Implemented: unique and positive; density unenforced |
 | Agreed snapshot | Immutable `milestone_term_versions` row referenced by the Project agreed term version | Created at acceptance; superseded only by accepted amendment | Every active Milestone has exactly one agreed row | Not Implemented |
@@ -305,6 +313,8 @@ The repository trigger protects a subset: after lock it blocks insert, delete, a
 `REQ-PROJECTS-025`: The system MUST version Milestone commercial terms as draft, frozen, and agreed snapshots, MUST never mutate a frozen or agreed snapshot, and MUST apply post-agreement change only through accepted amendments.
 
 `REQ-PROJECTS-037`: The system MUST reconcile the active Milestone plan against the Project's proposed or agreed total and currency continuously, in the mutating transaction and by an independent database-level check, not only at creation.
+
+`REQ-PROJECTS-060`: The system MUST treat Deliverable submission requirements and the Buyer-initiated revision allowance as per-Milestone commercial terms, agreed and locked with the same lifecycle as `amount`, and MUST NOT apply a platform-wide minimum-Asset rule or a Project-wide revision count in their place.
 
 ## 10. Milestone locking
 
@@ -415,6 +425,7 @@ Why these are not additional stored states:
 | Revision open | `in_progress` and an unanswered revision request record exists | Milestones |
 | Release Pending | `buyer_approved` and no Escrow settlement fact | Escrow reports; Milestones displays |
 | Overdue | `due_at` passed and state in {`funded`, `in_progress`} | Derived from the clock; no state change |
+| Review Overdue | `delivered` and the configured review period has elapsed since `delivered_at` with no revision request or approval yet answering the Current Submission. Distinct from Overdue, which concerns the Milestone's own `due_at`, not Buyer review of a Submission already delivered | Derived from the clock and Section 18.2; no state change by itself |
 | Escrow allocation status | Read from the Escrow allocation | Escrow |
 | Deliverable and submission status | Read from Deliverables | Deliverables |
 | Dispute status | Read from the case | Escrow or Disputes owner |
@@ -500,7 +511,8 @@ Rows sharing an identifier share one contract only where actor, preconditions, s
 | M05 | `in_progress` → `delivered` | Deliverables fact consumer | Trusted event capability; Seller submission authorized upstream by `project.delivery.submit` | Submission bound to this Milestone and current agreed term version | Deliverables: immutable version ready and safe | Set `delivered_at`; link cycle; outbox | `AUD-PROJECTS-010`; mandatory to Buyer | Unique submission or event key | Not Implemented |
 | M06 | `delivered` → `in_progress` | Project Buyer, Milestones | `delivery.request_revision` as in [Projects Section 11.3](projects.md#113-project-transition-matrix); Buyer | Revision allowance not exhausted; reason code; expected submission ref is latest | None | Record revision request; reopen work | `AUD-PROJECTS-010`; mandatory to Seller | Command key; one open request per cycle | Not Implemented |
 | M07 | `delivered` → `buyer_approved` | Project Buyer, Milestones | `project.delivery.approve`; Buyer | Exact submission ref equals latest ready; term version matches; no interruption; no prior approval | None | Write approval record; set `approved_at`; emit release request | `AUD-PROJECTS-010`; mandatory to Seller and Escrow | Approval unique per Milestone; expected version | Not Implemented |
-| M08 | `buyer_approved` → `released` | Escrow event consumer | Trusted event capability | Approval record exists | Escrow: allocation settled with funds released to the Seller | Set `completed_at`; notify Projects | `AUD-PROJECTS-011`; mandatory financial | Unique event ID | Not Implemented |
+| M18 | `delivered` → `buyer_approved` | System or Administrator, Milestones | `milestone.authorize_non_response_release`; explicit governed capability, never the Buyer or Seller | Milestone Review Overdue (Section 11.3); documented intervention process exhausted (Section 18.2); no interruption; no prior approval or non-response authorization; exact submission ref equals latest ready | Verified intervention-exhausted fact (Section 18.2) | Write `milestone_platform_release_authorizations` (`DATA-PROJECTS-017`) record, distinct from `milestone_approvals`; emit the same release-eligibility fact type as M07 | `AUD-PROJECTS-015`; mandatory to Buyer and Seller | Authorization unique per Milestone; expected version; idempotency key | Not Implemented |
+| M08 | `buyer_approved` → `released` | Escrow event consumer | Trusted event capability | Approval or platform non-response authorization record exists (M07 or M18) | Escrow: allocation settled with funds released to the Seller | Set `completed_at`; notify Projects | `AUD-PROJECTS-011`; mandatory financial | Unique event ID | Not Implemented |
 | M09 | `funded`, `in_progress`, `delivered`, `buyer_approved` → `disputed` | Dispute fact consumer | Trusted event capability; opened upstream under `project.dispute.open` | Verified case bound to this Project and Milestone; eligible source state | Case opened | Store `resume_state`, `interruption_reason = DISPUTE`; block mutation and release | `AUD-PROJECTS-011`; mandatory safety and legal | Unique case ID | Not Implemented |
 | M10 | `disputed` → stored resume state | Dispute resolution consumer | Resolution capability | Signed resolution names the stored state; all live facts revalidate | Resolution | Clear interruption; restore exact state | `AUD-PROJECTS-011`; mandatory | Unique resolution ID | Not Implemented |
 | M11 | `disputed` → `released`, `refunded`, `cancelled` | Escrow or Dispute resolution consumer | Resolution capability | Resolution directs outcome; Escrow fact confirms it | Settlement fact | Record outcome and clear interruption | `AUD-PROJECTS-011`; mandatory | Unique resolution or event ID | Not Implemented |
@@ -661,14 +673,15 @@ A revision cycle begins when the Buyer asks for changes to a delivered submissio
 | Seller resubmission | Seller submits a new version through Deliverables; on the readiness fact the Milestone returns to `delivered` | None | Not Implemented |
 | Revision reason | Required code plus bounded text; text is restricted and excluded from events and logs | Code list is a product decision | Not Implemented |
 | Revision count | Number of revision request records for the Milestone; derived, never client-supplied | None | Not Implemented |
-| Revision limit policy | Enforced from the agreed allowance. The repository has `projects.revision_limit INTEGER NOT NULL DEFAULT 0` with a nonnegative CHECK, so the allowance is Project-level. Whether it applies per Milestone or across the whole Project is open (Question Q10) | Scope and behavior when exhausted (Question Q2) | Schema Implemented: column only; no route reads or applies it |
+| Revision limit policy | Enforced from this Milestone's own agreed `revision_allowance` commercial term (Section 9.2), negotiated independently per Milestone and locked at agreement (Decision, 2026-09-25; resolves Question Q10). The allowance is per Milestone, never Project-wide, and unused revisions never transfer between Milestones. The repository's `projects.revision_limit INTEGER NOT NULL DEFAULT 0` is Project-level legacy data that the target architecture supersedes (Section 33) | None; scope is resolved | Schema Implemented: legacy Project-level column only, unused by target enforcement; target `revision_allowance` Not Implemented |
+| Allowance mutability | Immutable once agreed, exactly like `amount`; changeable only through an accepted Project amendment before the next lock. A Buyer cannot demand revisions beyond the agreed allowance as an entitlement, and a Seller cannot unilaterally reduce it after lock | Voluntary additional work beyond the locked allowance requires a future governed change/add-on mechanism, not built here (restated as Question Q19) | Not Implemented |
+| Exhausted allowance | Once `revision_count` equals `revision_allowance`, a further Buyer revision request is rejected as exhausted, not silently granted or auto-converted to approval. The Buyer may still approve the Current Submission or open a Dispute; Milestones does not itself decide a third path | Whether a lightweight self-serve change-order path is needed for MVP remains open (Question Q19) | Not Implemented |
 | Deadline impact | Undefined. A revision cycle must not silently move `due_at`; an extension is a Project amendment | Question Q8 | Not Implemented |
 | Asset versioning | Every resubmission is a new Asset version with lineage | Assets | Not Implemented |
 | Old Deliverable retention | All earlier submissions retained under Assets retention and holds | Assets | Not Implemented |
 | Abuse prevention | One open request per Milestone; rate limits; reason required; allowance check; audited | None | Not Implemented |
 | Dispute escalation | Either party may open a Dispute in `in_progress` or `delivered` under the Dispute owner's eligibility rules | Dispute owner | Not Implemented |
-| Automatic acceptance | Not established. Whether a Buyer who neither approves nor requests revision is treated as accepting after a period is unresolved and blocks a complete Milestone product definition (Question Q2) | Product, Escrow | Not Implemented |
-| Timeout policy | Same open question; no duration is chosen here | Product, Escrow | Not Implemented |
+| Buyer non-response | Buyer silence is never treated as approval. A `delivered` Milestone that receives neither approval nor a revision request within the configured review period becomes Review Overdue and enters the platform intervention process of Section 18.2, which may end in a platform non-response release authorization distinct from Buyer approval (Decision, 2026-09-25; resolves the product-behavior half of Question Q2) | Exact review-period and intervention durations remain configuration (restated as Question Q18) | Not Implemented |
 | Audit | `AUD-PROJECTS-010`: request, resubmission, count, allowance state | None | Not Implemented |
 | Notification | Mandatory workflow notices to the Seller on request and to the Buyer on resubmission | None | Not Implemented |
 
@@ -683,14 +696,14 @@ flowchart TD
     Review -- "Request revision" --> Allowance{"Allowance remains?"}
     Allowance -- "Yes" --> Record["Record revision request, back to in_progress"]
     Record --> Submit
-    Allowance -- "No" --> Policy["Approve or open Dispute, further policy is Question Q2"]
+    Allowance -- "No" --> Policy["Approve or open Dispute; a self-serve change-order path is Question Q19"]
     Review -- "Dispute" --> Disp["Enter disputed with stored resume state"]
-    Review -- "No decision" --> Pending["Stay delivered, timeout policy is Question Q2"]
+    Review -- "No decision" --> Overdue["Review Overdue after configured period: platform intervention, Section 18.2"]
 ```
 
-*Figure 6 — Deliverable and Revision Flow. Resubmission is a new immutable version; exhausted allowance and Buyer silence are unresolved policy.*
+*Figure 6 — Deliverable and Revision Flow. Resubmission is a new immutable version; the allowance is this Milestone's own agreed `revision_allowance`, and Buyer silence leads to platform intervention (Section 18.2), never automatic approval.*
 
-`REQ-PROJECTS-031`: Milestones MUST record every revision request as an immutable record bound to the exact submission version it answers, MUST enforce the agreed allowance, and MUST NOT invent revision limits or timeouts that product policy has not set.
+`REQ-PROJECTS-031`: Milestones MUST record every revision request as an immutable record bound to the exact submission version it answers, MUST enforce this Milestone's own agreed `revision_allowance`, and MUST NOT invent a revision limit, review timeout duration, or automatic-acceptance rule that product or operational policy has not set.
 
 ## 18. Buyer approval
 
@@ -739,6 +752,50 @@ sequenceDiagram
 
 `REQ-PROJECTS-032`: Milestones MUST record Buyer approval as an immutable, version-bound, idempotent fact that emits a release signal to Escrow and MUST NOT settle, release, or claim payment.
 
+### 18.2 Buyer non-response and platform intervention
+
+A Buyer MUST NOT be able to block a Seller indefinitely by refusing to respond to a valid Deliverable Submission (Decision, 2026-09-25). Buyer silence is never modeled as Buyer approval. The canonical target flow is: the Seller submits a valid Submission; a review period begins; the Buyer approves or requests revision; if the Buyer does neither within the configured review period, the Milestone becomes Review Overdue (Section 11.3) and platform intervention begins; the platform attempts to contact the Buyer and obtain an explicit response; if the Buyer responds, normal Section 17/18.1 workflow resumes; if the Buyer remains non-responsive through the intervention process, the platform MAY authorize release of the Milestone's earned funds to the Seller. This authorization is never automatic approval, is never itself an Escrow release, and is never itself a Seller payout; those remain three further, separately owned facts (Section 19.1; [escrow.md Section 14](../06-payments-escrow/escrow.md#14-release); [payments.md Section 11](../06-payments-escrow/payments.md#11-payouts)).
+
+#### 18.2.1 Non-response intervention matrix
+
+| Concern | Rule | Repository status |
+| --- | --- | --- |
+| Review period start | `delivered_at` of the Current Submission (Section 16.1) | Not Implemented |
+| Review period duration | Configurable operational policy, not a value this specification hard-codes (Question Q18) | Not Implemented |
+| Review Overdue | Derived (Section 11.3): `delivered` and the review period has elapsed with no revision request or approval answering the Current Submission | Not Implemented |
+| Intervention trigger | Automatic on the Review Overdue derivation; no participant action required | Not Implemented |
+| Intervention actions | Configurable number of contact attempts, through configurable channels (Section 25.4 and [Notifications](../10-notifications/), once that specification exists); exact counts and channels are operational policy, not invented here (Question Q18) | Not Implemented |
+| Buyer responds during intervention | Ordinary Section 17/18.1 workflow resumes; the intervention record closes as resolved; no non-response authorization is possible afterward for this Submission | Not Implemented |
+| Non-response authorization eligibility | Milestone Review Overdue; every configured contact attempt exhausted; no interruption (`disputed` or `suspended`); no existing approval or non-response authorization for this Milestone; exact Current Submission reference named | Not Implemented |
+| Non-response authorization actor | An explicit, governed System or Administrator capability (`milestone.authorize_non_response_release`), never the Buyer, the Seller, an ordinary Moderator action, or an unattended default; distinct from `project.delivery.approve` | Not Implemented |
+| Non-response authorization evidence | Immutable `milestone_platform_release_authorizations` record (`DATA-PROJECTS-017`): Milestone, term version, submission reference, intervention case reference, contact-attempt count, authorizing actor, timestamp, idempotency key, correlation ID | Not Implemented |
+| Relationship to Buyer approval | Never conflated. `milestone_approvals` (M07) and `milestone_platform_release_authorizations` (M18) are separate immutable records; both name the same Current Submission reference contract and both make the Milestone eligible for release, but only the former is a Buyer act | Not Implemented |
+| Relationship to Escrow release | The non-response authorization MUST produce the identical release-eligibility fact type Escrow already consumes from an ordinary approval ([escrow.md Section 14.1](../06-payments-escrow/escrow.md#141-release-eligibility)); Escrow evaluates its own eligibility (funding, holds, payout gate) independently either way and never receives or infers Buyer intent | Not Implemented |
+| Relationship to Seller payout | Unaffected; payout remains a separate, later Payments operation with its own gate ([payments.md Section 11](../06-payments-escrow/payments.md#11-payouts)) | Not Implemented |
+| Relationship to Disputes | A verified Dispute opened before the non-response authorization is issued blocks it: Section 21's interruption rule applies, and `disputed`/`suspended` Milestones MUST reject the authorization command exactly as they reject M07 (`REQ-PROJECTS-035`) | Not Implemented |
+| Idempotency | One non-response authorization per Milestone by uniqueness; a repeat with the same key returns the original result; a different key against an already-authorized Milestone is rejected | Not Implemented |
+| Auditability | Every review-overdue transition, every contact attempt, and the final authorization outcome are recorded, distinctly from ordinary Buyer-approval audit entries | `AUD-PROJECTS-015` |
+| Notification | Mandatory workflow notices to both parties at review-overdue, at each contact attempt, and at the authorization outcome | Not Implemented |
+
+```mermaid
+flowchart TD
+    Delivered["Milestone delivered: review period begins"] --> Decision{"Buyer approves or requests revision within review period?"}
+    Decision -- "Yes" --> Normal["Normal Section 17/18.1 workflow"]
+    Decision -- "No" --> Overdue["Review Overdue (derived)"]
+    Overdue --> Intervene["Platform intervention: configured contact attempts"]
+    Intervene --> Responds{"Buyer responds during intervention?"}
+    Responds -- "Yes" --> Normal
+    Responds -- "No, attempts exhausted" --> Dispute{"Valid Dispute opened first?"}
+    Dispute -- "Yes" --> Held["Blocked: Section 21 interruption governs"]
+    Dispute -- "No" --> Authorize["System/Administrator: non-response release authorization (M18)"]
+    Authorize --> Record["Write milestone_platform_release_authorizations; enter buyer_approved"]
+    Record --> Escrow["Escrow independently evaluates release eligibility"]
+```
+
+*Figure 7a — Buyer Non-Response and Platform Intervention Flow. Silence never becomes approval; only a distinct, audited platform authorization — blocked by an open Dispute — makes the Milestone eligible for Escrow's own independent release evaluation.*
+
+`REQ-PROJECTS-061`: Milestones MUST NOT treat Buyer silence as approval; a `delivered` Milestone whose configured review period elapses without a Buyer decision MUST become Review Overdue and enter an auditable platform intervention process, and any resulting non-response release authorization MUST be recorded separately from Buyer approval, MUST be idempotent, MUST be restricted to an explicit governed System or Administrator capability, and MUST be rejected while the Milestone is `disputed` or `suspended`.
+
 ## 19. Milestone completion
 
 ### 19.1 Completion semantics
@@ -747,7 +804,7 @@ Approved, Released, and Completed are distinct. Approved is a Milestone-owned fa
 
 | Term | Nature | Definition |
 | --- | --- | --- |
-| Milestone Approved | Milestone-owned state `buyer_approved` | Buyer accepted the exact submission; release requested |
+| Milestone Approved | Milestone-owned state `buyer_approved` | Buyer accepted the exact submission (M07), or the platform issued a non-response release authorization after exhausted intervention (M18, Section 18.2); release requested either way |
 | Milestone Released | Fact-derived state `released` | Escrow reports the allocation settled with funds released to the Seller |
 | Milestone Completed | Predicate | True exactly when state is `released` |
 | Work-accepted | Predicate | True when state is `buyer_approved` or `released` |
@@ -870,6 +927,7 @@ Permission keys are proposed, traceable policy inputs, not claims that a Permiss
 | Request revision | `delivery.request_revision` | Buyer; `delivered` | Allowance, exact submission version | Not Implemented |
 | Resubmit | `project.delivery.submit` | Accepted Seller; open revision | Asset readiness | Not Implemented |
 | Approve | `project.delivery.approve` | Buyer; `delivered` | Exact submission version, no interruption | Not Implemented |
+| Authorize non-response release | `milestone.authorize_non_response_release` | Explicit governed System or Administrator capability; never Buyer or Seller; `delivered` | Review Overdue; intervention exhausted; no interruption; no prior approval or authorization; exact submission version (Section 18.2) | Not Implemented |
 | Cancel | `milestone.cancel` | Scenario actor of Section 20 | Amendment or resolution; Escrow fact | Not Implemented |
 | Dispute | `project.dispute.open` | Active Buyer or Seller; eligible state | Dispute owner's eligibility | Not Implemented |
 | View Assets | `project.asset.read` | Live Project relationship and purpose | Asset state and stricter purpose | Not Implemented |
@@ -959,6 +1017,7 @@ Audit records are append-only evidence, separate from mutable logs. Payload prin
 | `AUD-PROJECTS-010` | Record work start, Deliverable submission fact, revision request, resubmission fact, and Buyer approval, each with the exact submission reference |
 | `AUD-PROJECTS-011` | Record Dispute open and resolve, release and refund facts, cancellation, and completion |
 | `AUD-PROJECTS-012` | Record every Moderator access and every Administrator or System suspension or restoration with case, purpose, capability, and outcome |
+| `AUD-PROJECTS-015` | Record every Review Overdue transition, every platform intervention contact attempt, and every non-response release authorization outcome, distinctly from ordinary Buyer-approval audit entries, with Milestone, submission reference, actor (System or Administrator), and timestamp |
 
 ### 25.2 Auditable event catalog
 
@@ -975,6 +1034,9 @@ Audit records are append-only evidence, separate from mutable logs. Payload prin
 | Revision requested | Buyer command | `AUD-PROJECTS-010` | Mandatory workflow to Seller | Not Implemented |
 | Deliverable resubmitted | Deliverables fact | `AUD-PROJECTS-010` | Mandatory workflow to Buyer | Not Implemented |
 | Buyer approved | Buyer command | `AUD-PROJECTS-010` | Mandatory workflow to Seller | Not Implemented |
+| Milestone Review Overdue | Derived (clock) | `AUD-PROJECTS-015` | Mandatory workflow to both parties | Not Implemented |
+| Platform intervention contact attempt | System | `AUD-PROJECTS-015` | Mandatory workflow to Buyer | Not Implemented |
+| Platform non-response release authorized | System or Administrator command | `AUD-PROJECTS-015` | Mandatory workflow to both parties | Not Implemented |
 | Dispute opened | Dispute fact | `AUD-PROJECTS-011` | Mandatory safety and legal | Not Implemented |
 | Dispute resolved | Dispute fact | `AUD-PROJECTS-011` | Mandatory safety and legal | Not Implemented |
 | Release fact received | Escrow event | `AUD-PROJECTS-011` | Mandatory financial | Not Implemented |
@@ -996,12 +1058,16 @@ Governance defines no `EVT-*` or `OPS-*` family, so the following identifiers ar
 | `EVT-PROJECTS-011` | `MilestoneRevisionChanged`: Milestone ID, cycle number, outcome, actor type |
 | `EVT-PROJECTS-012` | `MilestoneTermsAmended`: amendment ID, old and new term versions, superseded and introduced Milestone IDs |
 | `EVT-PROJECTS-013` | `MilestoneInterruptionChanged`: Milestone ID, reason, resume state reference, opened or cleared |
+| `EVT-PROJECTS-019` | `MilestoneReviewOverdue`: Milestone ID, submission reference, `delivered_at`, configured review period |
+| `EVT-PROJECTS-020` | `MilestonePlatformInterventionStarted`: Milestone ID, intervention case reference, configured contact-attempt plan |
+| `EVT-PROJECTS-021` | `MilestonePlatformReleaseAuthorized`: Milestone ID, submission reference, intervention case reference, authorizing actor, authorization ID. Escrow consumes it exactly as `EVT-PROJECTS-010`, as a request, not a settlement |
 | `OPS-PROJECTS-007` | Measure freeze, agree, and transition latency, success, safe conflicts, and denials by non-sensitive reason |
 | `OPS-PROJECTS-008` | Alert on Milestones stalled in `funded` without start, `delivered` awaiting review, or `buyer_approved` awaiting settlement beyond configured ages |
 | `OPS-PROJECTS-009` | Reconcile plan sums, currency, and agreed amounts against Project totals and Escrow allocations on schedule; alert without rewriting history |
 | `OPS-PROJECTS-010` | Alert on quarantined facts, inbox gaps, dead letters, and version gaps |
 | `OPS-PROJECTS-011` | Monitor overdue Milestones, revision counts, and interruption age |
 | `OPS-PROJECTS-012` | Alert on repeated IDOR-like misses, approval or start rejection spikes, and privileged-access anomalies; test restore of Milestone history and audit |
+| `OPS-PROJECTS-016` | Scheduled sweep that derives Review Overdue from `delivered_at` and the configured review period, and drives the platform intervention contact-attempt schedule |
 
 ### 25.4 Notification behavior
 
@@ -1012,6 +1078,7 @@ Notifications are durable requests created from the outbox and never part of the
 | Plan frozen, agreed, or amended | Mandatory contractual | Channel may vary; record cannot be disabled |
 | Funded, refunded, released | Mandatory financial | Cannot suppress |
 | Work started, submitted, revision requested, resubmitted, approved | Mandatory workflow | Channel may vary; action record cannot be suppressed |
+| Review Overdue, intervention contact attempt, non-response release authorized | Mandatory workflow | Channel may vary; action record cannot be suppressed |
 | Dispute opened or resolved; suspension | Mandatory safety and legal | Cannot suppress |
 | Milestone due soon or overdue | Configurable reminder | Optional channel may be disabled |
 | Milestone completed | Transactional receipt | Channel may vary |
@@ -1027,11 +1094,12 @@ All primary keys are internal UUIDs. Every externally addressable record has a u
 | Identifier and model | Purpose and principal fields | Keys, uniqueness, and indexes | Checks and state | Versioning, lifecycle, and deletion | Repository status |
 | --- | --- | --- | --- | --- | --- |
 | `DATA-PROJECTS-008` `project_milestones` | Aggregate: `id`, `external_id`, `project_id`, `milestone_no`, `title`, `description`, `deliverable_definition`, `amount` BIGINT, `currency`, `currency_exponent`, `due_at`, `state`, `terms_status`, `current_term_version`, `introduced_in_term_version`, `superseded_in_term_version`, lifecycle timestamps, interruption fields, `created_by_user_id`, `version`, timestamps | PK `id`; unique `external_id`; FK `project_id` to Projects `RESTRICT`; unique `(project_id, milestone_no)` among active rows; partial unique index allowing at most one active row in `in_progress` or `delivered` per Project; indexes `(project_id, milestone_no)`, `(project_id, state)`, state and time | Positive amount; positive number; supported currency; `title` non-blank and bounded; `state` and `terms_status` enums; `resume_state` non-null exactly when `state` is `disputed` or `suspended`; terms-status trigger; deferred plan-sum and currency constraint | Monotonic `version`; frozen and agreed rows immutable in commercial columns; never hard-deleted after freeze; Draft rows deletable only when unreferenced | Partially Implemented |
-| `DATA-PROJECTS-009` `milestone_term_versions` | Immutable commercial snapshot per Milestone per Project term version: Milestone, term version, kind (`proposal`, `agreed`, `amendment`), title, description, deliverable definition, amount, currency, exponent, due date, number, plan-sum hash, created time and actor | PK; unique `(milestone_id, term_version, kind)`; FK Milestone `RESTRICT`; index by Project term version | Append-only; positive amount; currency equals Project snapshot | No update or delete; retention aligned with the Project | Not Implemented |
+| `DATA-PROJECTS-009` `milestone_term_versions` | Immutable commercial snapshot per Milestone per Project term version: Milestone, term version, kind (`proposal`, `agreed`, `amendment`), title, description, deliverable definition (including its embedded `submission_requirements` declaration), `revision_allowance`, amount, currency, exponent, due date, number, plan-sum hash, created time and actor | PK; unique `(milestone_id, term_version, kind)`; FK Milestone `RESTRICT`; index by Project term version | Append-only; positive amount; nonnegative `revision_allowance`; currency equals Project snapshot | No update or delete; retention aligned with the Project | Not Implemented |
 | `DATA-PROJECTS-010` `milestone_state_transitions` | Append-only history: Milestone, source and target state, trigger type, actor or source fact ID, precondition version, outcome, reason code, term version, time | PK and unique event ID; FK `RESTRICT`; unique successful source fact; indexes `(milestone_id, time)`, target and time | Source and target are enum values; outcome enumerated | Append-only; retention aligned with financial and audit policy | Not Implemented |
 | `DATA-PROJECTS-011` `milestone_audit_events` | Redacted immutable audit envelope for Milestone actions and privileged reads, per Section 25 | PK and unique external event ID; Milestone and Project references; indexes by Milestone and time, actor and time, correlation | Append-only database control | No ordinary update or delete. It may be a Milestone-scoped view of the shared audit store of `DATA-PROJECTS-006`; the physical layout is Question Q13 | Not Implemented |
 | `DATA-PROJECTS-012` `milestone_revision_requests` | Revision cycle records: Milestone, cycle number, requesting Buyer, submission reference answered, reason code, restricted detail, status (`open`, `answered`, `withdrawn_by_dispute`), answering submission reference, times | PK and external ID; unique `(milestone_id, cycle_number)`; at most one `open` per Milestone by partial unique index; FK `RESTRICT` | Cycle number positive and sequential; status enum | Append-retained; detail text restricted | Not Implemented |
 | `DATA-PROJECTS-013` `milestone_approvals` | Immutable approval evidence: Milestone, term version, approved submission reference, Buyer, time, idempotency key, correlation ID | PK and external ID; unique `milestone_id`; FK `RESTRICT` | Buyer must equal the Project Buyer participant at write | No update or delete | Not Implemented |
+| `DATA-PROJECTS-017` `milestone_platform_release_authorizations` | Immutable non-response release authorization evidence, separate from `milestone_approvals`: Milestone, term version, authorized submission reference, intervention case reference, contact-attempt count, authorizing actor (System or Administrator), time, idempotency key, correlation ID (Section 18.2) | PK and external ID; unique `milestone_id`; FK `RESTRICT` | Authorizing actor MUST hold the explicit `milestone.authorize_non_response_release` capability, never Buyer or Seller, at write | No update or delete | Not Implemented |
 
 The optional rebuildable financial projection, idempotency records, and inbox and outbox tables are shared infrastructure ([Projects Section 26](projects.md#26-target-data-model)) and are not Milestone-specific models.
 
@@ -1044,13 +1112,13 @@ The optional rebuildable financial projection, idempotency records, and inbox an
 | `project_milestones.state` enum | Add `suspended`; add transition service and history | `ALTER TYPE ... ADD VALUE`; backfill a first transition record per row |
 | `project_milestones_project_fk ... ON DELETE CASCADE` | Change to `RESTRICT` | Replace before any Project or Milestone deletion capability ships |
 | `escrow_allocations_milestone_fk ... ON DELETE CASCADE`; `payments.milestone_id` and `escrow_ledger.milestone_id ... ON DELETE SET NULL` | Restrictive behavior so financial lineage cannot be erased or detached | Coordinate with the Escrow specification |
-| No `version`, `created_by_user_id`, `deliverable_definition`, `terms_status`, timestamps | Add columns with backfill | Backfill `terms_status` from `projects.milestones_locked_at` (locked plans map to `frozen`, never to `agreed`, without consent evidence) |
+| No `version`, `created_by_user_id`, `deliverable_definition`, `revision_allowance`, `terms_status`, timestamps | Add columns with backfill | Backfill `terms_status` from `projects.milestones_locked_at` (locked plans map to `frozen`, never to `agreed`, without consent evidence). Do not backfill `revision_allowance` by copying `projects.revision_limit` automatically; require explicit Buyer/Seller reconfirmation per Milestone at the next freeze (Section 33) |
 | `projects.milestones_locked_at` and `protect_locked_milestones` | Keep during dual-run; move the guard to row-level `terms_status`; cover `project_id` always and `external_id` | Replace the trigger; retain the column as a compatibility projection until all readers change |
 | No `updated_at` maintenance | Add a maintenance trigger | Backfill not required |
 
 Existing locked plans must not be reinterpreted as agreed terms. A legacy lock recorded a Buyer's own freeze, and no Seller consent evidence exists ([Projects Section 33.2](projects.md#332-current-state-migration)).
 
-`REQ-PROJECTS-041`: The target schema MUST represent Milestone identity, term snapshots, transition history, audit, revision cycles, and approval evidence as separate append-retained records while preserving the Project aggregate relationship and restricting destructive deletion.
+`REQ-PROJECTS-041`: The target schema MUST represent Milestone identity, term snapshots, transition history, audit, revision cycles, and approval evidence — including non-response release authorization evidence, kept separate from ordinary Buyer-approval evidence — as separate append-retained records while preserving the Project aggregate relationship and restricting destructive deletion.
 
 ## 27. Domain dependencies, interfaces, and failures
 
@@ -1065,7 +1133,7 @@ Existing locked plans must not be reinterpreted as agreed terms. A legacy lock r
 | Verification | Payout context | Live payout eligibility fact | Payout gate is Verification-owned and Escrow-enforced ([Verification Section 25](../03-identity-profiles-verification/verification.md#25-verification-levels-and-capability-unlocking)) | Milestone stays `buyer_approved` while Escrow withholds | Not Implemented |
 | Assets | Binding intent and Milestone subject | Version readiness, safety, retention result | Assets owns bytes and lifecycle | Fail closed; never mark `delivered` | Not Implemented |
 | Deliverables | Eligibility answer; term version; readers | Submission, version, readiness facts | Separate capability; ownership unsettled (R4, Question Q7) | Stay `in_progress` | Not Implemented |
-| Escrow | Release signal; agreed amount, currency, term version | Funding, allocation, release, refund, reversal facts | Sole financial authority | Never invent a positive fact; hold and alert | Schema Implemented |
+| Escrow | Release signal (from ordinary approval or platform non-response authorization, Section 18.2, as one shared release-eligibility fact type); agreed amount, currency, term version | Funding, allocation, release, refund, reversal facts | Sole financial authority; Escrow does not evaluate Buyer responsiveness itself | Never invent a positive fact; hold and alert | Schema Implemented |
 | Payments | None directly | Only through Escrow facts | Under the current Foundation map payments sit inside Escrow; a split needs a Foundation change or ADR | Same as Escrow | Schema Implemented |
 | Disputes | Milestone reference; term version; evidence references | Open, freeze, resolution facts | Foundation assigns disputes in part to Escrow; a split needs a Foundation change or ADR | Hold until resolution | Not Implemented |
 | Messaging | Milestone system events | None for state | Messaging owns content | Never blocks state | Not Implemented |
@@ -1089,6 +1157,7 @@ All interfaces use opaque external IDs, authenticated subjects, explicit request
 | `INT-PROJECTS-024` | Cancel or resolve Milestone | Amendment or resolution reference; expected version | `409` state; pending until Escrow fact | Not Implemented |
 | `INT-PROJECTS-025` | Milestone eligibility facts | Read-only answer to Deliverables and Escrow: state, terms status, term version, amount, currency, interruption | Never leaks other relationships | Not Implemented |
 | `INT-PROJECTS-026` | Moderator or Administrator access and action | Case, purpose, permission, minimum projection | Deny without purpose; audit outcome | Not Implemented |
+| `INT-PROJECTS-035` | Platform non-response release authorization | Explicit System or Administrator capability; Review Overdue and exhausted intervention precondition; expected version, idempotency | `409` if not Review Overdue, already authorized, or interrupted | Not Implemented |
 
 ### 27.3 Failure and consistency rules
 
@@ -1254,6 +1323,8 @@ Findings continue the `SEC-PROJECTS-*` family from `SEC-PROJECTS-021`. Existing 
 | `SEC-PROJECTS-030` Approval, release, and dispute races | High | Latent target threat: no approval, release, or dispute exists yet, and the schema has no guard against approving a stale submission or releasing during a dispute. Extends `SEC-PROJECTS-009` | Double approval, release during a dispute, approval of a replaced file | Exact submission reference, unique approval, serialized locks, interruption hold | Open |
 | `SEC-PROJECTS-031` Unbounded Milestone input and no rate limits | Medium | `milestones` has no length cap beyond the framework's default body-size limit and there is no rate limiting on `POST /projects` | Abuse and write amplification within the request transaction | Count cap, size limit, per-user and per-Project rate limits | Open |
 | `SEC-PROJECTS-032` No automated Milestone coverage | High | No test covers the trigger, lock route, or validation. Extends `SEC-PROJECTS-019` | Regressions in immutability, reconciliation, and state rules go unseen | Trigger, migration, property, concurrency, and end-to-end suites | Open |
+| `SEC-PROJECTS-046` No capability separation between Buyer approval and platform non-response authorization | Critical | Latent target threat: no route or capability model exists yet, and a naive implementation could let an ordinary Administrator or Moderator action, or an unattended default, silently mark a Milestone `buyer_approved` | An unauthorized or accidental actor could authorize release without a genuine exhausted-intervention fact, or without ever distinguishing it from a real Buyer approval in audit history | Explicit governed `milestone.authorize_non_response_release` capability, distinct record (`DATA-PROJECTS-017`), and distinct audit trail (`AUD-PROJECTS-015`) of Section 18.2 | Open |
+| `SEC-PROJECTS-047` No per-Milestone revision-allowance enforcement | High | Latent target threat: no route enforces any revision allowance today, and the only stored value (`projects.revision_limit`) is Project-level and unread by any route | A Buyer could demand unbounded revisions absent enforcement, or a migration could silently apply the wrong (Project-level) allowance to every Milestone | Per-Milestone `revision_allowance` term (Section 9.2), enforced at Section 17's revision-request command | Open |
 
 "Open" in this table is a finding disposition, not an implementation-status label. Positive controls that exist are the row lock and concealed `404` in the lock route, the positive-amount and positive-number checks, the per-Project number uniqueness, the server-side `INR` stamp, and the trigger's protection of seven commercial columns.
 
@@ -1276,6 +1347,9 @@ Findings continue the `SEC-PROJECTS-*` family from `SEC-PROJECTS-021`. Existing 
 | Missing rate limits | `SEC-PROJECTS-031` |
 | Missing audit | `SEC-PROJECTS-029`; `SEC-PROJECTS-014` |
 | Missing tests | `SEC-PROJECTS-032`; `SEC-PROJECTS-019` |
+| Buyer-silence exploitation / indefinite fund lock | `SEC-PROJECTS-046` |
+| Privilege confusion between Buyer approval and platform authorization | `SEC-PROJECTS-046` |
+| Unbounded or misapplied revision demands | `SEC-PROJECTS-047` |
 
 Cross-domain findings that also apply are Authentication `SEC-AUTH-002` and `SEC-AUTH-003`, Authorization `SEC-AUTHZ-004`, `SEC-AUTHZ-005`, and `SEC-AUTHZ-007`, and Assets `SEC-ASSET-003`, `SEC-ASSET-006`, `SEC-ASSET-008`, `SEC-ASSET-014`, and `SEC-ASSET-015`. They are referenced, not redefined.
 
@@ -1394,6 +1468,7 @@ This table records, and does not redefine, inherited identifiers as they touch M
 | Milestone `description` | May contain scope | Do not copy into `deliverable_definition` automatically; require Buyer completion at the next freeze |
 | Gaps or duplicates in `milestone_no` | Ordering unclear | Preserve numbers; require density at the next freeze |
 | Escrow allocations existing for a Milestone | None expected | If found, treat as an unexplained financial artifact and reconcile before enabling facts |
+| `projects.revision_limit INTEGER NOT NULL DEFAULT 0` | Superseded, Project-level legacy field | Target enforcement reads only each Milestone's own `revision_allowance` (Section 9.2, Decision 2026-09-25). MUST NOT be copied automatically into every Milestone's `revision_allowance`; each Milestone's allowance requires explicit Buyer/Seller agreement at the next freeze. The column is retained on `projects` as historical/compatibility data, not as a target source of truth, until a future migration removes or repurposes it |
 
 Migration runs in observe, backfill, dual-read and validate, enforce, and clean-up phases, resumable in batches, with counts and totals compared before and after. It never sends a consent or financial notification because a backfill inferred a state. Destructive clean-up waits for rollback evidence and owner approval.
 
@@ -1403,10 +1478,11 @@ This specification makes these explicit reconciliations:
 
 - the locked plan of the current repository is a Buyer freeze, not Seller-agreed terms;
 - the Foundation lifecycle sketch that shows `planned` to `refunded` is non-normative and is replaced for target behavior by Section 11;
-- `buyer_approved` is approval, not payment, and `released` is an Escrow-verified outcome;
+- `buyer_approved` is approval, not payment, and `released` is an Escrow-verified outcome, reachable either through ordinary Buyer approval or through a platform non-response release authorization (Section 18.2);
 - `milestone_no` remains the physical column name for the logical `milestone_number`;
 - Milestone revisions return to `in_progress` and are not a separate state, matching Projects;
-- Foundation's "no amendment path" for locked terms is superseded for target behavior by the Projects amendment mechanism, which this document applies.
+- Foundation's "no amendment path" for locked terms is superseded for target behavior by the Projects amendment mechanism, which this document applies;
+- the Project-level `revision_limit` column is superseded target-architecture debt; the operative agreed revision allowance is per Milestone (Section 9.2).
 
 ## 34. Risks
 
@@ -1429,7 +1505,8 @@ This specification makes these explicit reconciliations:
 | Notification failure | Missed contractual or financial notice | Outbox, retry, mandatory class, alerts | Notifications and Operations |
 | Missing automated coverage | Regressions in immutability and money rules | Layered tests and CI gates before activation | Engineering |
 | Future parallel-Milestone migration complexity | Ambiguous order, deadline, and roll-up | Sequential MVP with unique-active index, ADR, dependency schema | Product and Architecture |
-| Buyer silence and review deadlock | Funds held indefinitely | Timeout or auto-accept decision (Question Q2) | Product and Escrow |
+| Buyer silence and review deadlock | Funds held indefinitely if unmitigated | Configurable review-timeout and auditable platform intervention (Section 18.2); exact durations remain configuration (Question Q18) | Product, Escrow, and Milestones |
+| Unbounded revision demands after allowance exhaustion | Seller coerced into unpaid extra work | Per-Milestone `revision_allowance` (Section 9.2), rejection of requests beyond it; a self-serve change-order path remains open (Question Q19) | Product and Milestones |
 
 Additional risks include stale verification facts, cross-service event reordering, legal variation, and migration inference errors. The controls in Sections 24, 25, and 29 reduce but do not eliminate them.
 
@@ -1443,7 +1520,7 @@ Additional risks include stale verification facts, cross-service event reorderin
 6. Escrow can supply per-allocation funded, released, and refunded facts keyed by Milestone and term version.
 7. Deliverables can supply immutable, ready, safe submission references, whether it becomes a separate domain or stays inside Milestones.
 8. Assets can bind a version to a Milestone subject and report readiness without storing provider URLs.
-9. The agreed revision allowance remains a Project-level value (`projects.revision_limit`) until a Deliverables or Milestones decision changes it.
+9. The agreed revision allowance is a per-Milestone commercial term (`revision_allowance`, Section 9.2), confirmed by product decision on 2026-09-25; the legacy Project-level `projects.revision_limit` column is superseded target-architecture debt (Section 33).
 10. Notification delivery is asynchronous and cannot be atomic with the Milestone transaction.
 11. Retention periods, fee rules, and dispute remedies will be supplied by their owners.
 12. No production data is altered by this documentation task.
@@ -1458,7 +1535,7 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 | ID | Priority | Question | Why it blocks or risks | Decision owner and resolving specification | Affected contract |
 | --- | --- | --- | --- | --- | --- |
 | Q1 | P0 | Which identifier replaces the Foundation's conflicting use of `BR-PROJECTS-002`, and when do Product Overview and System Architecture citations move to it? | The same rule ID has two meanings at Layer 0 and Layer 1; `BR-PROJECTS-035` avoids reuse but the collision remains (also open in [Projects Section 36.1](projects.md#361-open-questions-table)) | Governance and Architecture; a Governance change | Identifier ownership |
-| Q2 | P0 | What happens when the Buyer neither approves nor requests revision, and when revision allowance is exhausted: is there a review timeout, automatic acceptance, or escalation, and with what durations and numbers? | Without it a `delivered` Milestone can stall funds indefinitely and the revision matrix has no exit | Product with Escrow and Disputes; the Deliverables and Escrow specifications | Sections 17 and 18 |
+| Q2 | Resolved (2026-09-25) | ~~What happens when the Buyer neither approves nor requests revision~~: product behavior is now decided — review timeout, auditable platform intervention, and a platform non-response release authorization distinct from Buyer approval (Section 18.2). Buyer silence is never automatic acceptance. Exact durations and contact-attempt numbers remain configuration, restated as Q18 | Resolved the product-behavior blocker; Section 17's revision-matrix exit for exhausted allowance is restated as Q19 | Product decision, 2026-09-25; Milestones Section 18.2 | Sections 17 and 18 |
 | Q3 | P0 | Is funding taken Project-wide up front or per Milestone, and is partial funding permitted? | Determines when Milestones become `funded` and can start | Escrow owner; the Escrow specification | Section 14 |
 | Q11 | P0 | Which Milestone states may be disputed, who decides resume or cancel or refund or release outcomes, and how are split (part released, part refunded) settlements mapped to `released` versus `refunded`? | Interruption and terminal outcomes cannot be finalized without it; Section 19.1 gives only a default | Escrow and Disputes owner; the Escrow and Disputes specifications | Sections 19 and 21 |
 | Q4 | P1 | May the Seller start the next Milestone while the previous awaits Buyer review? | Affects Seller experience and Buyer leverage; the strict rule applies until decided | Product | Section 13 |
@@ -1467,13 +1544,19 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 | Q7 | P1 | Is Deliverables a separate capability with its own owner, or an internal part of Milestones? | The Foundation domain map has no entry; the contract here works either way | Architecture; a Foundation change or ADR | Section 16 |
 | Q8 | P1 | What are the consequences of a passed `due_at`, and does a revision cycle or Buyer review time extend a deadline? | Lateness rules are product policy; none is invented here | Product and Escrow | Sections 13 and 17 |
 | Q9 | P1 | What are the maximum Milestone count per Project and any minimum Milestone amount? | Abuse and usability limits need governed numbers | Product | Sections 7 and 29 |
-| Q10 | P1 | Does `revision_limit` apply per Milestone or across the whole Project? | The enforcement scope is undefined; the column is Project-level | Product and Deliverables owner | Section 17 |
+| Q10 | Resolved (2026-09-25) | ~~Does `revision_limit` apply per Milestone or across the whole Project?~~ Per Milestone: `revision_allowance` is an independently negotiated commercial term of each Milestone (Section 9.2) | Resolved the enforcement-scope blocker | Product decision, 2026-09-25; Milestones Section 9.2 | Section 17 |
 | Q14 | P1 | How are historical Milestone rows with non-INR currency or unverified amount units classified? | Enforcing the currency check or widening amounts could misstate money | Data, Finance, Product | Section 33 |
+| Q18 | P1 | What exact review-period duration, intervention contact-attempt count, contact channels, and operational SLA govern Buyer non-response (Section 18.2)? | Section 18.2 fixes the product behavior but deliberately sets no duration or count; without configuration values the intervention process cannot run | Product and Operations | Section 18.2 |
 | Q12 | P2 | Is an Asset purpose for Seller working files needed, and who owns it? | Assets denies undefined purposes by default | Assets and Product | Section 22 |
 | Q13 | P2 | Is `milestone_audit_events` physically part of the shared audit store of `DATA-PROJECTS-006`? | Avoids two audit stores | Architecture and Security | Section 26 |
-| Q15 | P2 | What structure should `deliverable_definition` take (free text, checklist, or typed criteria)? | Affects acceptance clarity and Dispute evidence | Product and Deliverables owner | Section 8 |
+| Q15 | P2 | What structure should `deliverable_definition` take beyond its now-decided `submission_requirements` declaration (Section 9.2): free text, checklist, or typed acceptance criteria? | Affects acceptance clarity and Dispute evidence; the submission-requirements portion is resolved, the broader acceptance-criteria structure is not | Product and Deliverables owner | Section 8 |
 | Q16 | P2 | Which governed families should replace the provisional `SPEC`, `EVT`, and `OPS` identifiers, and when will the glossary exist? | Governance lacks these families and the glossary is absent (also open in Projects) | Governance | Section 3 |
 | Q17 | P2 | What roadmap and product need drive parallel or dependency-based Milestones? | Premature schema raises migration cost | Product and Architecture | Section 31 |
+| Q19 | P2 | Is a lightweight, self-serve change/add-on mechanism needed for MVP so a Buyer and Seller can voluntarily agree to work beyond a Milestone's locked `revision_allowance`, without mutating the locked term? | Without it, exhausted-allowance disagreement has only "approve" or "open a Dispute" as exits, which may be too coarse for MVP | Product | Sections 9, 17 |
+
+### 36.2 Questions resolved by confirmed product decisions (2026-09-25)
+
+Three product decisions were confirmed on 2026-09-25 and are reflected throughout this document rather than left as open questions: (1) Deliverable submission requirements are service/Milestone-dependent, declared in `deliverable_definition.submission_requirements` (Sections 9.2, 17; closes [Deliverables Question EQ1](deliverables.md#273-prioritized-open-questions)); (2) Buyer non-response cannot block a Seller indefinitely, and is resolved by a configurable review timeout and an auditable platform intervention ending in a non-response release authorization distinct from Buyer approval, never automatic approval (Section 18.2; closes the product-behavior half of Q2 and [Deliverables Question EQ2](deliverables.md#273-prioritized-open-questions)); (3) the Buyer-initiated revision allowance is negotiated and locked per Milestone, not Project-wide, and is immutable after agreement except through an accepted amendment (Section 9.2; closes Q10 and [Deliverables Question EQ3](deliverables.md#273-prioritized-open-questions)). Exact operational timing (Q18) and a future voluntary change-order mechanism (Q19) remain open, narrower questions.
 
 ## 37. Traceability
 
@@ -1501,6 +1584,8 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 | `REQ-PROJECTS-040` | Redacted audit, events, notices | 25 | Append-only, redaction, outbox tests |
 | `REQ-PROJECTS-041` | Separate target records | 26, 33 | Migration and constraint tests |
 | `REQ-PROJECTS-042` | Safe transport-neutral contracts | 27 | Schema, pagination, failure tests |
+| `REQ-PROJECTS-060` | Per-Milestone submission requirements and revision allowance as commercial terms | 9 | Term-snapshot and enforcement-scope tests |
+| `REQ-PROJECTS-061` | Buyer non-response leads to platform intervention, never automatic approval | 18.2 | Review-overdue, intervention, and authorization-distinctness tests |
 
 ### 37.2 Business-rule traceability
 
@@ -1517,7 +1602,7 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 | `BR-PROJECTS-039` | A Milestone MUST start only when every predecessor is resolved and no other active Milestone is `in_progress` or `delivered`. | Sequential MVP execution. | Not yet enforced. | Not Implemented | 13 | Predecessor and uniqueness tests |
 | `BR-PROJECTS-040` | Work MUST begin only by an explicit Seller command on a `funded`, agreed, uninterrupted Milestone and MUST NOT be inferred from client state. | Prevents unsourced commencement. | Not yet enforced. | Not Implemented | 15 | Start command tests |
 | `BR-PROJECTS-041` | A Milestone MUST enter `delivered` only from a verified ready-and-safe Deliverables fact and MUST NOT own file state. | File evidence has a separate owner. | Not yet enforced; no Deliverable exists. | Not Implemented | 16 | Readiness and ownership tests |
-| `BR-PROJECTS-042` | A revision MUST be requested only by the Buyer from `delivered`, within the agreed allowance, and recorded immutably against the exact submission. | Bounded, attributable revision. | Not yet enforced; `revision_limit` is unused. | Not Implemented | 17 | Cycle and allowance tests |
+| `BR-PROJECTS-042` | A revision MUST be requested only by the Buyer from `delivered`, within this Milestone's own agreed `revision_allowance`, and recorded immutably against the exact submission. | Bounded, attributable revision. | Not yet enforced; `revision_allowance` does not exist yet, and the legacy `projects.revision_limit` is unused and Project-level. | Not Implemented | 17 | Cycle and allowance tests |
 | `BR-PROJECTS-043` | Approval MUST be by the Project Buyer only, from `delivered`, on the exact latest submission, once, idempotently, and MUST emit a release signal without settling. | Approval is evidence, not payment. | Not yet enforced. | Not Implemented | 18 | Duplicate, stale, and race tests |
 | `BR-PROJECTS-044` | Approval MUST be final for work acceptance; later disagreement MUST use a Dispute and MUST NOT revert `buyer_approved` by command. | Prevents retroactive rewriting of acceptance. | Not yet enforced. | Not Implemented | 18, 21 | Reversion-rejection tests |
 | `BR-PROJECTS-045` | A Milestone is completed exactly when it is `released`; terminal outcomes are `released`, `refunded`, and `cancelled`; Ratings MUST NOT gate approval or release. | Deterministic completion independent of reputation. | Not yet enforced. | Not Implemented | 19 | Completion predicate tests |
@@ -1532,6 +1617,9 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 | `BR-PROJECTS-054` | A ready proposal's Milestones MUST each have a non-blank title, non-blank deliverable definition, positive amount, Project currency, unique dense numbers, non-decreasing due dates, and a reconciling sum. | Informed consent needs complete, coherent terms. | Route checks title, amount, and sum; the rest not enforced. | Partially Implemented | 7, 13 | Readiness tests |
 | `BR-PROJECTS-055` | The lock indicator MUST live on the Milestone row, identity columns MUST be immutable regardless of lock, and a frozen or agreed plan MUST NOT gain, lose, or receive a moved row. | Removes reliance on a clearable Project column. | Trigger partial: guarded by `projects.milestones_locked_at`, protects insert, delete, and seven columns; move and identity gaps. | Partially Implemented | 10, 28 | Trigger bypass tests |
 | `BR-PROJECTS-056` | Preferences MAY suppress optional Milestone reminders but MUST NOT suppress mandatory contractual, financial, workflow, or safety notices, and delivery failure MUST NOT roll back a transition. | User convenience cannot erase business truth. | Not yet enforced. | Not Implemented | 25 | Preference and failure tests |
+| `BR-PROJECTS-076` | `revision_allowance` MUST be negotiated and agreed independently per Milestone, MUST be immutable once agreed except through an accepted amendment, and unused revisions MUST NOT transfer between Milestones. | Preserves the negotiated commercial bargain per payable unit. | Not yet enforced; column does not exist. | Not Implemented | 9, 17 | Allowance-scope and immutability tests |
+| `BR-PROJECTS-077` | A platform non-response release authorization MUST be recorded in a table separate from `milestone_approvals`, MUST be restricted to an explicit governed System or Administrator capability, and MUST NOT be presented to any domain as Buyer approval. | Prevents privilege confusion and preserves an accurate acceptance history. | Not yet enforced; table does not exist. | Not Implemented | 18.2 | Record-separation and capability tests |
+| `BR-PROJECTS-078` | A platform non-response release authorization MUST be rejected while the Milestone is `disputed` or `suspended`, and MUST require every configured intervention contact attempt to be exhausted first. | A live dispute or hold must take precedence over a non-response fallback. | Not yet enforced. | Not Implemented | 18.2, 21 | Interruption-precedence tests |
 
 Inherited `BR-PROJECTS-001` through `BR-PROJECTS-030` are reconciled in Section 33.1 and are not newly defined here.
 
@@ -1539,22 +1627,22 @@ Inherited `BR-PROJECTS-001` through `BR-PROJECTS-030` are reconciled in Section 
 
 | Family | Complete range in this specification | Definition location | Verification and ownership |
 | --- | --- | --- | --- |
-| Security | `SEC-PROJECTS-021`–`032` | Section 29.1 | Security review with negative, concurrency, money, retention, and test-gate evidence |
-| Data | `DATA-PROJECTS-008`–`013` | Section 26.1 | Migration and schema review, constraints, indexes, retention tests |
-| Interface | `INT-PROJECTS-016`–`026` | Section 27.2 | Contract and failure tests |
-| Audit | `AUD-PROJECTS-007`–`012` | Section 25.1 | Required-action coverage and append and redaction tests |
-| Events, provisional | `EVT-PROJECTS-008`–`013` | Section 25.3 | Governance decision, schema registry, producer and consumer tests |
-| Operations, provisional | `OPS-PROJECTS-007`–`012` | Section 25.3 | Governance decision, dashboards, alerts, reconciliation exercises |
+| Security | `SEC-PROJECTS-021`–`032`, `046`–`047` | Sections 29.1 | Security review with negative, concurrency, money, retention, and test-gate evidence |
+| Data | `DATA-PROJECTS-008`–`013`, `017` | Section 26.1 | Migration and schema review, constraints, indexes, retention tests |
+| Interface | `INT-PROJECTS-016`–`026`, `035` | Section 27.2 | Contract and failure tests |
+| Audit | `AUD-PROJECTS-007`–`012`, `015` | Section 25.1 | Required-action coverage and append and redaction tests |
+| Events, provisional | `EVT-PROJECTS-008`–`013`, `019`–`021` | Section 25.3 | Governance decision, schema registry, producer and consumer tests |
+| Operations, provisional | `OPS-PROJECTS-007`–`012`, `016` | Section 25.3 | Governance decision, dashboards, alerts, reconciliation exercises |
 
 Every governed identifier newly defined by this document has one definition and a trace entry. The event and operations ranges remain provisional to make the Governance gap visible.
 
 ## 38. Validation record
 
-The authoring validation for version 1.0.0 covers:
+The authoring validation for version 1.1.0 covers version 1.0.0's checks plus this revision's reconciliation of three confirmed product decisions (service/Milestone-dependent submission requirements, Buyer non-response and platform intervention, and per-Milestone revision allowance):
 
 | Check | Result |
 | --- | --- |
-| Exactly one H1; sequential numbered H2 headings 1 through 39; numbered H3 headings sequential under each H2; no skipped levels | Passed |
+| Exactly one H1; sequential numbered H2 headings 1 through 39; numbered H3 headings sequential under each H2; no skipped levels; new Section 18.2 and Section 36.2 added without renumbering any existing heading | Passed |
 | No empty required section and no placeholder content | Passed |
 | All 16 task-required tables present and substantive; supporting tables included | Passed |
 | All 11 required Mermaid diagrams present, captioned, and fences balanced | Passed |
@@ -1569,6 +1657,8 @@ The authoring validation for version 1.0.0 covers:
 | Commercial locking explicit; money uses integer minor units with no floating point | Passed |
 | No trailing whitespace; `git diff --check` clean | Passed |
 | Only this new specification is staged for commit; `.vscode/` excluded | Passed |
+| New identifiers (`REQ-PROJECTS-060`–`061`, `BR-PROJECTS-076`–`078`, `SEC-PROJECTS-046`–`047`, `DATA-PROJECTS-017`, `INT-PROJECTS-035`, `AUD-PROJECTS-015`, `EVT-PROJECTS-019`–`021`, `OPS-PROJECTS-016`) verified unique against the complete specification tree, continuing without reuse from this document's and `deliverables.md`'s prior ceilings | Passed |
+| Q2 and Q10 reclassified Resolved with a pointer to the deciding section, rather than silently deleted; Q18 and Q19 added for the narrower questions each leaves open | Passed |
 
 Validation scripts and Git checks are execution evidence for the repository change. This table records the specification review criteria and the known governed-identifier exception.
 
@@ -1577,3 +1667,4 @@ Validation scripts and Git checks are execution evidence for the repository chan
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-09-20 | Initial approved Milestones aggregate: identity, term versions and locking, state machine, transitions, activation, funding, delivery, revision, approval, completion, cancellation, disputes, Asset bindings, authorization, target data model, verified repository comparison, security findings, traceability, and staged plan. | Product and Architecture |
+| 1.1.0 | 2026-09-25 | Reconciled three confirmed product decisions: (1) Deliverable submission requirements are service/Milestone-dependent, declared in `deliverable_definition.submission_requirements`; (2) Buyer non-response is resolved by a configurable review timeout and auditable platform intervention (new Section 18.2, transition M18, `DATA-PROJECTS-017`), never automatic approval; (3) the Buyer-initiated revision allowance (`revision_allowance`) is negotiated and locked per Milestone, superseding reliance on the Project-level `revision_limit`. Reclassified Questions Q2 and Q10 as Resolved; added Questions Q18 and Q19. Added `REQ-PROJECTS-060`–`061`, `BR-PROJECTS-076`–`078`, `SEC-PROJECTS-046`–`047`, `DATA-PROJECTS-017`, `INT-PROJECTS-035`, `AUD-PROJECTS-015`, `EVT-PROJECTS-019`–`021`, `OPS-PROJECTS-016`. No existing identifier, section number, or unrelated content changed. | Product and Architecture |
