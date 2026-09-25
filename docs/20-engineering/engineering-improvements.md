@@ -536,7 +536,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | Date | Entries | Commit | Summary |
 |---|---|---|---|
 | 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `b32bfcd` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
-| 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `PENDING` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
+| 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `8b2ec0e` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
 
 ## 8. Version history
 
