@@ -7,10 +7,10 @@
 | Document ID | SPEC-AUTHZ-000 |
 | Type | Specification (SPEC) |
 | Status | Approved |
-| Version | 1.1.0 |
+| Version | 1.1.1 |
 | Owner | Engineering (interim: repository maintainers) |
 | Repository branch | `docs/specification-foundation` |
-| Last updated | 2026-07-22 |
+| Last updated | 2026-09-25 |
 | Related documents | [`product-overview.md`](../01-foundation/product-overview.md), [`system-architecture.md`](../01-foundation/system-architecture.md), [`users.md`](users.md), [`authentication.md`](authentication.md) |
 | Supersedes / Superseded By | None |
 
@@ -53,11 +53,11 @@ This document covers the Authorization domain: the decision model (RBAC/ReBAC/AB
 
 ## 4. Terminology and Domain Boundaries
 
-#### 4.1 Identifier Governance Note
+### 4.1 Identifier Governance Note
 
 GOV-000 §11 permits the domain tokens `AUTH`, `AUTHZ`, `USERS`, `IDENTITY`, `MARKETPLACE`, `PROJECTS`, `ESCROW`, `MESSAGING`, `RATINGS`, `MODERATION`, `NOTIFICATIONS`, `ADMIN`, `ANALYTICS` for `REQ-[DOMAIN]-NNN`/`BR-[DOMAIN]-NNN` identifiers (`docs/00-governance/README.md` §11, version 1.1.0). **`AUTHZ` is a first-class, formally governed domain token, distinct from `AUTH`.** Authentication answers "can this actor prove control of this identity?"; Authorization answers "may this actor perform this action on this resource now?" — GOV-000 §11 is explicit that the two token families must not be merged. As a result, `BR-AUTHZ-*`, `REQ-AUTHZ-*`, `SEC-AUTHZ-*`, `DATA-AUTHZ-*`, `INT-AUTHZ-*`, and `AUD-AUTHZ-*` are all fully governed identifier families under GOV-000 §11/§11.1 — none are provisional. `SPEC-AUTHZ-000` (this document's own ID) is a plain, non-governed tracking label, consistent with every other domain specification's `SPEC-*` ID. **This resolves the identifier-governance gap raised as an open question in the prior revision (§35.1, item 2, resolved).**
 
-#### 4.2 Domain Terms
+### 4.2 Domain Terms
 
 | Term | Owning Domain | One-line Definition |
 |---|---|---|
@@ -981,3 +981,4 @@ The following questions were open in version 1.0.0 of this document and are now 
 |---|---|---|---|
 | 1.0.0 | 2026-07-22 | Initial approved Authorization domain specification, converted and verified from the supplied Product Specification Pack. Verified all 10 backend routes for ownership, status, and field-projection behavior; confirmed zero role/permission/admin/moderator/organization code exists anywhere in the repository via targeted search. Identified five new findings not previously documented (`SEC-AUTHZ-001`, `004`–`006`) and cross-referenced four existing findings from `authentication.md`. Flagged a structural inconsistency: `system-architecture.md`'s domain model does not include Authorization, and `AUTHZ` is not a GOV-000 §11 permitted identifier token — both raised as priority open questions rather than silently corrected, since correcting either is out of this document's scope. No repository code was changed. | Engineering |
 | 1.1.0 | 2026-07-22 | Applied eleven canonical Authorization architecture decisions supplied by the Product Architect. Removed all "provisional" identifier framing (§4.1) now that GOV-000 §11 permits `AUTHZ` and `system-architecture.md` §10.14 names Authorization as the fourteenth domain. Named this document's own version concept `authz_version`, distinct from `authentication.md`'s `auth_version` (new §9.4). Added an explicit ten-item step-up authentication scope (new §9.5). Established a canonical seller invitation/acceptance flow and flagged the repository's immediate, unconditional seller enrollment as a confirmed gap (`SEC-AUTHZ-007`) rather than an open question (§13.2, §14.2, §27.2, §29.1, §31.1, §33). Made anonymous public Profile discovery canonical target architecture and flagged `GET /profiles`'s authenticated-only behaviour as a confirmed gap (`SEC-AUTHZ-008`) rather than an MVP assumption (§7.1, §8.1, §21, §29.1, §31.1, §33, §34). Confirmed Administrator and Moderator as fully independent roles (§7.1, §19, §20, `BR-AUTHZ-034`). Confirmed Support Operator as approved future architecture, explicitly post-MVP (§7.1). Resolved organization-role multiplicity as multiple simultaneous role assignments per membership (§18, §25, `BR-AUTHZ-026`). Confirmed the hybrid code/database policy storage model (new §25.2). Confirmed the 401/403/404/409 HTTP denial conventions as canonical, not merely descriptive (§27.1). Confirmed the permanent-audit-record scope and its low-risk-read exception (§26.1, `BR-AUTHZ-035`). Added `BR-AUTHZ-030`–`035` and `REQ-AUTHZ-011`–`013` (§36). Restructured §35 into a "Resolved this revision" pointer list and a shorter genuinely-open list, removing twelve questions the canonical decisions now answer while retaining every genuinely unresolved implementation-detail question. No repository code was changed. | Engineering |
+| 1.1.1 | 2026-09-25 | PATCH correction found during the cross-document specification-consistency audit: §4.1 and §4.2 were mistakenly authored as H4 (`####`) headings directly under the H2 §4, skipping H3, violating Governance §7. Both raised to H3 (`###`); heading text and anchor slugs unchanged, so no existing internal link is affected. No described behavior, business rule, or identifier changed. | Documentation Working Group |

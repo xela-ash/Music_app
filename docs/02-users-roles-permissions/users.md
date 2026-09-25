@@ -6,14 +6,14 @@
 | Type | Specification (SPEC) |
 | Status | Approved |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 1.2.0 |
-| Last Reviewed | 2026-07-21 |
+| Version | 1.2.1 |
+| Last Reviewed | 2026-09-25 |
 | Applies To | The Users domain: identity, ownership, account lifecycle, and account state for MusicApp |
 | Supersedes / Superseded By | None |
 
 This document follows [`docs/00-governance/README.md`](../00-governance/README.md) (GOV-000) and is scoped to the domain directory `02-users-roles-permissions/`. It converts the supplied Product Specification Pack for the Users domain into governed documentation, verifies every technical claim against the repository at time of writing, and preserves every approved product decision — nothing approved is removed for being unimplemented.
 
-**Status taxonomy:** this document classifies every feature using the same five-value taxonomy established in [`system-architecture.md`](system-architecture.md) §2.3 — **Implemented**, **Partially Implemented**, **Schema Implemented**, **Planned**, **Proposed** — reused here rather than redefined, per GOV-000 §12 (single source of truth).
+**Status taxonomy:** this document classifies every feature using the same five-value taxonomy established in [`system-architecture.md`](../01-foundation/system-architecture.md) §2.3 — **Implemented**, **Partially Implemented**, **Schema Implemented**, **Planned**, **Proposed** — reused here rather than redefined, per GOV-000 §12 (single source of truth).
 
 **This document does not redesign the product.** Where a genuine gap remains after all canonical decisions are applied, it is recorded explicitly in §15.2 (Still Open) rather than resolved by invention.
 
@@ -48,10 +48,10 @@ The User domain represents the identity of every participant in MusicApp. Everyt
 This document covers the Users domain only: identity, account ownership, account lifecycle, account state, and the relationships, business rules, security boundaries, and audit obligations that follow from owning identity. It does not cover:
 
 - **Roles and permissions** — implied by the parent directory name (`02-users-roles-permissions/`) but explicitly out of scope here. No role system and no authorization exist in the repository; a role/permission model, including the full `Restricted` permission matrix (§8.1, §9), belongs in a sibling document in this same directory.
-- **Authentication** (credentials, tokens, sessions) — owned by the Authentication domain; see [`system-architecture.md`](system-architecture.md) §10.1.
-- **Profiles** (public identity) — owned by the Profiles domain; see [`system-architecture.md`](system-architecture.md) §10.3. Identity-verification status (§8.2) is also owned at the Profiles/identity-verification boundary, not by Users — Users only references it.
+- **Authentication** (credentials, tokens, sessions) — owned by the Authentication domain; see [`system-architecture.md`](../01-foundation/system-architecture.md) §10.1.
+- **Profiles** (public identity) — owned by the Profiles domain; see [`system-architecture.md`](../01-foundation/system-architecture.md) §10.3. Identity-verification status (§8.2) is also owned at the Profiles/identity-verification boundary, not by Users — Users only references it.
 - **Escrow's final financial-record structure** — including where a payout-beneficiary reference ultimately lives (§9 `BR-USERS-018`) — is deferred to the Escrow domain specification.
-- Business rules and requirements already owned by [`product-overview.md`](product-overview.md) (e.g., `BR-PROJECTS-001` through `005`) — referenced here, not redefined, per GOV-000 §12.
+- Business rules and requirements already owned by [`product-overview.md`](../01-foundation/product-overview.md) (e.g., `BR-PROJECTS-001` through `005`) — referenced here, not redefined, per GOV-000 §12.
 
 ### 3.1 Identifier Governance Note
 
@@ -499,3 +499,4 @@ None of the still-Planned items are contradicted by the current schema in a way 
 | 1.0.0 | 2026-07-21 | Initial approved Users domain specification, converted and verified from the supplied Product Specification Pack | Engineering |
 | 1.1.0 | 2026-07-21 | Applied five canonical product decisions: (1) full account-state definitions, resolving the `Restricted`/`Suspended`/`Disabled` and `Deleted`/`Archived` ambiguities; (2) verification-attempt history as target architecture, reframing the current one-row-per-user schema as an implementation limitation; (3) soft deletion as canonical business behavior, reframing `CASCADE` foreign keys as an implementation detail of the administrative hard-deletion path; (4) identity verification does not gate normal usage, only verified-required capabilities; (5) a Planned, additive Organization structure. Surfaced one architectural observation (`Identity Verification Pending` modeled as a peer account-status value) and several narrower open questions. | Engineering |
 | 1.2.0 | 2026-07-21 | Applied seven final canonical product decisions, superseding v1.1.0's framing where corrected: (1) account status and identity-verification status formally separated into two independent state machines (§8.1, §8.2, §8.3) — the v1.1.0 "architectural observation" is resolved, not merely noted, and reclassified as a target-architecture gap in enum completeness, not a structural gap; (2) precise `Restricted`/`Suspended`/`Disabled` behavioral rules, including a minimum restriction floor and mandatory suspension metadata; (3) precise `Deleted`/`Archived` rules — configurable retention-policy transition, no ordinary return to `Active`; (4) verification-attempt field list expanded (verification type, submission timestamp, expiry/revocation info); (5) one-User-one-primary-profile confirmed as canonical, resolving the "multiple public profiles" open question, with Organization-level profile aggregation and non-owning delegated management as distinct future concepts; (6) payout-beneficiary resolution corrected — the v1.1.0 claim that enforcement "cannot be enforced" due to a missing payee column was imprecise and is corrected to describe a working indirect resolution path today, with an immutable target model deferred to the Escrow specification; (7) CASCADE/hard-deletion reframed as a repository fact and operational risk, with a required pre-assessment checklist for any future hard-delete tooling. Updated Executive Summary, §5, §6, §7, §8 (restructured into §8.1–§8.3), §9, §11, §12, §13 (restructured into §13.1–§13.5), §14, §15 (restructured into §15.1–§15.2), §16, §17. Added `BR-USERS-013`–`018` and `REQ-USERS-009`–`012`. No architecture, schema, or implementation status was changed. | Engineering |
+| 1.2.1 | 2026-09-25 | PATCH correction found during the cross-document specification-consistency audit: repaired four broken relative links to `system-architecture.md`/`product-overview.md` that omitted the required `../01-foundation/` path segment. No described behavior, business rule, or identifier changed. | Documentation Working Group |

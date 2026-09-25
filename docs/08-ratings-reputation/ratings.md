@@ -46,7 +46,7 @@ This document deliberately does not define Project or Milestone identity or comp
 4. **Does `REQ-FOUNDATION-007` transfer here?** In substance, yes. [Product Overview Section 12](../01-foundation/product-overview.md#12-requirements) states the platform "MUST require both buyer and seller ratings before a project is considered complete." [Projects Section 11.1](../05-projects-milestones/projects.md#111-completion-rule) already narrowed this: Ratings gates only the Project's own Completed *label*, never Escrow release, and named "a future Ratings policy" to supply the missing timeout/waiver outcome. This document is that policy (Section 11).
 5. **Does any repository schema exist?** No, verified directly (Section 20). Only the two unreachable enum values exist.
 
-**Ownership decision:** Ratings and Reputation is created at `docs/08-ratings-reputation/ratings.md` under the governed `RATINGS` token. No Governance or Foundation change was required.
+**Ownership decision:** Ratings and Reputation is created at `docs/08-ratings-reputation/ratings.md` under the governed `RATINGS` token. No Governance or Foundation change was required. The required glossary at `docs/99-appendices/glossary.md` does not exist (the directory itself is empty), so the local definitions in Section 4 are provisional pending that glossary, following the identical precedent [Milestones Section 3](../05-projects-milestones/milestones.md#3-governance-status-and-authority) already discloses.
 
 ### 3.2 Identifier ranges and inherited citation
 

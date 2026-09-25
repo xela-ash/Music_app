@@ -46,7 +46,7 @@ This document deliberately does not define Project, Milestone, or Deliverable id
 4. **Does User Settings already anticipate this domain?** Yes. [User Settings Section 17.4](../03-identity-profiles-verification/user-settings.md#174-messaging-preferences) already states the boundary this document must respect: "Messaging preferences cover read receipts, previews, sounds, and notification delivery. They cannot grant conversation access, delete required moderation evidence, or change message retention." This document treats that sentence as binding and does not reopen it.
 5. **Does Assets already define a Messaging-owned Asset purpose?** Yes. [Assets Section 7.2](../03-identity-profiles-verification/assets-and-media.md#72-asset-purpose-matrix) already defines "Message Attachment" with owner domain "Messaging," Relationship Restricted visibility, and "inherits message retention and moderation holds." This document consumes that purpose as-is (Section 9) and does not invent a new one.
 
-**Ownership decision:** Messaging and Collaboration is created at `docs/07-messaging-collaboration/messaging.md` under the governed `MESSAGING` token. No Governance or Foundation change was required.
+**Ownership decision:** Messaging and Collaboration is created at `docs/07-messaging-collaboration/messaging.md` under the governed `MESSAGING` token. No Governance or Foundation change was required. The required glossary at `docs/99-appendices/glossary.md` does not exist (the directory itself is empty), so the local definitions in Section 4 are provisional pending that glossary, following the identical precedent [Milestones Section 3](../05-projects-milestones/milestones.md#3-governance-status-and-authority) already discloses.
 
 ### 3.2 Identifier ranges
 
