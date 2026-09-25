@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -113,7 +113,10 @@ Copy this template for each new entry:
 | [ENG-IMP-006](#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error) | Transaction boilerplate is duplicated and ROLLBACK can mask the original error | Reliability, Maintainability | Medium | PROPOSED |
 | [ENG-IMP-007](#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler) | No central error handling; unhandled and body-parse errors reach Express's default handler | Security, Reliability | High | PROPOSED |
 | [ENG-IMP-008](#eng-imp-008-toolchain-versions-are-not-pinned) | Toolchain versions are not pinned | Developer Experience | Low | PROPOSED |
-| [ENG-IMP-009](#eng-imp-009-mvp-implementation-plan-has-incorrect-dependency-cross-references) | MVP implementation plan has incorrect dependency cross-references | Documentation | High | PROPOSED |
+| [ENG-IMP-009](#eng-imp-009-mvp-implementation-plan-has-incorrect-dependency-cross-references) | MVP implementation plan has incorrect dependency cross-references | Documentation | High | IMPLEMENTED |
+| [ENG-IMP-010](#eng-imp-010-mvp-plan-summary-statements-contradicted-its-own-dependency-table) | MVP plan summary statements contradicted its own dependency table | Documentation | High | IMPLEMENTED |
+| [ENG-IMP-011](#eng-imp-011-mvp-plan-has-no-work-item-for-the-payout-workflow-required-by-the-vertical-slice) | MVP plan has no work item for the payout workflow required by the vertical slice | Documentation, Architecture | High | PROPOSED |
+| [ENG-IMP-012](#eng-imp-012-mvp-plan-is-ambiguous-about-the-single-classification-of-mixed-scope-items) | MVP plan is ambiguous about the single classification of mixed-scope items | Documentation | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -380,6 +383,96 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | High |
 | Recommended timing | Before GitHub issues are generated. At minimum, the generated `MVP-009` and `MVP-023` issues should carry the corrected dependency with this entry cited. |
+| Status | IMPLEMENTED (2026-09-25). Corrected directly under an explicit human-approved task ("correct the two known dependency defects"), so the ACCEPTED/PLANNED steps were covered by that approval rather than skipped by an agent. |
+| Related GitHub Issue | None. The correction preceded issue generation. |
+| Related PR | None. Committed to `docs/specification-foundation` (no PR, per task instruction). |
+| Resolution | [`mvp-implementation-plan.md`](../19-implementation-planning/mvp-implementation-plan.md) 0.1.1 (2026-09-25): `MVP-009` *Depends on* now reads "MVP-006, external email provider (MVP-043)", and `MVP-023` now reads "MVP-022, MVP-041 (in-app notification)". Each target was verified by reading the item definitions: `MVP-043` is "Email channel adapter", `MVP-044` is "Rating eligibility and submission", `MVP-041` is "Notification Intent/Delivery schema, in-app channel", and `MVP-034` is Dispute "Response and staff review". Section 4 now notes the two resulting cross-stage item dependencies. The §2 source-of-truth paraphrase was left unchanged: it is incomplete but not contradictory, and it is outside this correction's scope. Correction commit: see [change record](#7-change-record). |
+
+### ENG-IMP-010 MVP plan summary statements contradicted its own dependency table
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-010 |
+| Title | MVP plan summary statements contradicted its own dependency table |
+| Date identified | 2026-09-25 |
+| Identified by | Claude Code (Opus 5.5), full dependency-graph validation before issue generation |
+| Category | Documentation |
+| Affected subsystem | Implementation planning (not code) |
+| Current state | Before the correction, [plan §6](../19-implementation-planning/mvp-implementation-plan.md#6-dependency-matrix-and-critical-path) described its critical path as "the longest true dependency chain": MVP-001 → 003 → 006 → 007 → 011 → 017 → 018 → 019 → 020 → 021 → 022 → 024 → 026 → 028 → 044 → 045 → 051. The same section said the blocking product decisions ("MVP-005 … MVP-044") do not block any other item. |
+| Evidence / problem | A topological analysis of the §5 *Depends on* column showed five adjacent pairs in the stated path that are not dependencies: 003→006, 007→011, 011→017, 022→024, 045→051. The actual longest chain is unique: MVP-001 → 006 → 007 → 014 → 015 → 017 → 018 → 019 → 020 → 021 → 022 → 023 → 028 → 044 → 045 → 048 → 049 → 050 → 051 (19 items). Also, `MVP-045`–`047` depend on `MVP-044` (HUMAN-DECISION-REQUIRED, rating scale), and `MVP-048`–`051` depend on it through `MVP-045`, so the "blocks no other item" claim was false for `MVP-044`. |
+| Suggested improvement | Replace both statements with what the §5 table actually says. No dependency edge is added or removed. |
+| Expected benefit | Issue sequencing and the queue's critical path match the real graph. The rating-scale decision is visibly on the critical path. |
+| Risk of doing nothing | Work gets prioritized on a path that is not critical. Product does not see that P0-1 (rating scale) gates the vertical slice. |
+| Implementation risk | None: documentation only |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | Yes: plan-document text (Product/Architecture-owned) |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | High |
+| Recommended timing | Before issue generation |
+| Status | IMPLEMENTED (2026-09-25), under the same explicit task approval as ENG-IMP-009. That approval covered correcting objectively wrong references whose intended value is unambiguous. The longest chain is unique, and the `MVP-044` blocking relationship comes directly from the table. |
+| Related GitHub Issue | None |
+| Related PR | None. Committed to `docs/specification-foundation`. |
+| Resolution | Plan 0.1.1: the §6 critical path was replaced with the computed unique longest chain, and the §6 blocking-decisions sentence now states that only `MVP-044`'s decision blocks other items. Correction commit: see [change record](#7-change-record). |
+
+### ENG-IMP-011 MVP plan has no work item for the payout workflow required by the vertical slice
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-011 |
+| Title | MVP plan has no work item for the payout workflow required by the vertical slice |
+| Date identified | 2026-09-25 |
+| Identified by | Claude Code (Opus 5.5), full dependency-graph validation before issue generation |
+| Category | Documentation, Architecture |
+| Affected subsystem | Implementation planning; Payments, Escrow, and Identity Verification once built |
+| Current state | [Plan §3](../19-implementation-planning/mvp-implementation-plan.md#3-the-first-complete-mvp-transaction) step 11 and [§9](../19-implementation-planning/mvp-implementation-plan.md#9-mvp-vertical-slice-checkpoint) require the Seller payout: "Payments pays out `S`", "one completed `payments` payout row", and "a payout-confirmation event". §9's prerequisite also requires "a mock payment provider" and a Seller who is "Identity Verified". [Payments §24](../06-payments-escrow/payments.md#24-staged-implementation-plan) lists the payout workflow as its own Payments-owned stage (12: payout-account model, live gate re-check, provider transfer, per [Payments §11](../06-payments-escrow/payments.md#11-payouts)). Secure webhook processing and the provider-confirmed funding workflow are stages 7–8. |
+| Evidence / problem | (1) No `MVP-*` item implements payout execution. `MVP-025` builds only the adapter interface and a mock provider, and its acceptance criterion covers funding confirmation only. `MVP-028` implements Escrow *release*, which [Payments §11.1](../06-payments-escrow/payments.md#111-payout-as-a-separate-operation) defines as a separate operation from payout. (2) `MVP-025` has no dependents, so neither the MVP-045 testability point nor `MVP-051` (the end-to-end suite that requires the mock provider) depends on it, even transitively. (3) `MVP-012` (Identity Verification), which the payout gate and the "Identity Verified" test Seller need, also has no dependents. As planned, `MVP-051`'s acceptance criterion cannot be met by completing its dependency closure. |
+| Suggested improvement | A Product/Architecture planning decision is required. The options include: add a new work item for the payout workflow (and possibly webhook-confirmed funding) with explicit dependencies (for example on `MVP-025`, `MVP-028`, `MVP-012`) and make `MVP-048` or `MVP-051` depend on it; **or** expand `MVP-025`/`MVP-028`'s scope and acceptance criteria and add the missing edges. Either way, restate the MVP-045 testability point in §6 afterwards. |
+| Expected benefit | The vertical slice is reachable by completing the plan's own dependency graph. Money movement to Sellers has an owned, reviewable work item. |
+| Risk of doing nothing | Issues generated from the plan would have no issue owning payout execution, the highest-risk money movement in the transaction. `MVP-051` would be unsatisfiable, or an implementation agent would invent the payout scope, which `AGENTS.md` Section 4 forbids. |
+| Implementation risk | None for the documentation change itself |
+| Estimated scope | S (documentation) |
+| Dependencies | Product/Architecture decision. Agents must not decide it ([`AGENTS.md`](../../AGENTS.md) Sections 4 and 6). |
+| Product behavior impact | No: the behavior is already specified in Payments §11. Only its planning is missing. |
+| Specification impact | Yes: plan-document change |
+| Migration impact | No |
+| Security impact | High relevance: payout is a money-movement path that must have explicit authorization, idempotency, and gate re-check work |
+| Performance impact | None |
+| Priority suggestion | High |
+| Recommended timing | **Before GitHub issue generation.** Issue generation was halted on 2026-09-25 pending this decision. |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-012 MVP plan is ambiguous about the single classification of mixed-scope items
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-012 |
+| Title | MVP plan is ambiguous about the single classification of mixed-scope items |
+| Date identified | 2026-09-25 |
+| Identified by | Claude Code (Opus 5.5), classification validation before issue generation |
+| Category | Documentation |
+| Affected subsystem | Implementation planning (not code) |
+| Current state | Five items carry two classifications in their [§5](../19-implementation-planning/mvp-implementation-plan.md#5-work-items) row: `MVP-008` (HUMAN-DECISION-REQUIRED bootstrap / AUTONOMOUS-READY schema), `MVP-010`, `MVP-025`, `MVP-043` (AUTONOMOUS-READY interface / EXTERNAL-DEPENDENCY provider), and `MVP-030` (row classification only "AUTONOMOUS-READY (every row except one)"). [§7](../19-implementation-planning/mvp-implementation-plan.md#7-autonomous-implementation-safety-classification) counts 42 / 5 / 4, which partitions all 51 items only if each of these five counts under its non-autonomous class. Yet §7 says the external items' autonomous sub-scopes are "already counted above", and §6 says the recommended first ten items (which include `MVP-010`) contain "zero … EXTERNAL-DEPENDENCY items". |
+| Evidence / problem | Issue generation needs exactly one classification label per item. Under the §7 partition, `MVP-010` (on the path to `MVP-011` and 24 other dependents) would be labeled EXTERNAL-DEPENDENCY, not AUTONOMOUS-READY, even though its core scope is autonomous and the first-ten list treats it that way. |
+| Suggested improvement | Product/Architecture state the convention. For example: "a mixed item takes its non-autonomous class as its single classification; its autonomous sub-scope is listed in the issue body; the item is marked blocked only if its stated acceptance criteria cannot be met without the decision or provider." Then align the §6 and §7 wording with it. |
+| Expected benefit | Deterministic issue labels, and a queue that does not hide startable work or promote blocked work |
+| Risk of doing nothing | Mislabelled issues: autonomous agents skip `MVP-010`, or pick up the provider sub-scope of an external item. |
+| Implementation risk | None |
+| Estimated scope | S |
+| Dependencies | Product/Architecture decision. Best resolved together with ENG-IMP-011. |
+| Product behavior impact | No |
+| Specification impact | Yes: plan-document wording |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before GitHub issue generation |
 | Status | PROPOSED |
 | Related GitHub Issue | — |
 | Related PR | — |
@@ -405,8 +498,17 @@ The initial review confirmed the following gaps in the code. Each is already own
 | `GET /profiles` fixed at 100 rows with client-side search | [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace); MVP-013 |
 | Only `console.*` logging, no structured observability | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps); target practice in [Handbook §15](engineering-handbook.md#15-observability) |
 
-## 7. Version history
+## 7. Change record
+
+Commits that implemented register entries, so each entry's *Resolution* can cite a stable reference.
+
+| Date | Entries | Commit | Summary |
+|---|---|---|---|
+| 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `PENDING` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
+
+## 8. Version history
 
 | Version | Date | Change | Author |
 |---|---|---|---|
 | 0.1.0 | 2026-09-25 | Initial register. Nine evidence-based entries (`ENG-IMP-001`–`009`) from the initial repository review. Cross-reference table for findings already owned by specifications. Proposed pending human review. | Engineering (drafted by Claude Code) |
+| 0.2.0 | 2026-09-25 | `ENG-IMP-009` set to IMPLEMENTED with its resolution. Added `ENG-IMP-010` (IMPLEMENTED: plan critical path and blocking-decision statement corrected), `ENG-IMP-011` (PROPOSED: no work item for the payout workflow; blocks issue generation) and `ENG-IMP-012` (PROPOSED: mixed-scope classification convention). Added Section 7, a change record, before the version history. Other entries unchanged. | Engineering (drafted by Claude Code) |
