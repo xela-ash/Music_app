@@ -504,7 +504,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 
 | Date | Entries | Commit | Summary |
 |---|---|---|---|
-| 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `PENDING` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
+| 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `b32bfcd` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
 
 ## 8. Version history
 
