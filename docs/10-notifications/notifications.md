@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Notifications (governed `NOTIFICATIONS` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.1.1 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Notifications product architecture and verified current repository comparison |
@@ -187,7 +187,7 @@ This matrix adopts [User Settings Section 11.1](../03-identity-profiles-verifica
 | Milestone Review Overdue, platform intervention, non-response authorization | Milestones Section 18.2 | Required | If verified | Optional | Optional | Durable in-app record cannot be removed | In-app + verified email | Added, 2026-09-25 |
 | Deliverable submitted / revision requested / resubmitted | Deliverables, Milestones | Yes | Optional | Optional | No | Yes | In-app | Added, 2026-09-25 |
 | Escrow/payment transactional (funding required/confirmed, release, payout status, refund) | Escrow, Payments | Required | If verified | Optional | Optional | Delivery may be reduced, durable record cannot be removed | In-app + verified email | Adopted |
-| Dispute opened / response required / resolved | Disputes (future; blocked pending Governance ownership decision, Section 22) | Required | If verified | Optional | Optional | Durable in-app record cannot be removed | In-app + verified email | Added, 2026-09-25 |
+| Dispute opened / response required / resolved | [Disputes](../09-moderation-trust-safety/disputes.md#21-notifications-interaction) | Required | If verified | Optional | Optional | Durable in-app record cannot be removed | In-app + verified email | Added, 2026-09-25 |
 | New message | Messaging | Yes | Optional | Optional | No | Yes | In-app | Adopted |
 | Rating available/requested, rating hidden/removed | Ratings | Optional / Required (removal is mandatory, per [Ratings Section 17.3](../08-ratings-reputation/ratings.md#173-notification-behavior)) | Optional | Optional | No | Yes, except removal notice | In-app | Added, 2026-09-25 |
 | Verification decision/action required | Identity Verification | Required | If verified | Optional | Optional | Durable in-app record cannot be removed | In-app + verified email | Adopted |
@@ -535,3 +535,4 @@ Note (Governance Section 21): this document links forward into Milestones Sectio
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Notifications domain specification: ownership resolved to the `NOTIFICATIONS` token under `docs/10-notifications/`, verified empty and identifier-collision-free before authoring; adopted User Settings Section 11's existing topic/preference contract as canonical and extended it with topics this specification batch introduced (Buyer non-response intervention, Dispute placeholders, Rating availability); Notification Intent / Delivery Attempt delivery model; provider-neutral channel adapter architecture covering in-app and email as MVP-target channels with push/SMS explicitly conditional; preference evaluation, retry, deduplication, and in-app read-state privacy; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
+| 0.1.1 | 2026-09-25 | Section 8.1: corrected the "Dispute opened / response required / resolved" topic row's Source domain cell to reference the now-canonical [`disputes.md`](../09-moderation-trust-safety/disputes.md), removing the "blocked pending Governance ownership decision" language now that `BLOCKER-1` is resolved. No topic classification, channel, or default was changed. | Product and Architecture |

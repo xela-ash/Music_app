@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Milestones (governed under the `PROJECTS` token) |
 | Status | Proposed |
-| Version | 1.1.0 |
+| Version | 1.1.1 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Milestone product architecture and verified current repository comparison |
@@ -764,7 +764,7 @@ A Buyer MUST NOT be able to block a Seller indefinitely by refusing to respond t
 | Review period duration | Configurable operational policy, not a value this specification hard-codes (Question Q18) | Not Implemented |
 | Review Overdue | Derived (Section 11.3): `delivered` and the review period has elapsed with no revision request or approval answering the Current Submission | Not Implemented |
 | Intervention trigger | Automatic on the Review Overdue derivation; no participant action required | Not Implemented |
-| Intervention actions | Configurable number of contact attempts, through configurable channels (Section 25.4 and [Notifications](../10-notifications/), once that specification exists); exact counts and channels are operational policy, not invented here (Question Q18) | Not Implemented |
+| Intervention actions | Configurable number of contact attempts, through configurable channels (Section 25.4 and [Notifications](../10-notifications/notifications.md#81-canonical-topic-matrix)); exact counts and channels are operational policy, not invented here (Question Q18) | Not Implemented |
 | Buyer responds during intervention | Ordinary Section 17/18.1 workflow resumes; the intervention record closes as resolved; no non-response authorization is possible afterward for this Submission | Not Implemented |
 | Non-response authorization eligibility | Milestone Review Overdue; every configured contact attempt exhausted; no interruption (`disputed` or `suspended`); no existing approval or non-response authorization for this Milestone; exact Current Submission reference named | Not Implemented |
 | Non-response authorization actor | An explicit, governed System or Administrator capability (`milestone.authorize_non_response_release`), never the Buyer, the Seller, an ordinary Moderator action, or an unattended default; distinct from `project.delivery.approve` | Not Implemented |
@@ -1668,3 +1668,4 @@ Validation scripts and Git checks are execution evidence for the repository chan
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-09-20 | Initial approved Milestones aggregate: identity, term versions and locking, state machine, transitions, activation, funding, delivery, revision, approval, completion, cancellation, disputes, Asset bindings, authorization, target data model, verified repository comparison, security findings, traceability, and staged plan. | Product and Architecture |
 | 1.1.0 | 2026-09-25 | Reconciled three confirmed product decisions: (1) Deliverable submission requirements are service/Milestone-dependent, declared in `deliverable_definition.submission_requirements`; (2) Buyer non-response is resolved by a configurable review timeout and auditable platform intervention (new Section 18.2, transition M18, `DATA-PROJECTS-017`), never automatic approval; (3) the Buyer-initiated revision allowance (`revision_allowance`) is negotiated and locked per Milestone, superseding reliance on the Project-level `revision_limit`. Reclassified Questions Q2 and Q10 as Resolved; added Questions Q18 and Q19. Added `REQ-PROJECTS-060`–`061`, `BR-PROJECTS-076`–`078`, `SEC-PROJECTS-046`–`047`, `DATA-PROJECTS-017`, `INT-PROJECTS-035`, `AUD-PROJECTS-015`, `EVT-PROJECTS-019`–`021`, `OPS-PROJECTS-016`. No existing identifier, section number, or unrelated content changed. | Product and Architecture |
+| 1.1.1 | 2026-09-25 | Section 18.2.1: fixed the stale `../10-notifications/` directory link (written before `notifications.md` existed) to point at its canonical topic matrix now that the document exists, and removed the now-inaccurate "once that specification exists" qualifier. No other content changed. | Product and Architecture |

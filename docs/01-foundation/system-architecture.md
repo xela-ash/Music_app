@@ -6,8 +6,8 @@
 | Type | Specification (SPEC) |
 | Status | Approved |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 1.3.0 |
-| Last Reviewed | 2026-07-22 |
+| Version | 1.4.0 |
+| Last Reviewed | 2026-09-25 |
 | Applies To | System architecture, domain boundaries, and technology stack for MusicApp |
 | Supersedes / Superseded By | None |
 
@@ -170,7 +170,7 @@ flowchart TB
     PROJECTS -.-> NOTIF
     PROJECTS -.-> ADMIN
     ESCROW -.-> MILESTONES
-    ESCROW -.->|no disputes entity found| ADMIN
+    ESCROW -.->|oversight; dispute resolution instructions, see disputes.md| ADMIN
     MSG -.-> NOTIF
     MSG -.-> MOD
     RATINGS -.-> PROFILES
@@ -213,7 +213,7 @@ flowchart TB
 | Marketplace | Discovery: browsing, search, filtering; Planned: ranking, recommendations | Transactions, payments | Projects (routes users into) | Profiles, Authentication |
 | Projects | Collaboration coordination, commercial terms, project lifecycle state | Authentication, direct money movement, reputation calculation | Milestones; Planned: Escrow, Messaging, Ratings, Notifications, Administration | Users, Profiles, Milestones |
 | Milestones | Scope, deliverable definition, amount, milestone state, approval, per payable unit | Project-level identity, escrow execution | Planned: Escrow | Projects |
-| Escrow | Holding funds, release, refunds, disputes (partial), financial audit trail | Project content, messages, profiles | Planned: Projects, Milestones, Administration | Projects, Milestones |
+| Escrow | Holding funds, release, refunds, execution of dispute resolution instructions (adjudication itself is owned by Disputes, see [`disputes.md`](../09-moderation-trust-safety/disputes.md)), financial audit trail | Project content, messages, profiles, dispute adjudication | Planned: Projects, Milestones, Administration, Disputes | Projects, Milestones, Disputes |
 | Messaging | Conversation history, deliveries, clarifications; Planned: attachments, system events | Project lifecycle state | Planned: Notifications, Moderation | Projects |
 | Ratings | Buyer/seller feedback, scores, written reviews; Planned: reputation metrics | Project lifecycle state — Ratings emits a completion event; Projects owns the resulting state transition (see §9) | Planned: Profiles, Marketplace | Projects; Planned: Profiles |
 | Notifications | Event distribution across channels (email, in-app; Planned: push, SMS) | Business event creation (only distributes events it is given) | All domains, as recipients | Planned: Authentication, Projects, Messaging, Escrow, Moderation |
@@ -643,7 +643,7 @@ All project routes require authentication. `POST /projects/:projectId/lock-miles
 - A project stuck in `draft` indefinitely (no code advances it) — **Planned**, this is the expected current-state ceiling, not an error condition.
 
 #### Future Extensibility
-Full lifecycle transition logic (funded → accepted → in_progress → delivered → ...); a dedicated Disputes entity (see §9, §10.7); integration points for Messaging, Ratings, and Notifications as those domains are built.
+Full lifecycle transition logic (funded → accepted → in_progress → delivered → ...); integration with the now-governed Disputes domain (see §9, §10.7, [`disputes.md`](../09-moderation-trust-safety/disputes.md)); integration points for Messaging, Ratings, and Notifications as those domains are built.
 
 #### Implementation Status
 **Partially Implemented.**
@@ -660,7 +660,7 @@ Full lifecycle transition logic (funded → accepted → in_progress → deliver
 | Explicit lifecycle states | Schema Implemented for reachability — only `draft` is reachable |
 
 #### Notes
-"Disputes" is named as a first-class coordinated concern by the specification, but the schema offers only a single free-text column — narrower than what the specification implies. This is not a contradiction (nothing prevents a future disputes table), but it is a gap worth resolving explicitly (§18) rather than assuming the free-text column is sufficient long-term.
+"Disputes" is named as a first-class coordinated concern by the specification. The schema still offers only a single free-text column (`projects.dispute_reason`) with no executable behavior (Schema Implemented at most), but the target architecture gap is now resolved at the specification level: Disputes is a governed domain in its own right, owning adjudication and the resolution instruction Escrow executes, documented canonically in [`disputes.md`](../09-moderation-trust-safety/disputes.md) (§18).
 
 ### 10.6 Milestones
 
@@ -817,7 +817,7 @@ Payment-provider integration; dispute resolution workflow (see §10.5 Notes on t
 Four tables (`backend/db/006_create_escrow_system.sql`): `escrows` (one per project), `escrow_allocations` (one per milestone), `payments` (individual attempts), `escrow_ledger` (audit entries). No route in `backend/Index.js` creates, reads, updates, or references any of these four tables.
 
 #### Notes
-"Disputes" as an Escrow responsibility inherits the same gap noted for Projects (§10.5): there is no dedicated disputes table anywhere, including within the escrow schema itself — only `projects.dispute_reason` (free text) and `disputed` enum values on `project_state`/`escrow_status`. This is recorded, not resolved (§18).
+"Disputes" is no longer an Escrow responsibility at the specification level: adjudication, evidence, and the resolution decision belong to the governed Disputes domain ([`disputes.md`](../09-moderation-trust-safety/disputes.md)); Escrow's remaining responsibility is limited to holding the disputed amount and executing the resulting resolution instruction (Section 17 of that document). At the repository level there is still no dedicated disputes table anywhere, including within the escrow schema itself — only `projects.dispute_reason` (free text) and `disputed` enum values on `project_state`/`escrow_status`/`milestone_state`. This repository gap is unchanged; the architectural ownership gap is resolved (§18).
 
 ### 10.8 Messaging
 
@@ -1315,7 +1315,7 @@ The specification defines four interaction groups, stated verbatim in intent. Ea
 |---|---|
 | Escrow ↔ Projects | Planned — `escrows.project_id` FK exists at schema level only |
 | Escrow ↔ Milestones | Planned — `escrow_allocations.milestone_id` FK exists at schema level only |
-| Escrow ↔ Disputes | Planned, and narrower than specified — no dedicated disputes entity exists anywhere |
+| Escrow ↔ Disputes | Planned at the repository level (no execution behavior exists); resolved at the specification level — Disputes ([`disputes.md`](../09-moderation-trust-safety/disputes.md)) owns adjudication and issues the resolution instruction; Escrow owns the hold and its execution |
 | Escrow ↔ Administration | Planned — neither side has any implemented behavior |
 
 ### 12.3 "Messaging interacts with: Projects, Notifications, Moderation"
@@ -1406,7 +1406,7 @@ This section records architecturally relevant security facts found during verifi
 - What is the intended module/service decomposition for the backend and frontend application modules (§5) — is a specific target folder structure or framework pattern already decided anywhere outside this repository?
 - What is the intended enforcement mechanism for "Escrow never edits project content; Projects never directly move money" (§9, §10.7) once Escrow moves from Schema Implemented to Implemented?
 - **What is the intended event mechanism** by which Projects consumes a rating-completion signal from Ratings (§9, §10.9) — a synchronous call, an internal event/message queue, or another pattern — and is the resulting `projects.state` write always performed by a Projects-owned handler?
-- Is there a dedicated Disputes entity planned (§10.5, §10.7, §12.2), given the specification names Disputes as a first-class concern for both Projects and Escrow but the schema currently only offers a single free-text `dispute_reason` column?
+- ~~Is there a dedicated Disputes entity planned (§10.5, §10.7, §12.2), given the specification names Disputes as a first-class concern for both Projects and Escrow but the schema currently only offers a single free-text `dispute_reason` column?~~ **Resolved, 2026-09-25:** yes — Disputes is a governed domain in its own right, canonically specified in [`disputes.md`](../09-moderation-trust-safety/disputes.md), sharing the `09-moderation-trust-safety/` directory with the still-unwritten Moderation domain under a distinct `DISPUTES` token (Governance §4, §11, version 1.2.0). The repository still offers only the free-text `dispute_reason` column and bare `disputed` enum values — that repository gap is unchanged and is tracked in `disputes.md` §28, not here.
 - What is the intended technical mechanism for Administration's "view every domain without violating audit history" (§9, §10.12) — read-only database roles, application-layer permission checks, or something else?
 - What is the intended long-term CORS and rate-limiting policy before any non-local deployment (§13, §14)?
 
@@ -1439,3 +1439,4 @@ All `REQ-FOUNDATION-*` and `BR-*` (Projects/Escrow/Ratings) identifiers above ar
 | 1.1.0 | 2026-07-21 | Expanded into a full architecture handbook: every domain restructured into 19 subsections (Purpose through Notes); added Domain Ownership Matrix (§7), Domain Dependency Matrix (§8), and Architecture Boundaries (§9); added Authentication, Milestone, and Escrow lifecycle diagrams (Project lifecycle diagram retained and expanded in place); introduced the five-value Status Taxonomy (§2.3); recorded the Ratings/`project_state` schema tension (§9, §10.9); reworded consolidated-codebase observations to describe current and target state professionally | Engineering |
 | 1.2.0 | 2026-07-21 | Clarified the Ratings/Projects architectural boundary: Ratings owns rating data, Projects owns project lifecycle state, and rating completion is an event Projects consumes as a transition input. Replaced the prior "product/schema inconsistency" framing with this ownership clarification in the Executive Summary, §7 (Domain Ownership Matrix), §9 (Architecture Boundaries), §10.5 (Projects: Inputs, Consumers), §10.9 (Ratings: Non-Responsibilities, Lifecycle Responsibilities, Notes), §16 (Assumptions), §17 (Risks), and §18 (Open Questions). No architecture, schema, or implementation status was changed. | Engineering |
 | 1.3.0 | 2026-07-22 | Added Authorization as the fourteenth system domain (`authorization.md`), resolving the prior implicit gap where Authorization was referenced only informally. Canonical boundary: Authentication proves identity and produces an authenticated principal; Authorization consumes that principal plus current account state, roles, permissions, relationships, and resource state, and returns allow/deny; Authorization owns neither credentials nor any resource's business lifecycle. Updated the Executive Summary (domain count 13→14, seven of fourteen domains now partially delivered), §2.2 Scope, §3 (Separation of Concerns principle), §6 (System Domain Map — new node, edges, status row), §7 (Domain Ownership Matrix — new row), §8 (Domain Dependency Matrix — expanded 13×13 to 14×14 with a new `ATZ` row/column), §9 (Architecture Boundaries — three new entries), added full §10.14 Authorization (19-subsection domain specification, one new Mermaid flowchart), §11 (Data Model Overview note), added §12.5 (Authorization Interactions, this document's own extension, not verbatim specification text), §13 (Security Architecture Notes — deny-by-default finding), §15 (Implementation Status Summary — new row), §16 (Assumptions), §17 (Risks), and §19 (Traceability — new row). No existing domain's architecture, schema, or implementation status was changed. | Engineering |
+| 1.4.0 | 2026-09-25 | Resolved the "dedicated Disputes entity" Open Question (§18): Disputes is now a governed domain, canonically specified in [`disputes.md`](../09-moderation-trust-safety/disputes.md), owning adjudication and the resolution instruction; Escrow's role is narrowed to holding the disputed amount and executing that instruction. Updated §6 (domain-map edge label), §7 (Escrow ownership-matrix row), §10.5 and §10.7 (Notes and Future Extensibility corrected from "gap, not resolved" to "resolved at the specification level"), §12.2 (Escrow ↔ Disputes interaction row), and §18 (Open Question marked Resolved with a pointer). This document does not add Disputes as a fifteenth architecturally-modeled domain node with its own §10.x subsection, consistent with the existing precedent that Payments — also a fully specified sibling domain — has no dedicated flowchart node or ownership-matrix row of its own; full Disputes domain detail remains single-sourced in `disputes.md`, not duplicated here. No other domain's architecture, schema, or implementation status was changed. | Product and Architecture |
