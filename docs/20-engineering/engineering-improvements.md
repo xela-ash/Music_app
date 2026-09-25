@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.2.0 |
+| Version | 0.3.0 |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -115,8 +115,9 @@ Copy this template for each new entry:
 | [ENG-IMP-008](#eng-imp-008-toolchain-versions-are-not-pinned) | Toolchain versions are not pinned | Developer Experience | Low | PROPOSED |
 | [ENG-IMP-009](#eng-imp-009-mvp-implementation-plan-has-incorrect-dependency-cross-references) | MVP implementation plan has incorrect dependency cross-references | Documentation | High | IMPLEMENTED |
 | [ENG-IMP-010](#eng-imp-010-mvp-plan-summary-statements-contradicted-its-own-dependency-table) | MVP plan summary statements contradicted its own dependency table | Documentation | High | IMPLEMENTED |
-| [ENG-IMP-011](#eng-imp-011-mvp-plan-has-no-work-item-for-the-payout-workflow-required-by-the-vertical-slice) | MVP plan has no work item for the payout workflow required by the vertical slice | Documentation, Architecture | High | PROPOSED |
-| [ENG-IMP-012](#eng-imp-012-mvp-plan-is-ambiguous-about-the-single-classification-of-mixed-scope-items) | MVP plan is ambiguous about the single classification of mixed-scope items | Documentation | Medium | PROPOSED |
+| [ENG-IMP-011](#eng-imp-011-mvp-plan-has-no-work-item-for-the-payout-workflow-required-by-the-vertical-slice) | MVP plan has no work item for the payout workflow required by the vertical slice | Documentation, Architecture | High | IMPLEMENTED |
+| [ENG-IMP-012](#eng-imp-012-mvp-plan-is-ambiguous-about-the-single-classification-of-mixed-scope-items) | MVP plan is ambiguous about the single classification of mixed-scope items | Documentation | Medium | IMPLEMENTED |
+| [ENG-IMP-013](#eng-imp-013-release-and-financial-commands-are-not-wired-to-verification-and-idempotency-foundations) | Release and financial commands are not wired to verification and idempotency foundations | Documentation, Architecture | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -443,10 +444,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | High |
 | Recommended timing | **Before GitHub issue generation.** Issue generation was halted on 2026-09-25 pending this decision. |
-| Status | PROPOSED |
-| Related GitHub Issue | — |
-| Related PR | — |
-| Resolution | — |
+| Status | IMPLEMENTED (2026-09-25). Product/Architecture decided (Decision 1) that Seller payout execution is its own work item and must not be folded into `MVP-025` or `MVP-028`; the plan change implements that decision. |
+| Related GitHub Issue | None. Resolved before issue generation. |
+| Related PR | None. Committed to `docs/specification-foundation`. |
+| Resolution | [`mvp-implementation-plan.md`](../19-implementation-planning/mvp-implementation-plan.md) 0.2.0 adds `MVP-052` Seller payout execution in Stage 8, classified HUMAN-DECISION-REQUIRED on Payments Question PQ3 (payout schedule and trigger). It depends on `MVP-003` (idempotency and inbox deduplication), `MVP-012` (Identity Verified for the live payout gate), `MVP-025` (adapter `createPayout` and mock provider), and `MVP-028` (release creates the `SELLER_ENTITLEMENT` that payout moves). `MVP-048` now depends on `MVP-052`, so `MVP-048`–`MVP-051` include payout. Plan §6 now defines checkpoint A (through release, without payout: `MVP-045`, `MVP-025`, and `MVP-012` landed) and checkpoint B (including payout: `MVP-045` and `MVP-052` landed; `MVP-048` is the first single item whose dependency chain contains both). The §9 prerequisite includes `MVP-052` and forbids claiming a completed payout before it. Real rails (PQ1/EQ13), post-payout liability (EQ5), and withholding (EQ9) remain unresolved, as in the specifications. Correction commit: see [change record](#7-change-record). |
 
 ### ENG-IMP-012 MVP plan is ambiguous about the single classification of mixed-scope items
 
@@ -473,6 +474,36 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | Medium |
 | Recommended timing | Before GitHub issue generation |
+| Status | IMPLEMENTED (2026-09-25). Product/Architecture decided (Decision 2) on single primary classification by precedence: HUMAN-DECISION-REQUIRED, then EXTERNAL-DEPENDENCY, then AUTONOMOUS-READY. |
+| Related GitHub Issue | None. Resolved before issue generation. |
+| Related PR | None. Committed to `docs/specification-foundation`. |
+| Resolution | Plan 0.2.0 §7 defines the precedence rule and states each mixed item's single classification after reading its row: `MVP-008` is HUMAN-DECISION-REQUIRED (the item scope includes the open Administrator bootstrap); `MVP-030` is HUMAN-DECISION-REQUIRED (its work covers every matrix row, including the undecided compensation row); `MVP-010`, `MVP-025`, and `MVP-043` are EXTERNAL-DEPENDENCY (each scope includes a real, unselected provider). Each row still names the part that needs no decision or provider, and whether its acceptance test can pass with a mock. With `MVP-052`, counts are now 52 total, 42 AUTONOMOUS-READY, 6 HUMAN-DECISION-REQUIRED, and 4 EXTERNAL-DEPENDENCY. §6's first-ten statement and §7's "already counted above" wording were corrected. Correction commit: see [change record](#7-change-record). |
+
+### ENG-IMP-013 Release and financial commands are not wired to verification and idempotency foundations
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-013 |
+| Title | Release and financial commands are not wired to verification and idempotency foundations |
+| Date identified | 2026-09-25 |
+| Identified by | Claude Code (Opus 5.5), dependency revalidation after adding `MVP-052` |
+| Category | Documentation, Architecture |
+| Affected subsystem | Implementation planning; Escrow, once built |
+| Current state | In [plan §5](../19-implementation-planning/mvp-implementation-plan.md#5-work-items), `MVP-028` (release) depends on `MVP-022`, `MVP-023`, and `MVP-026`, not on `MVP-012` (identity verification) or `MVP-025` (mock provider for funding confirmation). `MVP-003` (the shared idempotency, outbox, and inbox infrastructure) has no dependent except `MVP-052`. |
+| Evidence / problem | Release requires the live payout gate, including Identity Verified (`REQ-ESCROW-009`, `BR-ESCROW-014`, `BR-IDENTITY-021`), and captured funding that only a verified provider fact creates. Every Escrow financial operation must be idempotent by key (`REQ-ESCROW-018`), which `MVP-003` provides. As planned, `MVP-026`/`MVP-028` can start before those foundations exist. Plan §6 therefore states checkpoint A as `MVP-045` plus `MVP-025` and `MVP-012`, not `MVP-045` alone. |
+| Suggested improvement | Product/Architecture decide whether `MVP-028` (and, for idempotency, `MVP-024`/`MVP-026`/`MVP-029`) should depend on `MVP-012`, `MVP-025`, and `MVP-003`, or whether those items may use test fixtures for verification status and funding, with the dependency expressed only at the checkpoints. |
+| Expected benefit | Dependencies that match the specifications' gates. A single-item checkpoint A. |
+| Risk of doing nothing | Release could be implemented against seeded verification or funding state and ship without an integrated gate. Idempotency could be reimplemented per item instead of on `MVP-003`. |
+| Implementation risk | None: documentation only |
+| Estimated scope | S |
+| Dependencies | Product/Architecture decision. Does **not** block issue generation: the current graph is valid and acyclic, and issues can carry this note. |
+| Product behavior impact | No |
+| Specification impact | Yes: plan-document dependencies |
+| Migration impact | No |
+| Security impact | Positive if adopted: gates and idempotency are built in, not retrofitted |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before `MVP-024`/`MVP-026`/`MVP-028` begin |
 | Status | PROPOSED |
 | Related GitHub Issue | — |
 | Related PR | — |
@@ -505,6 +536,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | Date | Entries | Commit | Summary |
 |---|---|---|---|
 | 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `b32bfcd` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
+| 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `PENDING` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
 
 ## 8. Version history
 
@@ -512,3 +544,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 |---|---|---|---|
 | 0.1.0 | 2026-09-25 | Initial register. Nine evidence-based entries (`ENG-IMP-001`–`009`) from the initial repository review. Cross-reference table for findings already owned by specifications. Proposed pending human review. | Engineering (drafted by Claude Code) |
 | 0.2.0 | 2026-09-25 | `ENG-IMP-009` set to IMPLEMENTED with its resolution. Added `ENG-IMP-010` (IMPLEMENTED: plan critical path and blocking-decision statement corrected), `ENG-IMP-011` (PROPOSED: no work item for the payout workflow; blocks issue generation) and `ENG-IMP-012` (PROPOSED: mixed-scope classification convention). Added Section 7, a change record, before the version history. Other entries unchanged. | Engineering (drafted by Claude Code) |
+| 0.3.0 | 2026-09-25 | `ENG-IMP-011` and `ENG-IMP-012` set to IMPLEMENTED after the Product/Architecture decisions, with resolutions (plan 0.2.0). Added `ENG-IMP-013` (PROPOSED, non-blocking): release and financial items are not wired to the verification and idempotency foundations. Other entries unchanged. | Engineering (drafted by Claude Code) |
