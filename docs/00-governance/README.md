@@ -5,8 +5,8 @@
 | Document ID | GOV-000 |
 | Status | Approved |
 | Owner | Documentation Working Group (interim: repository maintainers) |
-| Version | 1.1.0 |
-| Last Reviewed | 2026-07-22 |
+| Version | 1.2.0 |
+| Last Reviewed | 2026-09-25 |
 | Applies To | All documentation under `docs/` in this repository |
 
 ## Documentation Map
@@ -22,7 +22,7 @@
 | 06-payments-escrow | Escrow & payments | Planned |
 | 07-messaging-collaboration | Messaging | Planned |
 | 08-ratings-reputation | Ratings | Planned |
-| 09-moderation-trust-safety | Moderation | Planned |
+| 09-moderation-trust-safety | Disputes; Moderation | Active (Disputes); Planned (Moderation) |
 | 10-notifications | Notifications | Planned |
 | 11-admin-operations | Admin | Planned |
 | 12-analytics-reporting | Analytics | Planned |
@@ -32,6 +32,7 @@
 | 16-infrastructure | Infrastructure | Planned |
 | 17-testing | Testing | Planned |
 | 18-deployment | Deployment | Planned |
+| 19-implementation-planning | MVP implementation plan and agent instructions | Active |
 | 99-appendices | References | Planned |
 
 ## 1. Purpose and Scope
@@ -107,7 +108,7 @@ The repository's `docs/` tree is fixed at the following top-level structure. New
 | `06-payments-escrow/` | Escrow, payments, ledger, payouts |
 | `07-messaging-collaboration/` | In-project messaging and collaboration tooling |
 | `08-ratings-reputation/` | Ratings, reviews, reputation scoring |
-| `09-moderation-trust-safety/` | Moderation, trust and safety controls |
+| `09-moderation-trust-safety/` | Disputes (governed `DISPUTES` token); Moderation, trust and safety controls |
 | `10-notifications/` | Notification delivery and preferences |
 | `11-admin-operations/` | Internal admin tooling and operations |
 | `12-analytics-reporting/` | Analytics, metrics, reporting |
@@ -117,6 +118,7 @@ The repository's `docs/` tree is fixed at the following top-level structure. New
 | `16-infrastructure/` | Infrastructure and environment documentation |
 | `17-testing/` | Test strategy, coverage, and QA process |
 | `18-deployment/` | Deployment process and release management |
+| `19-implementation-planning/` | MVP implementation planning: build sequence, work-item decomposition, and implementation-agent operating instructions, derived from the domain specifications above |
 | `99-appendices/` | Glossary, ADR index, historical/reference material |
 
 Within each numbered domain directory, documents SHOULD be further split by concern (e.g., `05-projects-milestones/business-rules.md`, `05-projects-milestones/lifecycle.md`) rather than accumulated into a single file once the directory grows past a few hundred lines.
@@ -217,7 +219,9 @@ Identifiers MUST be stable, globally unique within their prefix, and MUST NOT be
 
 `[DOMAIN]` MUST be one of the short domain tokens below, matching the directory it documents:
 
-`AUTH`, `AUTHZ`, `USERS`, `IDENTITY`, `MARKETPLACE`, `PROJECTS`, `ESCROW`, `MESSAGING`, `RATINGS`, `MODERATION`, `NOTIFICATIONS`, `ADMIN`, `ANALYTICS`
+`AUTH`, `AUTHZ`, `USERS`, `IDENTITY`, `MARKETPLACE`, `PROJECTS`, `ESCROW`, `MESSAGING`, `RATINGS`, `DISPUTES`, `MODERATION`, `NOTIFICATIONS`, `ADMIN`, `ANALYTICS`
+
+`DISPUTES` is a distinct governed token from `MODERATION`, even though both are documented under the shared `09-moderation-trust-safety/` directory (Section 4): Disputes decides and instructs on a specific transaction disagreement, while Moderation covers general content and trust-and-safety review. The two MUST NOT be merged, following the same non-merging principle already established for `AUTH`/`AUTHZ`. See [`09-moderation-trust-safety/disputes.md`](../09-moderation-trust-safety/disputes.md) for the canonical Disputes domain specification.
 
 `AUTH` and `AUTHZ` are deliberately distinct tokens and MUST NOT be merged:
 
@@ -506,3 +510,4 @@ Before marking any document **Approved** or **Implemented**, its author and revi
 |---|---|---|---|
 | 1.0.0 | 2026-07-21 | Initial governance standard established | Documentation Working Group |
 | 1.1.0 | 2026-07-22 | Added `AUTHZ` (Authorization) as a permitted domain token, distinct from and not merged with `AUTH` (Authentication) (§11). Formally defined the `SEC-[DOMAIN]-NNN`, `DATA-[DOMAIN]-NNN`, `INT-[DOMAIN]-NNN`, and `AUD-[DOMAIN]-NNN` identifier families for domain-scoped findings, target data models, interfaces, and audit requirements, distinct from the centralized `SEC-NNN` registry (§11.1). Updated the `02-users-roles-permissions/` directory description (§4) and added an Authorization worked example (§28). No existing identifier or requirement was altered or removed. | Documentation Working Group |
+| 1.2.0 | 2026-09-25 | Added `DISPUTES` as a permitted domain token (§11), distinct from and not merged with `MODERATION`, resolving the specification-consistency audit's `BLOCKER-1`. Updated the `09-moderation-trust-safety/` directory row (Documentation Map and §4) to name Disputes alongside the still-unwritten Moderation domain, without renaming, renumbering, or displacing Moderation's own future assignment. Added a new `19-implementation-planning/` directory (Documentation Map and §4) for the MVP implementation plan and agent-operating instructions, once the specification-consistency audit's readiness gate passed; this directory carries no requirement-domain token, since implementation-planning identifiers (`MVP-NNN`) are a separate, non-governed family (see `19-implementation-planning/mvp-implementation-plan.md`). No existing identifier, directory number, or requirement was altered or removed. | Documentation Working Group |
