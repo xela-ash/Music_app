@@ -6,9 +6,9 @@
 | Type | Specification (SPEC) |
 | Domain | Projects |
 | Status | Approved |
-| Version | 1.0.0 |
+| Version | 1.0.1 |
 | Owner | Product and Architecture |
-| Last Reviewed | 2026-07-23 |
+| Last Reviewed | 2026-09-25 |
 | Applies To | Target Projects product architecture and verified current repository comparison |
 | Governed token | `PROJECTS` |
 | Canonical path | `docs/05-projects-milestones/projects.md` |
@@ -1285,7 +1285,7 @@ Additional risks include privileged-access misuse, invitation spam/enumeration, 
 | P0 | Which new identifier replaces the Product Overview's conflicting total-reconciliation use of `BR-PROJECTS-002`, and when will ownership transfer be updated? | Current Layer 0/1 collision prevents unique canonical ownership | Governance/Architecture | Governance, Product Overview, System Architecture, Projects |
 | P0 | How are existing rows with a named Seller classified when no affirmative consent evidence exists? | Auto-accept fabricates consent; blanket cancellation may harm real engagements | Product, Legal, Support, Data | Migration, invitations, participants |
 | P0 | What Escrow/ledger facts and reconciliation procedure authorize migration of current `funded`, `cancelled`, or `completed` rows? | Incorrect inference can cause financial loss | Current Escrow/payment owner, Finance, Data | State migration |
-| P0 | What timeout, waiver, incapacity, or account-deletion rule satisfies mandatory bilateral Ratings without blocking completion forever? | Foundation otherwise creates Ratings Pending deadlock | Product, Ratings, Legal | Completion and Rating dependency |
+| Resolved (2026-09-25) | ~~What timeout, waiver, incapacity, or account-deletion rule satisfies mandatory bilateral Ratings without blocking completion forever?~~ [Ratings Section 11](../08-ratings-reputation/ratings.md#11-ratings-pending-and-project-completion) supplies the "future Ratings policy" named above: each rating direction resolves to `SUBMITTED` or a recorded `WAIVED_TIMEOUT` within a configured collection window, and this convergence fact never delays Escrow release or Milestone settlement, which already proceed independently (`BR-PROJECTS-023`, [Milestones `REQ-PROJECTS-033`](../05-projects-milestones/milestones.md#19-milestone-completion)) | Resolved the deadlock at the product-behavior level; the exact collection-window duration remains configuration (Ratings Question EQ2) | Product decision, 2026-09-25; `ratings.md` Section 11 | Completion and Rating dependency |
 | P0 | Which verification level is required at Seller acceptance versus before funding/payout, and how are revocation/expiry represented? | Too early harms access; too late risks payout/contract failures | Verification, Risk, Legal | Invitation/funding |
 | P0 | What exact cancellation, release, partial-work, fee, chargeback, and refund outcomes apply in each funded scenario? | Projects cannot safely define Escrow-owned financial/dispute remedies | Current Escrow payment/dispute owner and Product | Cancellation |
 | P1 | What are the canonical Milestone transition, dependency, revision, partial approval, and Project roll-up rules? | Funding readiness and completion depend on them | Milestones/Product | Milestone contract |
@@ -1400,6 +1400,7 @@ The authoring validation for version 1.0.0 covers:
 | Money uses integer minor units and Project/Milestone/Escrow authority is explicit | Passed |
 | No trailing whitespace; Git diff check clean | Passed |
 | Only this new specification selected for commit; `.vscode/` excluded | Passed |
+| PATCH-level correction (1.0.1): one Open Questions row reclassified Resolved with a pointer to `ratings.md`, once written; no described target behavior altered; no ADR required (Governance Section 24) | Passed |
 
 Validation scripts and Git checks are execution evidence for the repository change; this table records the specification review criteria and known governed-ID exception.
 
@@ -1408,3 +1409,4 @@ Validation scripts and Git checks are execution evidence for the repository chan
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-07-23 | Initial approved consent-first Projects aggregate, lifecycle, boundaries, target data/interfaces, repository comparison, security findings, traceability, and staged plan. | Product and Architecture |
+| 1.0.1 | 2026-09-25 | PATCH correction: reclassified the Open Questions row on the Ratings timeout/waiver policy as Resolved, pointing to the newly canonical [`ratings.md` Section 11](../08-ratings-reputation/ratings.md#11-ratings-pending-and-project-completion), which supplies exactly the "future Ratings policy" this document's Section 11.1 already named. No described target behavior, business rule, or identifier changed. | Product and Architecture |
