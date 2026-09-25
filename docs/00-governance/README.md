@@ -5,7 +5,7 @@
 | Document ID | GOV-000 |
 | Status | Approved |
 | Owner | Documentation Working Group (interim: repository maintainers) |
-| Version | 1.2.0 |
+| Version | 1.3.0 |
 | Last Reviewed | 2026-09-25 |
 | Applies To | All documentation under `docs/` in this repository |
 
@@ -33,6 +33,7 @@
 | 17-testing | Testing | Planned |
 | 18-deployment | Deployment | Planned |
 | 19-implementation-planning | MVP implementation plan and agent instructions | Active |
+| 20-engineering | Engineering handbook, improvements register, build record | Active |
 | 99-appendices | References | Planned |
 
 ## 1. Purpose and Scope
@@ -119,9 +120,17 @@ The repository's `docs/` tree is fixed at the following top-level structure. New
 | `17-testing/` | Test strategy, coverage, and QA process |
 | `18-deployment/` | Deployment process and release management |
 | `19-implementation-planning/` | MVP implementation planning: build sequence, work-item decomposition, and implementation-agent operating instructions, derived from the domain specifications above |
+| `20-engineering/` | Engineering-control documents: the engineering handbook (how MusicApp is engineered), the engineering improvements register (recommended, not-yet-authorized technical improvements), and the engineering build record (what has actually been implemented and why). Carries no requirement-domain token (§4.1) |
 | `99-appendices/` | Glossary, ADR index, historical/reference material |
 
 Within each numbered domain directory, documents SHOULD be further split by concern (e.g., `05-projects-milestones/business-rules.md`, `05-projects-milestones/lifecycle.md`) rather than accumulated into a single file once the directory grows past a few hundred lines.
+
+### 4.1 Engineering-control documents
+
+`20-engineering/` holds engineering-control documents, not product specifications. They MUST NOT define or change product behavior, and they rank below the domain specifications and the implementation plan in every precedence question (see [`AGENTS.md`](../../AGENTS.md) Section 1).
+
+- `ENG-IMP-NNN` (engineering improvement) and `EDR-NNN` (engineering decision record) are non-governed engineering-control identifier families, in the same sense as the `MVP-NNN` planning family: they are stable and never reused, but they are not requirement identifiers and MUST NOT be cited as a source of product behavior.
+- An EDR records a significant *implementation* decision (library, module boundary, transaction or retry strategy, test tooling) that changes no Approved or Implemented specification. A decision that meets any §14 trigger — it changes an Approved/Implemented document, introduces a new cross-cutting standard, or reverses a prior decision — MUST be an ADR, not an EDR.
 
 ## 5. Document Types
 
@@ -511,3 +520,4 @@ Before marking any document **Approved** or **Implemented**, its author and revi
 | 1.0.0 | 2026-07-21 | Initial governance standard established | Documentation Working Group |
 | 1.1.0 | 2026-07-22 | Added `AUTHZ` (Authorization) as a permitted domain token, distinct from and not merged with `AUTH` (Authentication) (§11). Formally defined the `SEC-[DOMAIN]-NNN`, `DATA-[DOMAIN]-NNN`, `INT-[DOMAIN]-NNN`, and `AUD-[DOMAIN]-NNN` identifier families for domain-scoped findings, target data models, interfaces, and audit requirements, distinct from the centralized `SEC-NNN` registry (§11.1). Updated the `02-users-roles-permissions/` directory description (§4) and added an Authorization worked example (§28). No existing identifier or requirement was altered or removed. | Documentation Working Group |
 | 1.2.0 | 2026-09-25 | Added `DISPUTES` as a permitted domain token (§11), distinct from and not merged with `MODERATION`, resolving the specification-consistency audit's `BLOCKER-1`. Updated the `09-moderation-trust-safety/` directory row (Documentation Map and §4) to name Disputes alongside the still-unwritten Moderation domain, without renaming, renumbering, or displacing Moderation's own future assignment. Added a new `19-implementation-planning/` directory (Documentation Map and §4) for the MVP implementation plan and agent-operating instructions, once the specification-consistency audit's readiness gate passed; this directory carries no requirement-domain token, since implementation-planning identifiers (`MVP-NNN`) are a separate, non-governed family (see `19-implementation-planning/mvp-implementation-plan.md`). No existing identifier, directory number, or requirement was altered or removed. | Documentation Working Group |
+| 1.3.0 | 2026-09-25 | Added a new `20-engineering/` directory (Documentation Map and §4) for the engineering handbook, engineering improvements register, and engineering build record. Added §4.1, which defines those documents as engineering-control documents that cannot define product behavior, declares `ENG-IMP-NNN` and `EDR-NNN` as non-governed engineering-control identifier families (like `MVP-NNN`), and separates an implementation-level EDR from a §14 ADR. No existing identifier, directory number, or requirement was altered or removed. | Documentation Working Group |
