@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.2.0 |
+| Version | 0.2.1 |
 | Last Reviewed | 2026-09-26 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -400,6 +400,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2025-12-23 – 2026-07-21 | Pre-plan (no issue) | Baseline built before the implementation plan existed: skeleton, schema 001–006, local development setup and migration runner, authentication foundation (007), profile discovery and detail, draft project creation, role-aware project list, INR projects with fixed milestones, milestone locking (008) | Repository, backend, frontend, database, authentication, profiles, projects, milestones | 001–008 | The 12 routes listed in Section 4.3 | All screens listed in Section 4.4 | bcrypt, JWT, concealing `404` on lock, lock trigger | None | — | — | — | `3e895a6` … `88986c5` (see `git log -- backend frontend`) |
 | 2026-09-25 | Engineering-controls setup (no MVP item) | Created the engineering handbook, improvements register, and this build record. Integrated them into `AGENTS.md`. Governance 1.3.0 added `docs/20-engineering/`. No application code changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-001`–`009` | — (pushed to `docs/specification-foundation`) | The `docs:` commits of 2026-09-25 that introduce `docs/20-engineering/` |
 | 2026-09-26 | MVP-001 / GitHub issue #3 | Split `backend/Index.js` into per-domain route, service, and repository modules without changing observable behavior. | Backend application, testing | None | None | None | None | `backend/test/routes.characterization.test.js` | EDR-001 | None | — | `860ff90` and the MVP-001 implementation commit on `mvp-001-backend-module-decomposition` |
+| 2026-09-26 | MVP-001 review follow-up / GitHub issue #3 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-017`–`020` | — | The commit that adds those register entries on `mvp-001-backend-module-decomposition` |
 
 ## 8. Version history
 
@@ -407,3 +408,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 |---|---|---|---|
 | 0.1.0 | 2026-09-25 | Initial build record: status for 20 subsystems verified against commit `2defbea`, baseline implementation choices, EDR system (no initial EDRs), append-only change history. Proposed pending human review. | Engineering (drafted by Claude Code) |
 | 0.2.0 | 2026-09-26 | Recorded the MVP-001 module split: backend and testing subsystem status, EDR-001, and a change-history row. | Engineering |
+| 0.2.1 | 2026-09-26 | Appended a change-history row for `ENG-IMP-017`–`020`, recorded from the MVP-001 independent review and not implemented. Section 4's verification stamp is unchanged (`ENG-IMP-020`). | Engineering |
