@@ -6,8 +6,8 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.1.0 |
-| Last Reviewed | 2026-09-25 |
+| Version | 0.2.1 |
+| Last Reviewed | 2026-09-26 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
@@ -75,7 +75,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Subsystem | Implementation status | Canonical specification |
 |---|---|---|
 | [Repository structure and tooling](#42-repository-structure-and-tooling) | Implemented (local development only) | [System Architecture §4–5](../01-foundation/system-architecture.md#4-technology-stack-and-deployment-topology) |
-| [Backend application](#43-backend-application) | Partially Implemented (single module) | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle) |
+| [Backend application](#43-backend-application) | Partially Implemented (per-domain modules) | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle) |
 | [Frontend application](#44-frontend-application) | Partially Implemented (single module) | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle) |
 | [Authentication](#45-authentication) | Partially Implemented | [authentication.md](../02-users-roles-permissions/authentication.md) |
 | [Authorization](#46-authorization) | Partially Implemented (inline checks) | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
@@ -92,7 +92,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Disputes](#417-disputes) | Not Implemented (enum values and one column only) | [disputes.md](../09-moderation-trust-safety/disputes.md) |
 | [Notifications](#418-notifications) | Not Implemented | [notifications.md](../10-notifications/notifications.md) |
 | [Database and migrations](#419-database-and-migrations) | Implemented | [Governance §17](../00-governance/README.md#17-database-documentation-standards) |
-| [Testing](#420-testing) | Not Implemented | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-002 |
+| [Testing](#420-testing) | Partially Implemented (route characterization only) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-001 characterization, MVP-002 harness |
 | [Deployment and infrastructure](#421-deployment-and-infrastructure) | Partially Implemented (local PostgreSQL container only) | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps) |
 
 *Ratings is labeled "Schema Implemented" in [System Architecture §15](../01-foundation/system-architecture.md#15-current-implementation-status-summary) on the strength of the `buyer_rated`/`seller_rated` enum values. This record uses "Not Implemented (enum values only)" because no ratings table exists. That is consistent with [Governance §28](../00-governance/README.md#28-worked-examples-by-domain), which labels only the enum as implemented.*
@@ -115,19 +115,19 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Purpose | HTTP JSON API for authentication, users, profiles, projects, and milestone locking |
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs below |
-| Implementation status | Partially Implemented. All code is in one module. |
-| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js` |
-| Important files | `backend/Index.js` (925 lines: config, `requireAuth`, 12 routes, helpers, SQL), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
+| Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
+| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test test/routes.characterization.test.js` |
+| Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
 | API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/lock-milestones` (12 total) |
-| Services/modules | None as separate modules. Private helpers inside `Index.js`: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
-| External dependencies | `express` 5.2.1, `pg` 8.16.3, `jsonwebtoken` 9.0.3, `bcryptjs` 3.0.3, `cors` 2.8.5, `dotenv` 17.2.3 (locked versions) |
-| How it works | CommonJS. `require("./db/db")` (line 6) loads `dotenv` before `JWT_SECRET` is read (line 11). The process exits if `JWT_SECRET` is blank (lines 16-19). Global middleware is `cors()` then `express.json()` (lines 51-52). Each route validates input inline, runs parameterized SQL through `pool` or a checked-out `client`, maps selected PostgreSQL error codes to `400`/`409`, and returns `{ error }` on failure. Listens on hardcoded port 4000 (line 922). |
+| Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
+| External dependencies | `express` 5.2.1, `pg` 8.16.3, `jsonwebtoken` 9.0.3, `bcryptjs` 3.0.3, `cors` 2.8.5, `dotenv` 17.2.3 (locked versions). No dependency was added for MVP-001. |
+| How it works | CommonJS. `Index.js` loads `backend/db/db.js` before it loads `backend/src/auth/service.js`, which reads `JWT_SECRET` and exits if that value is blank. Global middleware is still `cors()` then `express.json()`. Each domain route calls one service operation. Services keep the previous validation, transaction boundaries, and PostgreSQL error mapping. Repositories run the previous parameterized SQL. `Index.js` listens on hardcoded port 4000 only when it is the main module. |
 | Security controls | Parameterized SQL throughout. Explicit safe column lists for project and milestone responses. bcrypt cost 12. JWT issuer and audience verification. |
-| Tests | None |
-| Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. The local `backend/node_modules` observed during the 2026-09-25 review was incomplete (`express`, `pg` absent). Run `npm install` before starting. |
-| Known limitations | Everything in one module (MVP-001). No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). |
-| Engineering decisions | No EDRs yet. See the baseline choices in Section 5. |
-| Last materially changed | `88986c5` (2026-07-21), "feat: add milestone locking and project flow updates" |
+| Tests | `backend/test/routes.characterization.test.js` asserts status and body for every existing route against a real PostgreSQL database. Run with `DB_NAME=musicapp_mvp001` and a non-default `DB_PORT`. The file refuses the shared default database name and port 5432. |
+| Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. Run `npm install` before starting. |
+| Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). The broader test harness remains MVP-002. |
+| Engineering decisions | [EDR-001](#edr-001-backend-module-layout). Baseline choices remain in Section 5. |
+| Last materially changed | MVP-001 (2026-09-26), backend module decomposition |
 
 ### 4.4 Frontend application
 
@@ -151,9 +151,9 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Canonical specification | [authentication.md](../02-users-roles-permissions/authentication.md) |
 | Implementation status | Partially Implemented: signup, login, current-user lookup, and bearer-token middleware |
-| API routes | `POST /auth/signup` (`Index.js:203-314`), `POST /auth/login` (`319-407`), `GET /auth/me` (`412-468`) |
+| API routes | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me` in `backend/src/auth/` |
 | Database tables | `users`, `profiles`, `auth_credentials` (migration 007: `password_hash`, `password_changed_at`) |
-| How it works | **Signup** validates input, including a password length of 8 characters to 72 bytes (the bcrypt limit). It hashes with `bcryptjs` cost 12, then inserts the `users`, `profiles`, and `auth_credentials` rows in one transaction and returns `201 { user, profile }` without issuing a token. **Login** looks up an `active` user by case-insensitive email joined to profile and credentials, compares with bcrypt, and returns the same `401 "Invalid email or password"` whether the email is unknown or the password is wrong. On success it signs a JWT (`sub`, `external_id`, `profile_id`, `status`; issuer `musicapp-api`, audience `musicapp-web`, expiry `JWT_EXPIRES_IN`, default `7d`). **`requireAuth`** (`24-48`) accepts only `Bearer <token>` and verifies signature, issuer, and audience. **`/auth/me`** re-reads the user and requires `status = 'active'`. |
+| How it works | **Signup** validates input, including a password length of 8 characters to 72 bytes (the bcrypt limit). It hashes with `bcryptjs` cost 12, then inserts the `users`, `profiles`, and `auth_credentials` rows in one transaction and returns `201 { user, profile }` without issuing a token. **Login** looks up an `active` user by case-insensitive email joined to profile and credentials, compares with bcrypt, and returns the same `401 "Invalid email or password"` whether the email is unknown or the password is wrong. On success it signs a JWT (`sub`, `external_id`, `profile_id`, `status`; issuer `musicapp-api`, audience `musicapp-web`, expiry `JWT_EXPIRES_IN`, default `7d`). **`requireAuth`** in `backend/src/auth/routes.js` accepts only `Bearer <token>` and verifies signature, issuer, and audience. **`/auth/me`** re-reads the user and requires `status = 'active'`. |
 | Frontend components | `LoginForm`, `SignupForm`, the `App` bootstrap |
 | Security controls | bcrypt, a uniform login failure message, a fail-fast missing secret, and issuer/audience checks |
 | Known limitations | Owned by the spec: no live status check on routes other than `/auth/me` (`SEC-AUTH-002`, MVP-006), no algorithm allowlist (`SEC-AUTH-009`), no rate limiting (`SEC-AUTH-005`), no revocation or refresh, login by email only, no password reset or email verification (MVP-009). |
@@ -165,7 +165,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Canonical specification | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
 | Implementation status | Partially Implemented. There is no central policy function and no roles. |
-| Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, and all `/projects` routes. Relationship checks are inline. `POST /projects` takes the buyer from `req.auth.sub` and never from the body. `GET /projects` filters `buyer_user_id = $1 OR seller_user_id = $1`. Lock-milestones loads the project `FOR UPDATE` and returns the same `404` for missing or not-buyer (`Index.js:854-860`). Self-dealing is rejected in code (`675`) and by the `projects_no_self_dealing` constraint. |
+| Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, and all `/projects` routes. Relationship checks are inline. `POST /projects` takes the buyer from `req.auth.sub` and never from the body. `GET /projects` filters `buyer_user_id = $1 OR seller_user_id = $1`. Lock-milestones loads the project `FOR UPDATE` and returns the same `404` for missing or not-buyer (`backend/src/milestones/service.js`). Self-dealing is rejected in `backend/src/projects/service.js` and by the `projects_no_self_dealing` constraint. |
 | Known limitations | `POST /users`, `GET /users`, and `POST /profiles` are unauthenticated (`SEC-001`, `SEC-AUTHZ-003`; MVP-005). Checks are duplicated inline (`SEC-AUTHZ-004`; MVP-007). There are no role tables (MVP-008). |
 | Engineering decisions | The concealing-`404` pattern in lock-milestones is documented in its code comment and adopted as the reference pattern in [Handbook §7.3](engineering-handbook.md#73-authorization). |
 
@@ -206,11 +206,11 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Canonical specification | [projects.md](../05-projects-milestones/projects.md) |
 | Implementation status | Partially Implemented: creation with milestones, participant listing, milestone locking. No state transitions, invitations, acceptance, or amendments. |
 | Database tables | `projects` (005 + 008): `project_state` enum (`draft`, `funded`, `accepted`, `in_progress`, `delivered`, `buyer_rated`, `seller_rated`, `completed`, `cancelled`, `disputed`), `price_amount INTEGER`, `currency TEXT`, `delivery_days`, `revision_limit`, `service_id`/`service_snapshot` (no services table), `cancel_reason`, `dispute_reason`, `milestones_locked_at` (008). Constraints: `projects_no_self_dealing`, `projects_price_positive`, `projects_delivery_days_positive`, `projects_revision_limit_nonnegative`, `projects_service_snapshot_is_object`, `projects_milestones_locked_at_after_created`. FKs to `users` with `ON DELETE RESTRICT`. Indexes on buyer/seller + `created_at`, `state`, `service_id`. |
-| API routes | `POST /projects` (`Index.js:611-771`), `GET /projects` (`773-831`), `POST /projects/:projectId/lock-milestones` (`837-920`) |
-| How it works | **Create:** validates all fields and the milestone array before any query, requires milestone amounts to sum exactly to `price_amount`, rejects self-dealing, and requires an active seller who has a profile. It then inserts the project and its milestones (numbered from 1) in one transaction. Currency is always the server constant `PROJECT_CURRENCY = "INR"` (`522`), and new projects start in `draft`. **List:** returns projects where the actor is buyer or seller, joined to both parties' public profile fields, unpaginated. **Lock:** see [Milestones](#411-milestones). |
+| API routes | `POST /projects` and `GET /projects` in `backend/src/projects/`; `POST /projects/:projectId/lock-milestones` in `backend/src/milestones/` |
+| How it works | **Create:** validates all fields and the milestone array before any query, requires milestone amounts to sum exactly to `price_amount`, rejects self-dealing, and requires an active seller who has a profile. It then inserts the project and its milestones (numbered from 1) in one transaction. Currency is always the server constant `PROJECT_CURRENCY = "INR"` in `backend/src/projects/service.js`, and new projects start in `draft`. **List:** returns projects where the actor is buyer or seller, joined to both parties' public profile fields, unpaginated. **Lock:** see [Milestones](#411-milestones). |
 | Frontend components | `CreateProjectScreen` (rupee input converted to paise by `parseBudgetToMinorUnits` using string arithmetic, with a live milestone-sum check), `ProjectsScreen`, `ProjectCard`, `ProjectDetailScreen` |
 | Known limitations | No transition routes, so projects stay `draft`. The 32-bit `INTEGER` money column (`REQ-ESCROW-003`) is guarded by `POSTGRES_INT_MAX` on both tiers. `GET /projects` has no pagination. Display-integrity issues are recorded in `SEC-PROJECTS-018`. |
-| Engineering decisions | Server-stamped INR (code comment `Index.js:518-521`; product rule `BR-PROJECTS-003`). Integer minor units with frontend string-arithmetic parsing (code comment `App.tsx:1048-1051`). |
+| Engineering decisions | Server-stamped INR (code comment in `backend/src/projects/service.js`; product rule `BR-PROJECTS-003`). Integer minor units with frontend string-arithmetic parsing (code comment `App.tsx:1048-1051`). Module layout: [EDR-001](#edr-001-backend-module-layout). |
 | Last materially changed | `88986c5` (2026-07-21) |
 
 ### 4.11 Milestones
@@ -302,9 +302,9 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 
 | Field | Record |
 |---|---|
-| Implementation status | Not Implemented. There are no test files, and `backend/package.json` `"test"` is `echo "Error: no test specified" && exit 1`. No frontend test script. |
-| What does run | `frontend`: `pnpm lint` (ESLint over `*.ts`/`*.tsx`) and `tsc -b`, both exit 0 as of 2026-09-25. |
-| Next | MVP-002 (harness) records its tooling choice as an EDR. MVP-004 adds CI. |
+| Implementation status | Partially Implemented. MVP-001 added one backend characterization file. There is still no frontend test script, no shared fixture helper, and no CI. |
+| What does run | `backend`: `npm test` runs `backend/test/routes.characterization.test.js` with Node's built-in `node:test` runner. It requires an isolated PostgreSQL database named `musicapp_mvp001` on a port other than 5432. `frontend`: `pnpm lint` (ESLint over `*.ts`/`*.tsx`) and `tsc -b`. |
+| Next | MVP-002 (harness) records its tooling choice as an EDR. The `node:test` script above is the minimum check MVP-001 needed. It does not decide the runner, database fixture, or frontend runner for MVP-002. MVP-004 adds CI. |
 
 ### 4.21 Deployment and infrastructure
 
@@ -320,13 +320,13 @@ These choices were in place before this record existed. Most have no recorded ra
 
 | Choice | Where | Rationale recorded in the repository? |
 |---|---|---|
-| Express 5 with raw parameterized SQL through `pg`, no ORM or query builder | `backend/package.json`, `Index.js` | No |
+| Express 5 with raw parameterized SQL through `pg`, no ORM or query builder | `backend/package.json`, `backend/src/*/repository.js` | No |
 | Plain `.sql` migrations with a custom filename-tracked runner | `backend/db/migrate.js` | No |
-| Stateless JWT bearer authentication (`jsonwebtoken` defaults, issuer and audience claims) and bcrypt cost 12 | `Index.js:11-48`, `247`, `387-400` | Partially. [Authentication](../02-users-roles-permissions/authentication.md) documents the current model and its target replacement. |
-| UUID primary keys plus prefixed random `external_id` | Migrations 001–006, `make*ExternalId` helpers | No |
-| Money as integer minor units, currency stamped server-side as INR | `Index.js:513-522`, `App.tsx:1038-1060` | Yes, in code comments. Product rule `BR-PROJECTS-003`; target representation `REQ-ESCROW-003`. |
+| Stateless JWT bearer authentication (`jsonwebtoken` defaults, issuer and audience claims) and bcrypt cost 12 | `backend/src/auth/service.js`, `backend/src/auth/routes.js` | Partially. [Authentication](../02-users-roles-permissions/authentication.md) documents the current model and its target replacement. |
+| UUID primary keys plus prefixed random `external_id` | Migrations 001–006, `make*ExternalId` helpers in the domain repositories | No |
+| Money as integer minor units, currency stamped server-side as INR | `backend/src/projects/service.js`, `App.tsx:1038-1060` | Yes, in code comments. Product rule `BR-PROJECTS-003`; target representation `REQ-ESCROW-003`. |
 | Locked milestone terms enforced by a database trigger | Migration 008 | Yes, in the migration comment. Product rule `BR-PROJECTS-002`. |
-| Concealing `404` for a non-buyer on lock-milestones | `Index.js:854-860` | Yes, in a code comment |
+| Concealing `404` for a non-buyer on lock-milestones | `backend/src/milestones/service.js` | Yes, in a code comment |
 | Frontend view state through `useState` with no router or server-state library | `App.tsx` | No |
 | JWT persisted in `localStorage` | `App.tsx` (`TOKEN_KEY`) | No. The target differs (`SEC-USERS-005`). |
 
@@ -364,13 +364,32 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Status | ACTIVE / SUPERSEDED (by EDR-NNN) / REVERSED |
 ```
 
+### EDR-001 Backend module layout
+
+| Field | Value |
+|---|---|
+| ID | EDR-001 |
+| Date | 2026-09-26 |
+| Issue | MVP-001 / GitHub issue #3 |
+| Decision | Split the existing backend into `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, and leave process startup and the two health routes in `backend/Index.js`. |
+| Context | System Architecture §5 records a single backend module and leaves the target folder structure as an open question (§18). Issue #3 and Handbook §5.2 require this scaffold without a behavior change. Handbook §7.1 assigns HTTP, business rules, and SQL to route, service, and repository. Signup, project creation, and lock-milestones already span more than one table inside one transaction. |
+| Options considered | Keep every route in `Index.js` and extract helpers only. That preserves behavior but does not meet the required paths. One file per domain, without the three layers. That meets the domain split and misses Handbook §7.1. A new shared platform package for config, transactions, and errors. That would implement ENG-IMP-005, ENG-IMP-006, and ENG-IMP-007, which issue #3 does not authorize. |
+| Chosen approach | Five domain triplets. `Index.js` loads `backend/db/db.js` before the auth module, mounts the routers, serves `GET /` and `GET /db-health`, and listens on port 4000 only when it is the main module. `requireAuth` stays in `backend/src/auth/routes.js` and is required by the other authenticated routers. A service that already used one checked-out client keeps that client and passes it into the repositories it calls. SQL text, status codes, and response bodies stay as they were. |
+| Why | This is the layout issue #3 names, and it keeps each existing transaction on one client. Health checks are not one of the five domains, so they stay on the composition root instead of inventing a domain. |
+| Trade-offs | `UUID_PATTERN` is copied in the projects and milestones services. Transaction `BEGIN`/`COMMIT`/`ROLLBACK` stays inline. Configuration is still loaded by import order. Those are the existing limitations, left in place. |
+| Affected components | `backend/Index.js`; `backend/src/auth/`; `backend/src/users/`; `backend/src/profiles/`; `backend/src/projects/`; `backend/src/milestones/` |
+| Reversal / migration considerations | Move the route handlers back into `backend/Index.js` and delete `backend/src/`. No schema or client contract changes. |
+| Related specification IDs | None. System Architecture §5 defines no governed identifiers for this split. |
+| Related PR / commit | Branch `mvp-001-backend-module-decomposition`. No pull request yet. |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
 |---|---|---|---|
-| — | No EDRs yet | — | — |
+| [EDR-001](#edr-001-backend-module-layout) | Backend module layout | ACTIVE | 2026-09-26 |
 
-No initial EDRs were created. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). The first EDRs are expected from MVP-001 (module layout) and MVP-002 (test tooling).
+No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-002 is still expected to record the test-tooling EDR. MVP-001's characterization file uses Node's built-in test runner only so the acceptance snapshot can run; that choice is not an EDR.
 
 ## 7. Change history
 
@@ -380,9 +399,13 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 2025-12-23 – 2026-07-21 | Pre-plan (no issue) | Baseline built before the implementation plan existed: skeleton, schema 001–006, local development setup and migration runner, authentication foundation (007), profile discovery and detail, draft project creation, role-aware project list, INR projects with fixed milestones, milestone locking (008) | Repository, backend, frontend, database, authentication, profiles, projects, milestones | 001–008 | The 12 routes listed in Section 4.3 | All screens listed in Section 4.4 | bcrypt, JWT, concealing `404` on lock, lock trigger | None | — | — | — | `3e895a6` … `88986c5` (see `git log -- backend frontend`) |
 | 2026-09-25 | Engineering-controls setup (no MVP item) | Created the engineering handbook, improvements register, and this build record. Integrated them into `AGENTS.md`. Governance 1.3.0 added `docs/20-engineering/`. No application code changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-001`–`009` | — (pushed to `docs/specification-foundation`) | The `docs:` commits of 2026-09-25 that introduce `docs/20-engineering/` |
+| 2026-09-26 | MVP-001 / GitHub issue #3 | Split `backend/Index.js` into per-domain route, service, and repository modules without changing observable behavior. | Backend application, testing | None | None | None | None | `backend/test/routes.characterization.test.js` | EDR-001 | None | — | `860ff90` and the MVP-001 implementation commit on `mvp-001-backend-module-decomposition` |
+| 2026-09-26 | MVP-001 review follow-up / GitHub issue #3 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-017`–`020` | — | The commit that adds those register entries on `mvp-001-backend-module-decomposition` |
 
 ## 8. Version history
 
 | Version | Date | Change | Author |
 |---|---|---|---|
 | 0.1.0 | 2026-09-25 | Initial build record: status for 20 subsystems verified against commit `2defbea`, baseline implementation choices, EDR system (no initial EDRs), append-only change history. Proposed pending human review. | Engineering (drafted by Claude Code) |
+| 0.2.0 | 2026-09-26 | Recorded the MVP-001 module split: backend and testing subsystem status, EDR-001, and a change-history row. | Engineering |
+| 0.2.1 | 2026-09-26 | Appended a change-history row for `ENG-IMP-017`–`020`, recorded from the MVP-001 independent review and not implemented. Section 4's verification stamp is unchanged (`ENG-IMP-020`). | Engineering |

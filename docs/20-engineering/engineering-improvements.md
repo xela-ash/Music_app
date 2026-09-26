@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.4.0 |
+| Version | 0.5.0 |
 | Last Reviewed | 2026-09-26 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -121,6 +121,10 @@ Copy this template for each new entry:
 | [ENG-IMP-014](#eng-imp-014-mvp-009-cites-the-login-section-instead-of-the-email-verification-and-password-reset-sections) | MVP-009 cites the login section instead of the email-verification and password-reset sections | Documentation | Medium | IMPLEMENTED |
 | [ENG-IMP-015](#eng-imp-015-project-term-version-record-required-by-mvp-015-is-not-defined-by-the-projects-specification) | Project term-version record required by MVP-015 is not defined by the Projects specification | Documentation, Architecture, Database | High | PROPOSED |
 | [ENG-IMP-016](#eng-imp-016-password-reset-requires-session-revocation-that-no-mvp-work-item-builds) | Password reset requires session revocation that no MVP work item builds | Documentation, Architecture, Security | Medium | PROPOSED |
+| [ENG-IMP-017](#eng-imp-017-characterization-suite-binds-a-fixed-port-4000) | Characterization suite binds a fixed port 4000 | Testing, Reliability | Medium | PROPOSED |
+| [ENG-IMP-018](#eng-imp-018-characterization-db_port-guard-misses-an-omitted-port) | Characterization `DB_PORT` guard misses an omitted port | Testing, Reliability | Medium | PROPOSED |
+| [ENG-IMP-019](#eng-imp-019-frontend-comments-still-cite-backendindexjs-for-moved-constants) | Frontend comments still cite `backend/Index.js` for moved constants | Documentation, Maintainability | Low | PROPOSED |
+| [ENG-IMP-020](#eng-imp-020-build-record-section-4-verification-stamp-predates-the-mvp-001-baseline) | Build Record Section 4 verification stamp predates the MVP-001 baseline | Documentation | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -602,6 +606,126 @@ Copy this template for each new entry:
 | Related PR | — |
 | Resolution | — |
 
+### ENG-IMP-017 Characterization suite binds a fixed port 4000
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-017 |
+| Title | Characterization suite binds a fixed port 4000 |
+| Date identified | 2026-09-26 |
+| Identified by | Independent review of MVP-001 (GitHub issue #3) |
+| Category | Testing, Reliability |
+| Affected subsystem | Testing |
+| Current state | `backend/test/routes.characterization.test.js` sets `BASE` to `http://127.0.0.1:4000` (line 11) and spawns `Index.js` (lines 131–134). `backend/Index.js` listens on hardcoded port 4000 when it is the main module (lines 35–38). Readiness is any `GET /` that returns 200 (lines 143–146). |
+| Evidence / problem | If another process already owns port 4000 and answers `GET /` with 200, the suite can treat that process as ready and assert against it. The spawned server's failure to bind is then ignored. The independent review of MVP-001 recorded this as a non-blocking improvement. |
+| Suggested improvement | Bind an ephemeral port, or fail the suite when the spawned process does not own the port the tests call. |
+| Expected benefit | The characterization snapshot cannot pass against an unrelated listener. |
+| Risk of doing nothing | A local port conflict can produce a green run that did not exercise this backend. |
+| Implementation risk | Low. The suite is the MVP-001 acceptance snapshot, so a port change must keep the same status and body assertions. |
+| Estimated scope | S |
+| Dependencies | MVP-002 may replace this file with the shared harness. Do not change it inside MVP-001. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With MVP-002, or a dedicated test-isolation change after MVP-001 merges |
+| Status | PROPOSED |
+| Related GitHub Issue | [#3](https://github.com/xela-ash/Music_app/issues/3) (found during review; not in MVP-001 scope) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-018 Characterization DB_PORT guard misses an omitted port
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-018 |
+| Title | Characterization `DB_PORT` guard misses an omitted port |
+| Date identified | 2026-09-26 |
+| Identified by | Independent review of MVP-001 (GitHub issue #3) |
+| Category | Testing, Reliability |
+| Affected subsystem | Testing, Backend |
+| Current state | `backend/test/routes.characterization.test.js` lines 22–23 refuse the run only when `String(process.env.DB_PORT) === "5432"`. `backend/db/db.js` line 6 sets the pool port with `process.env.DB_PORT \|\| 5432`. |
+| Evidence / problem | An omitted `DB_PORT` does not equal the string `"5432"`, so the guard does not throw. The pool then uses 5432, which is the shared default the guard is meant to keep the suite away from. The application-level silent default remains [ENG-IMP-005](#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults). This entry is only the test guard's gap. |
+| Suggested improvement | Treat a missing `DB_PORT` the same as `5432`: refuse the characterization run unless the port is explicit and not 5432. |
+| Expected benefit | The suite cannot reach the shared PostgreSQL port by omission. |
+| Risk of doing nothing | A run without `DB_PORT` can migrate or write the default local database. |
+| Implementation risk | Low. Callers that already pass a non-default `DB_PORT` stay valid. |
+| Estimated scope | S |
+| Dependencies | ENG-IMP-005 for the application default. MVP-002 if the harness replaces this guard. Not part of MVP-001. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Positive for local data isolation if implemented; none until then |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the next change to this characterization file, or with MVP-002 |
+| Status | PROPOSED |
+| Related GitHub Issue | [#3](https://github.com/xela-ash/Music_app/issues/3) (found during review; not in MVP-001 scope) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-019 Frontend comments still cite backend/Index.js for moved constants
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-019 |
+| Title | Frontend comments still cite `backend/Index.js` for moved constants |
+| Date identified | 2026-09-26 |
+| Identified by | Independent review of MVP-001 (GitHub issue #3) |
+| Category | Documentation, Maintainability |
+| Affected subsystem | Frontend application |
+| Current state | `frontend/src/App.tsx` lines 1039–1040 say `POSTGRES_INT_MAX` mirrors `backend/Index.js`. Lines 1043–1045 say `PROJECT_CURRENCY` mirrors `backend/Index.js`. After MVP-001, `POSTGRES_INT_MAX` is in `backend/src/milestones/service.js` and `PROJECT_CURRENCY` is in `backend/src/projects/service.js`. |
+| Evidence / problem | The comments name a file that no longer defines those constants. The values are unchanged (`2147483647` and `"INR"`). The independent review recorded this as a non-blocking observation. MVP-001 did not change frontend behavior. |
+| Suggested improvement | Point the comments at the modules that now own the constants, in a change that is allowed to touch `App.tsx` comments. |
+| Expected benefit | The next editor can find the server-side source of the two limits. |
+| Risk of doing nothing | A later edit follows the stale path and updates the wrong file. |
+| Implementation risk | Low. Comment-only. The constants and form behavior stay as they are. |
+| Estimated scope | S |
+| Dependencies | None. Explicitly outside MVP-001. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next frontend change that already edits this screen, or a small documentation fix |
+| Status | PROPOSED |
+| Related GitHub Issue | [#3](https://github.com/xela-ash/Music_app/issues/3) (found during review; not in MVP-001 scope) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-020 Build Record Section 4 verification stamp predates the MVP-001 baseline
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-020 |
+| Title | Build Record Section 4 verification stamp predates the MVP-001 baseline |
+| Date identified | 2026-09-26 |
+| Identified by | Independent review of MVP-001 (GitHub issue #3) |
+| Category | Documentation |
+| Affected subsystem | Documentation |
+| Current state | `docs/20-engineering/engineering-build-record.md` Section 4 opens with: verified against commit `2defbea` on 2026-09-25, and "Line numbers refer to that commit." Version 0.2.0 updated Section 4.1 and Section 4.3 for the MVP-001 module split without refreshing that stamp. |
+| Evidence / problem | The section header still attributes the whole baseline, including the post-split backend description, to a commit from before MVP-001. Line numbers cited inside updated subsections are no longer guaranteed to match `2defbea`. The independent review recorded this as non-blocking. |
+| Suggested improvement | Re-verify Section 4 against the commit that contains the module split, and replace the stamp and any stale line references in one documentation pass. |
+| Expected benefit | The baseline header matches the subsystem text a reader is using. |
+| Risk of doing nothing | A later change trusts line numbers that belong to `2defbea` for text that describes the decomposed backend. |
+| Implementation risk | Low. Documentation only. It must not rewrite subsystem facts that Section 4.3 already updated for MVP-001. |
+| Estimated scope | S |
+| Dependencies | MVP-001 merged, so the stamp can name that commit. Not part of the MVP-001 implementation. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next Build Record revision after MVP-001 merges |
+| Status | PROPOSED |
+| Related GitHub Issue | [#3](https://github.com/xela-ash/Music_app/issues/3) (found during review; not in MVP-001 scope) |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -640,3 +764,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.2.0 | 2026-09-25 | `ENG-IMP-009` set to IMPLEMENTED with its resolution. Added `ENG-IMP-010` (IMPLEMENTED: plan critical path and blocking-decision statement corrected), `ENG-IMP-011` (PROPOSED: no work item for the payout workflow; blocks issue generation) and `ENG-IMP-012` (PROPOSED: mixed-scope classification convention). Added Section 7, a change record, before the version history. Other entries unchanged. | Engineering (drafted by Claude Code) |
 | 0.3.0 | 2026-09-25 | `ENG-IMP-011` and `ENG-IMP-012` set to IMPLEMENTED after the Product/Architecture decisions, with resolutions (plan 0.2.0). Added `ENG-IMP-013` (PROPOSED, non-blocking): release and financial items are not wired to the verification and idempotency foundations. Other entries unchanged. | Engineering (drafted by Claude Code) |
 | 0.4.0 | 2026-09-26 | Added three findings from GitHub issue generation: `ENG-IMP-014` (IMPLEMENTED: `MVP-009` plan citation corrected to Authentication §15/§16, plan 0.2.1), `ENG-IMP-015` (PROPOSED, requires Architecture clarification: the Project term-version record `MVP-015` needs is not defined), and `ENG-IMP-016` (PROPOSED: password reset requires session revocation that no work item builds). None blocks `MVP-001`. Other entries unchanged. | Engineering (drafted by Claude Code) |
+| 0.5.0 | 2026-09-26 | Recorded four non-blocking improvements from the MVP-001 independent review: `ENG-IMP-017` (fixed characterization port 4000), `ENG-IMP-018` (omitted `DB_PORT` bypasses the 5432 guard), `ENG-IMP-019` (frontend comments still cite `backend/Index.js`), and `ENG-IMP-020` (Section 4 verification stamp predates the module split). All `PROPOSED`. None are authorized, and none are part of MVP-001. | Engineering |
