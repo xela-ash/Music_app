@@ -7,7 +7,7 @@
     "start": "node Index.js",
     "dev": "node --watch Index.js",
     "migrate": "node db/migrate.js",
-    "test": "node --test test/routes.characterization.test.js"
+    "test": "node --test test/database-guard.test.js test/routes.smoke.test.js"
   },
   "keywords": [],
   "author": "",

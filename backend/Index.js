@@ -38,3 +38,7 @@ if (require.main === module) {
     console.log(`Backend running on http://localhost:${PORT}`);
   });
 }
+
+// Exported so the test harness can listen on an ephemeral port.
+// `node Index.js` still binds 4000.
+module.exports = { app };
