@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.2.1 |
+| Version | 0.3.0 |
 | Last Reviewed | 2026-09-26 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -116,18 +116,18 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Purpose | HTTP JSON API for authentication, users, profiles, projects, and milestone locking |
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs below |
 | Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
-| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test test/routes.characterization.test.js` |
+| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test test/database-guard.test.js test/routes.smoke.test.js` |
 | Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
 | API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/lock-milestones` (12 total) |
 | Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
 | External dependencies | `express` 5.2.1, `pg` 8.16.3, `jsonwebtoken` 9.0.3, `bcryptjs` 3.0.3, `cors` 2.8.5, `dotenv` 17.2.3 (locked versions). No dependency was added for MVP-001. |
-| How it works | CommonJS. `Index.js` loads `backend/db/db.js` before it loads `backend/src/auth/service.js`, which reads `JWT_SECRET` and exits if that value is blank. Global middleware is still `cors()` then `express.json()`. Each domain route calls one service operation. Services keep the previous validation, transaction boundaries, and PostgreSQL error mapping. Repositories run the previous parameterized SQL. `Index.js` listens on hardcoded port 4000 only when it is the main module. |
+| How it works | CommonJS. `Index.js` loads `backend/db/db.js` before it loads `backend/src/auth/service.js`, which reads `JWT_SECRET` and exits if that value is blank. Global middleware is still `cors()` then `express.json()`. Each domain route calls one service operation. Services keep the previous validation, transaction boundaries, and PostgreSQL error mapping. Repositories run the previous parameterized SQL. `Index.js` exports `app` and listens on hardcoded port 4000 only when it is the main module. The test harness imports that export and listens on an ephemeral port. |
 | Security controls | Parameterized SQL throughout. Explicit safe column lists for project and milestone responses. bcrypt cost 12. JWT issuer and audience verification. |
-| Tests | `backend/test/routes.characterization.test.js` asserts status and body for every existing route against a real PostgreSQL database. Run with `DB_NAME=musicapp_mvp001` and a non-default `DB_PORT`. The file refuses the shared default database name and port 5432. |
+| Tests | `backend/test/routes.smoke.test.js` asserts status and body for every existing route against a real PostgreSQL database, through `backend/test/harness.js`. `backend/test/database-guard.test.js` checks the isolation guard without opening a pool. Run with `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` is the supported entry point. |
 | Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. Run `npm install` before starting. |
-| Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). The broader test harness remains MVP-002. |
-| Engineering decisions | [EDR-001](#edr-001-backend-module-layout). Baseline choices remain in Section 5. |
-| Last materially changed | MVP-001 (2026-09-26), backend module decomposition |
+| Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). |
+| Engineering decisions | [EDR-001](#edr-001-backend-module-layout). [EDR-002](#edr-002-test-runners-and-database-fixture) for the test entry point. Baseline choices remain in Section 5. |
+| Last materially changed | MVP-002 (2026-09-26), test harness listens on the exported app |
 
 ### 4.4 Frontend application
 
@@ -141,7 +141,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Frontend components | `App` (auth bootstrap; `AppState`), `LoginForm`, `SignupForm`, `AppShell` (navigation; `AuthenticatedView` = `home`/`discover`/`profileDetail`/`createProject`/`projects`/`projectDetail`), `DiscoverScreen`, `ProfileCard`, `ProfileDetailScreen`, `CreateProjectScreen`, `ProjectsScreen`, `ProjectCard`, `ProjectDetailScreen`, `MilestoneLockSection` |
 | How it works | View switching through `useState`, with no router. Data is fetched in `useEffect` and held in component state. All requests go through `apiGet`/`apiPost`, which prefix `API_BASE = "http://localhost:4000"`, attach `Authorization: Bearer <token>`, parse the body as text then JSON, and throw `Error(data.error)` when the response is not OK. The JWT is stored in `localStorage` under `musicapp_token`. On load, the app calls `GET /auth/me` and clears the token on failure. |
 | Security controls | React escaping. There is no `dangerouslySetInnerHTML`. |
-| Tests | None. No test runner is configured. `pnpm lint` and `tsc -b` both passed on 2026-09-25. |
+| Tests | Vitest 3 with jsdom 26 and Testing Library. `frontend/src/App.smoke.test.tsx` covers the logged-out screen, the signup password-mismatch message, session loading, and a rejected login. `pnpm lint` and `tsc -b` passed with that suite on 2026-09-26. |
 | Known limitations | Single module (no plan item yet, [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle)). Untyped, unlinted API client ([ENG-IMP-002](engineering-improvements.md#eng-imp-002-frontend-api-client-is-untyped-and-outside-lint-scope)). Hardcoded API base ([ENG-IMP-003](engineering-improvements.md#eng-imp-003-frontend-api-base-url-is-hardcoded)). Token in `localStorage` (`SEC-USERS-005`). |
 | Last materially changed | `88986c5` (2026-07-21) |
 
@@ -302,9 +302,10 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 
 | Field | Record |
 |---|---|
-| Implementation status | Partially Implemented. MVP-001 added one backend characterization file. There is still no frontend test script, no shared fixture helper, and no CI. |
-| What does run | `backend`: `npm test` runs `backend/test/routes.characterization.test.js` with Node's built-in `node:test` runner. It requires an isolated PostgreSQL database named `musicapp_mvp001` on a port other than 5432. `frontend`: `pnpm lint` (ESLint over `*.ts`/`*.tsx`) and `tsc -b`. |
-| Next | MVP-002 (harness) records its tooling choice as an EDR. The `node:test` script above is the minimum check MVP-001 needed. It does not decide the runner, database fixture, or frontend runner for MVP-002. MVP-004 adds CI. |
+| Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js` and `backend/test/routes.smoke.test.js` with Node's built-in `node:test` runner. The smoke file migrates, truncates application tables, and listens on an ephemeral port. It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
+| Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
+| Next | MVP-004 adds the CI workflow that runs these commands. |
 
 ### 4.21 Deployment and infrastructure
 
@@ -380,7 +381,26 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Affected components | `backend/Index.js`; `backend/src/auth/`; `backend/src/users/`; `backend/src/profiles/`; `backend/src/projects/`; `backend/src/milestones/` |
 | Reversal / migration considerations | Move the route handlers back into `backend/Index.js` and delete `backend/src/`. No schema or client contract changes. |
 | Related specification IDs | None. System Architecture §5 defines no governed identifiers for this split. |
-| Related PR / commit | Branch `mvp-001-backend-module-decomposition`. No pull request yet. |
+| Related PR / commit | Pull request #56, merge commit `1952e82`. |
+| Status | ACTIVE |
+
+### EDR-002 Test runners and database fixture
+
+| Field | Value |
+|---|---|
+| ID | EDR-002 |
+| Date | 2026-09-26 |
+| Issue | MVP-002 / GitHub issue #4 |
+| Decision | Use Node's built-in `node:test` runner for the backend, with an in-process ephemeral HTTP server and a truncate fixture against database `musicapp_mvp001`, and use Vitest 3 with Testing Library and jsdom 26 for frontend component tests. |
+| Context | Handbook §14 requires a real PostgreSQL integration layer and a frontend behavior layer. MVP-001's characterization file used `node:test` only as a snapshot and left the runner, fixture, and frontend runner undecided. The backend and frontend are separate packages with separate package managers. The cloud test script already isolates PostgreSQL on port 5433 and database `musicapp_mvp001`. |
+| Options considered | Keep spawning `Index.js` on port 4000. That preserves the snapshot but binds a fixed port and has no teardown. Jest for both tiers. That adds a backend dependency and a second frontend bundler path. One Vitest workspace for both tiers. That fights the CommonJS backend and the split package managers. `node:test` plus Vitest, as chosen. |
+| Chosen approach | `backend/test/database-guard.js` refuses a missing or default database name, a missing port, and port 5432 before the pool is created. `backend/test/harness.js` migrates in a child process, truncates application tables, and listens on port 0. `backend/Index.js` exports `app`; `node Index.js` still binds port 4000. `frontend/vitest.config.ts` runs `src/**/*.test.tsx` in jsdom. jsdom is pinned to 26.1.0 because jsdom 30 requires a newer Node than this repository's Node 20+ note and this environment's Node 22.14. |
+| Why | `node:test` and `fetch` are already on the platform, so the backend gains no dependency. Vitest uses the existing Vite React plugin, and Testing Library asserts the screen the user sees. The isolated database name matches `./.cursor/test-backend.sh`, so the fixture does not invent a second test database. |
+| Trade-offs | Two runners, one per package. The smoke suite still prints the existing missing-body and malformed-JSON server errors ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Truncate lists today's tables explicitly. GitHub Actions remains MVP-004. |
+| Affected components | `backend/Index.js`, `backend/package.json`, `backend/test/`, `frontend/package.json`, `frontend/vitest.config.ts`, `frontend/src/App.smoke.test.tsx`, `frontend/src/test/setup.ts`, `.cursor/test-backend.sh` |
+| Reversal / migration considerations | Restore a spawned server and remove the `app` export. No schema or client contract changes. Removing the frontend runner means deleting the devDependencies and the test files. |
+| Related specification IDs | `SEC-PROJECTS-019`, `SEC-PROJECTS-032`, `SEC-ESCROW-014`. This harness is the coverage those findings depend on. It does not close them. |
+| Related PR / commit | Branch `mvp-002-automated-test-harness`. |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -388,8 +408,9 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | ID | Title | Status | Date |
 |---|---|---|---|
 | [EDR-001](#edr-001-backend-module-layout) | Backend module layout | ACTIVE | 2026-09-26 |
+| [EDR-002](#edr-002-test-runners-and-database-fixture) | Test runners and database fixture | ACTIVE | 2026-09-26 |
 
-No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-002 is still expected to record the test-tooling EDR. MVP-001's characterization file uses Node's built-in test runner only so the acceptance snapshot can run; that choice is not an EDR.
+No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-002 is the runner decision.
 
 ## 7. Change history
 
@@ -401,6 +422,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-25 | Engineering-controls setup (no MVP item) | Created the engineering handbook, improvements register, and this build record. Integrated them into `AGENTS.md`. Governance 1.3.0 added `docs/20-engineering/`. No application code changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-001`–`009` | — (pushed to `docs/specification-foundation`) | The `docs:` commits of 2026-09-25 that introduce `docs/20-engineering/` |
 | 2026-09-26 | MVP-001 / GitHub issue #3 | Split `backend/Index.js` into per-domain route, service, and repository modules without changing observable behavior. | Backend application, testing | None | None | None | None | `backend/test/routes.characterization.test.js` | EDR-001 | None | — | `860ff90` and the MVP-001 implementation commit on `mvp-001-backend-module-decomposition` |
 | 2026-09-26 | MVP-001 review follow-up / GitHub issue #3 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-017`–`020` | — | The commit that adds those register entries on `mvp-001-backend-module-decomposition` |
+| 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-002 | `ENG-IMP-021` | — | Branch `mvp-002-automated-test-harness` |
 
 ## 8. Version history
 
@@ -409,3 +431,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.1.0 | 2026-09-25 | Initial build record: status for 20 subsystems verified against commit `2defbea`, baseline implementation choices, EDR system (no initial EDRs), append-only change history. Proposed pending human review. | Engineering (drafted by Claude Code) |
 | 0.2.0 | 2026-09-26 | Recorded the MVP-001 module split: backend and testing subsystem status, EDR-001, and a change-history row. | Engineering |
 | 0.2.1 | 2026-09-26 | Appended a change-history row for `ENG-IMP-017`–`020`, recorded from the MVP-001 independent review and not implemented. Section 4's verification stamp is unchanged (`ENG-IMP-020`). | Engineering |
+| 0.3.0 | 2026-09-26 | Recorded the MVP-002 harness: testing and backend/frontend test fields, EDR-002, EDR-001's merged pull request, and a change-history row. Section 4's verification stamp is still `2defbea` (`ENG-IMP-020`). | Engineering |
