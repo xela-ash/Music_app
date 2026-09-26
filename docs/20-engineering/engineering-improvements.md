@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.3.0 |
-| Last Reviewed | 2026-09-25 |
+| Version | 0.4.0 |
+| Last Reviewed | 2026-09-26 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -118,6 +118,9 @@ Copy this template for each new entry:
 | [ENG-IMP-011](#eng-imp-011-mvp-plan-has-no-work-item-for-the-payout-workflow-required-by-the-vertical-slice) | MVP plan has no work item for the payout workflow required by the vertical slice | Documentation, Architecture | High | IMPLEMENTED |
 | [ENG-IMP-012](#eng-imp-012-mvp-plan-is-ambiguous-about-the-single-classification-of-mixed-scope-items) | MVP plan is ambiguous about the single classification of mixed-scope items | Documentation | Medium | IMPLEMENTED |
 | [ENG-IMP-013](#eng-imp-013-release-and-financial-commands-are-not-wired-to-verification-and-idempotency-foundations) | Release and financial commands are not wired to verification and idempotency foundations | Documentation, Architecture | Medium | PROPOSED |
+| [ENG-IMP-014](#eng-imp-014-mvp-009-cites-the-login-section-instead-of-the-email-verification-and-password-reset-sections) | MVP-009 cites the login section instead of the email-verification and password-reset sections | Documentation | Medium | IMPLEMENTED |
+| [ENG-IMP-015](#eng-imp-015-project-term-version-record-required-by-mvp-015-is-not-defined-by-the-projects-specification) | Project term-version record required by MVP-015 is not defined by the Projects specification | Documentation, Architecture, Database | High | PROPOSED |
+| [ENG-IMP-016](#eng-imp-016-password-reset-requires-session-revocation-that-no-mvp-work-item-builds) | Password reset requires session revocation that no MVP work item builds | Documentation, Architecture, Security | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -509,6 +512,96 @@ Copy this template for each new entry:
 | Related PR | — |
 | Resolution | — |
 
+### ENG-IMP-014 MVP-009 cites the login section instead of the email-verification and password-reset sections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-014 |
+| Title | MVP-009 cites the login section instead of the email-verification and password-reset sections |
+| Date identified | 2026-09-26 |
+| Identified by | Claude Code (Opus 5.5), GitHub issue generation (`MVP-009`, [#11](https://github.com/xela-ash/Music_app/issues/11)) |
+| Category | Documentation |
+| Affected subsystem | Implementation planning (not code); Authentication once built |
+| Current state | Before the correction, the [plan §5](../19-implementation-planning/mvp-implementation-plan.md#5-work-items) `MVP-009` (Password reset and email verification) Source cell read "[Authentication Section 10.1 Future Extensibility](../02-users-roles-permissions/authentication.md)", linking the document without an anchor. |
+| Evidence / problem | In [`authentication.md`](../02-users-roles-permissions/authentication.md), §10.1 is "Canonical Login Flow vs. Repository Reality", and no section is titled "Future Extensibility" (the nearest text is §27 Future Architecture, a list of later identity features). The two flows `MVP-009` implements are specified in [§15 Email Verification](../02-users-roles-permissions/authentication.md#15-email-verification) (flow §15.1, 24-hour token policy §15.2) and [§16 Password Reset and Recovery](../02-users-roles-permissions/authentication.md#16-password-reset-and-recovery) (flow §16.1, 30-minute token policy §16.2, state diagram §16.3). The specification's own traceability confirms the mapping: `REQ-AUTH-008` (email verification) traces to §15, and `REQ-AUTH-006` (password reset) traces to §16; `DATA-AUTH-004`/`005` cite §15.2/§16.2. The issue generated from the row already cited §15 and §16 and flagged the discrepancy. |
+| Suggested improvement | Correct the Source cell to cite §15 and §16 with anchors. No scope, dependency, or classification change. |
+| Expected benefit | An implementer reading the plan row lands on the governing sections, and the plan, the issue, and the specification agree. |
+| Risk of doing nothing | An implementer following the plan citation reads the login flow and misses the token policies, enumeration-safe response, and session handling the flows require. |
+| Implementation risk | None: documentation only |
+| Estimated scope | S |
+| Dependencies | None. Does not block `MVP-001` or any other item. `MVP-009` remains EXTERNAL-DEPENDENCY and blocked on the email provider (Notifications Question EQ1), unchanged. |
+| Product behavior impact | No |
+| Specification impact | Yes: plan-document citation (Product/Architecture-owned) |
+| Migration impact | No |
+| Security impact | Indirect: points implementers at the security-relevant token and session rules in §15.2 and §16.2 |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before `MVP-009` begins |
+| Status | IMPLEMENTED (2026-09-26). Corrected under an explicit human-approved task that authorized correcting the plan when the correct source is unambiguous. The mapping is unambiguous from the specification's own traceability table. |
+| Related GitHub Issue | [#11](https://github.com/xela-ash/Music_app/issues/11) (`MVP-009`), synchronized to note the correction |
+| Related PR | None yet. Committed to `docs/specification-foundation`, which is proposed for `main` in the documentation-baseline PR. |
+| Resolution | [`mvp-implementation-plan.md`](../19-implementation-planning/mvp-implementation-plan.md) 0.2.1 (2026-09-26): `MVP-009`'s Source cell now cites Authentication §15 (email verification, `REQ-AUTH-008`) and §16 (password reset, `REQ-AUTH-006`) with anchors. Correction commit: see [change record](#7-change-record). Correcting the citation surfaced a separate planning gap in §16, recorded as `ENG-IMP-016`. |
+
+### ENG-IMP-015 Project term-version record required by MVP-015 is not defined by the Projects specification
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-015 |
+| Title | Project term-version record required by MVP-015 is not defined by the Projects specification |
+| Date identified | 2026-09-26 |
+| Identified by | Claude Code (Opus 5.5), GitHub issue generation (`MVP-015`, [#17](https://github.com/xela-ash/Music_app/issues/17)), re-verified before recording |
+| Category | Documentation, Architecture, Database |
+| Affected subsystem | Implementation planning; Projects, and through references Milestones and Escrow, once built |
+| Current state | [Plan §5](../19-implementation-planning/mvp-implementation-plan.md#5-work-items) `MVP-015` (Project state machine and term-version snapshots) specifies "Schema: `project_term_versions`". [`projects.md` §26.1](../05-projects-milestones/projects.md#261-target-model-matrix) defines seven governed target models, `DATA-PROJECTS-001`–`007`, none of which is a term-version record. The paragraph after the table says: "Additional target supporting records include immutable Project term versions, idempotency/inbox/outbox records, and optional rebuildable financial projections. They may be shared infrastructure models, but their ownership and constraints MUST be explicit before implementation." The §18 relationship diagram shows `PROJECT ||--o{ TERM_VERSION : records`, and §14 describes "an immutable numbered proposal snapshot" and "an immutable agreed snapshot". |
+| Evidence / problem | The concept is required, but its model is not specified anywhere. No document defines a name, fields, keys, ownership, or constraints for it: the name `project_term_versions` appears in no specification; System Architecture has no term-version text; `docs/14-database/` is empty; migrations `001`–`008` contain no term-version table. Other models already depend on this undefined identity: `DATA-PROJECTS-001` carries "current proposal/agreed term versions", `DATA-PROJECTS-004` carries "base/current term versions", `DATA-PROJECTS-009` (`milestone_term_versions`, Milestones) is indexed "by Project term version", and `DATA-ESCROW-001` carries `agreed_term_version` ("Reference to the Project agreed term version"). Open decisions include whether proposal and agreed snapshots share one versioned record or two, what fields a Project-level snapshot holds (the §9.1 field matrix lists `proposal_version`, `agreed_term_version`, `proposed_total`, currency and exponent, `service_snapshot`, `genre_ids`, `skill_ids`), whether snapshots are hashed, and how Milestone and Escrow references key into it. |
+| Suggested improvement | Architecture clarification in `projects.md` §26.1: add a governed `DATA-PROJECTS-*` entry (or an explicit shared-infrastructure definition) for the Project term-version record, stating its owner, name, principal fields, keys and constraints, immutability enforcement, and how `DATA-PROJECTS-009`, `DATA-PROJECTS-004`, and `DATA-ESCROW-001` reference it. Then align the plan's `MVP-015` Schema text with the chosen name. This entry does not choose the model. |
+| Expected benefit | `MVP-015` can be implemented against a defined model, and the Milestones, amendment, and Escrow items that reference Project term versions share one definition. |
+| Risk of doing nothing | An implementation agent would have to invent the persistence model for immutable commercial terms, which `AGENTS.md` Section 4 forbids (missing requirement; product-significant data model) and which §26.1 itself says must be explicit first. An invented model could conflict with `MVP-016` (amendments write new term versions), `MVP-017` (Milestone snapshots keyed by Project term version), and `MVP-024` (Escrow `agreed_term_version`), forcing a migration of contract-evidence data later. |
+| Implementation risk | None for the documentation change. Choosing the model is an Architecture decision. |
+| Estimated scope | S (specification text) |
+| Dependencies | Product/Architecture decision. Agents must not decide it ([`AGENTS.md`](../../AGENTS.md) Sections 4 and 6). Does **not** block `MVP-001`. It must be resolved before `MVP-015` starts; `MVP-015` is step 5 of the critical path and currently waits on `MVP-014`. |
+| Product behavior impact | No: the behavior (immutable proposal and agreed snapshots) is already specified; only the model is missing |
+| Specification impact | Yes: `projects.md` §26.1 data model, then the plan's `MVP-015` Schema text |
+| Migration impact | Yes, once decided: a new table and references from later migrations |
+| Security impact | Indirect: agreed-terms immutability protects contract evidence (`BR-PROJECTS-015`, `BR-PROJECTS-017`) |
+| Performance impact | None |
+| Priority suggestion | High |
+| Recommended timing | Before `MVP-015` begins; ideally while `MVP-001`–`MVP-014` are in progress |
+| Status | PROPOSED. Requires Architecture clarification. |
+| Related GitHub Issue | [#17](https://github.com/xela-ash/Music_app/issues/17) (`MVP-015`), whose pre-implementation warning cites this entry |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-016 Password reset requires session revocation that no MVP work item builds
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-016 |
+| Title | Password reset requires session revocation that no MVP work item builds |
+| Date identified | 2026-09-26 |
+| Identified by | Claude Code (Opus 5.5), while verifying `ENG-IMP-014` |
+| Category | Documentation, Architecture, Security |
+| Affected subsystem | Implementation planning; Authentication once built |
+| Current state | [`authentication.md` §16.1](../02-users-roles-permissions/authentication.md#161-canonical-flow-target-architecture) step 11 requires that a completed password reset revoke existing refresh sessions and increment the authentication version, "immediately invalidating outstanding access tokens"; §16.2 and `BR-AUTH-025` repeat this. The mechanisms are separate Planned requirements: revocable authentication (`REQ-AUTH-005`, `BR-AUTH-011`, `BR-AUTH-021`), refresh sessions (`DATA-AUTH-003`), and the missing-revocation finding `SEC-AUTH-003`. |
+| Evidence / problem | No plan work item builds an authentication version or refresh sessions: the plan contains no occurrence of "refresh", "authentication version", or session revocation. `MVP-006` adds only the live account-status re-check. `MVP-009` implements the reset flow but not these mechanisms. As planned, `MVP-009` cannot satisfy §16 step 11 without building an unplanned mechanism or omitting a specified security step. |
+| Suggested improvement | Product/Architecture decide how §16 step 11 is planned: for example, a new work item for revocable authentication that `MVP-009` depends on, or an explicit expansion of `MVP-006` or `MVP-009` scope and acceptance criteria. This entry does not choose. |
+| Expected benefit | Password reset invalidates a compromised session as specified, and the work that makes it possible has an owned, reviewable issue. |
+| Risk of doing nothing | An implementer either builds revocation ad hoc inside `MVP-009` or ships reset without invalidating stolen tokens, the scenario reset exists to handle. |
+| Implementation risk | None for the documentation change |
+| Estimated scope | S (planning) |
+| Dependencies | Product/Architecture decision. Does not block `MVP-001`. `MVP-009` is already blocked on the email provider, so this does not change its current status. |
+| Product behavior impact | No: the behavior is specified; only its planning is missing |
+| Specification impact | Yes: plan document |
+| Migration impact | Possibly, once decided (authentication-version column or session table) |
+| Security impact | High relevance: session invalidation after credential reset |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before `MVP-009` begins |
+| Status | PROPOSED |
+| Related GitHub Issue | [#11](https://github.com/xela-ash/Music_app/issues/11) (`MVP-009`), which notes this entry |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -537,6 +630,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 |---|---|---|---|
 | 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `b32bfcd` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
 | 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `8b2ec0e` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
+| 2026-09-26 | ENG-IMP-014 | The commit titled `docs: record implementation planning findings` on `docs/specification-foundation` | The plan 0.2.1 citation correction, committed together with this register's 0.4.0 entries |
 
 ## 8. Version history
 
@@ -545,3 +639,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.1.0 | 2026-09-25 | Initial register. Nine evidence-based entries (`ENG-IMP-001`–`009`) from the initial repository review. Cross-reference table for findings already owned by specifications. Proposed pending human review. | Engineering (drafted by Claude Code) |
 | 0.2.0 | 2026-09-25 | `ENG-IMP-009` set to IMPLEMENTED with its resolution. Added `ENG-IMP-010` (IMPLEMENTED: plan critical path and blocking-decision statement corrected), `ENG-IMP-011` (PROPOSED: no work item for the payout workflow; blocks issue generation) and `ENG-IMP-012` (PROPOSED: mixed-scope classification convention). Added Section 7, a change record, before the version history. Other entries unchanged. | Engineering (drafted by Claude Code) |
 | 0.3.0 | 2026-09-25 | `ENG-IMP-011` and `ENG-IMP-012` set to IMPLEMENTED after the Product/Architecture decisions, with resolutions (plan 0.2.0). Added `ENG-IMP-013` (PROPOSED, non-blocking): release and financial items are not wired to the verification and idempotency foundations. Other entries unchanged. | Engineering (drafted by Claude Code) |
+| 0.4.0 | 2026-09-26 | Added three findings from GitHub issue generation: `ENG-IMP-014` (IMPLEMENTED: `MVP-009` plan citation corrected to Authentication §15/§16, plan 0.2.1), `ENG-IMP-015` (PROPOSED, requires Architecture clarification: the Project term-version record `MVP-015` needs is not defined), and `ENG-IMP-016` (PROPOSED: password reset requires session revocation that no work item builds). None blocks `MVP-001`. Other entries unchanged. | Engineering (drafted by Claude Code) |
