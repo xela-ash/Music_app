@@ -7,7 +7,7 @@
     "start": "node Index.js",
     "dev": "node --watch Index.js",
     "migrate": "node db/migrate.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/routes.characterization.test.js"
   },
   "keywords": [],
   "author": "",
