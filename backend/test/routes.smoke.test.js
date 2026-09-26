@@ -1,33 +1,24 @@
 const { describe, it, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
-const path = require("path");
 const jwt = require("jsonwebtoken");
+const {
+  ensureMigrated,
+  resetApplicationData,
+  startServer,
+  closeServer,
+  stopPool,
+} = require("./harness");
 
-// MVP-001 characterization of the twelve existing routes.
-// This file is the acceptance snapshot: status codes and response bodies
-// must stay the same across the module split. It is not the MVP-002 harness.
+// MVP-002 smoke suite for the twelve currently implemented routes.
+// Assertions preserve the MVP-001 request/response snapshot.
 
-const BASE = "http://127.0.0.1:4000";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EXTERNAL_ID_PATTERN = /^(usr|prf|prj|mls)_[0-9a-f]{20}$/;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
 
-if (process.env.DB_NAME !== "musicapp_mvp001") {
-  throw new Error(
-    "Refusing to run: DB_NAME must be the isolated database musicapp_mvp001"
-  );
-}
-if (String(process.env.DB_PORT) === "5432") {
-  throw new Error("Refusing to run: DB_PORT must not be the shared default 5432");
-}
-if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
-  throw new Error("JWT_SECRET is required for the characterization server");
-}
-
+let baseUrl = "";
 let server;
-let serverLogs = "";
 let sequence = 0;
 
 function nextId(prefix) {
@@ -68,7 +59,7 @@ async function request(method, requestPath, { token, body, raw } = {}) {
     headers["content-type"] = "application/json";
     payload = JSON.stringify(body);
   }
-  const response = await fetch(`${BASE}${requestPath}`, {
+  const response = await fetch(`${baseUrl}${requestPath}`, {
     method,
     headers,
     body: payload,
@@ -126,36 +117,23 @@ async function login(email, password = "password-1") {
   return response.json;
 }
 
-describe("MVP-001 existing route behavior", { concurrency: 1, timeout: 30000 }, () => {
+describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 30000 }, () => {
   before(async () => {
-    server = spawn(process.execPath, ["Index.js"], {
-      cwd: path.join(__dirname, ".."),
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    server.stdout.on("data", (chunk) => {
-      serverLogs += chunk.toString();
-    });
-    server.stderr.on("data", (chunk) => {
-      serverLogs += chunk.toString();
-    });
-
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      try {
-        const response = await request("GET", "/");
-        if (response.status === 200) return;
-      } catch {
-        // Server is still binding.
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    throw new Error(`Backend did not become ready.\n${serverLogs}`);
+    ensureMigrated();
+    await resetApplicationData();
+    const started = await startServer();
+    server = started.server;
+    baseUrl = started.baseUrl;
   });
 
   after(async () => {
-    if (server && !server.killed) {
-      server.kill("SIGTERM");
-      await new Promise((resolve) => server.once("exit", resolve));
+    try {
+      if (server) {
+        await closeServer(server);
+      }
+      await resetApplicationData();
+    } finally {
+      await stopPool();
     }
   });
 
