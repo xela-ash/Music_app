@@ -12,7 +12,7 @@ Operational status for the autonomous implementation loop. This file is not a pr
 | Human-decision blockers | `MVP-005` (legacy direct-creation routes), `MVP-027` (fee schedule), `MVP-044` (rating scale), `MVP-052` (payout schedule). `MVP-008` bootstrap and `MVP-030` partial-performance compensation remain gated sub-scopes; those issues are not fully blocked. |
 | External-dependency blockers | `MVP-009` is blocked on an email provider. `MVP-010`, `MVP-025`, and `MVP-043` still have no provider, and their acceptance criteria allow a local or mock adapter once their dependencies merge. |
 | Latest completed tests | 2026-09-26: `./.cursor/test-backend.sh` — 19 pass, 0 fail, then a second `npm test` on the same isolated database — 19 pass, 0 fail. Frontend: `pnpm test` 4 pass, `pnpm lint` exit 0, `pnpm exec tsc -b` exit 0. |
-| Active PR | NONE yet |
+| Active PR | #57 — https://github.com/xela-ash/Music_app/pull/57 |
 | Last successful run timestamp | 2026-09-26T05:03:27Z |
 | What was completed | Selected `MVP-002` after `MVP-001` merged. Added the backend smoke harness, database guard, and frontend component runner. |
 | What remains | Human merge of `MVP-002`. Then `MVP-003` (recommended) or `MVP-006`. GitHub Actions stays `MVP-004`. |

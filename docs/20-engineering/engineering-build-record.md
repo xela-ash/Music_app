@@ -400,7 +400,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Affected components | `backend/Index.js`, `backend/package.json`, `backend/test/`, `frontend/package.json`, `frontend/vitest.config.ts`, `frontend/src/App.smoke.test.tsx`, `frontend/src/test/setup.ts`, `.cursor/test-backend.sh` |
 | Reversal / migration considerations | Restore a spawned server and remove the `app` export. No schema or client contract changes. Removing the frontend runner means deleting the devDependencies and the test files. |
 | Related specification IDs | `SEC-PROJECTS-019`, `SEC-PROJECTS-032`, `SEC-ESCROW-014`. This harness is the coverage those findings depend on. It does not close them. |
-| Related PR / commit | Branch `mvp-002-automated-test-harness`. |
+| Related PR / commit | Pull request #57, branch `mvp-002-automated-test-harness`. |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -422,7 +422,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-25 | Engineering-controls setup (no MVP item) | Created the engineering handbook, improvements register, and this build record. Integrated them into `AGENTS.md`. Governance 1.3.0 added `docs/20-engineering/`. No application code changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-001`–`009` | — (pushed to `docs/specification-foundation`) | The `docs:` commits of 2026-09-25 that introduce `docs/20-engineering/` |
 | 2026-09-26 | MVP-001 / GitHub issue #3 | Split `backend/Index.js` into per-domain route, service, and repository modules without changing observable behavior. | Backend application, testing | None | None | None | None | `backend/test/routes.characterization.test.js` | EDR-001 | None | — | `860ff90` and the MVP-001 implementation commit on `mvp-001-backend-module-decomposition` |
 | 2026-09-26 | MVP-001 review follow-up / GitHub issue #3 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-017`–`020` | — | The commit that adds those register entries on `mvp-001-backend-module-decomposition` |
-| 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-002 | `ENG-IMP-021` | — | Branch `mvp-002-automated-test-harness` |
+| 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-002 | `ENG-IMP-021` | #57 | Branch `mvp-002-automated-test-harness` |
 
 ## 8. Version history
 

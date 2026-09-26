@@ -634,7 +634,7 @@ Copy this template for each new entry:
 | Recommended timing | With MVP-002, or a dedicated test-isolation change after MVP-001 merges |
 | Status | IMPLEMENTED |
 | Related GitHub Issue | [#4](https://github.com/xela-ash/Music_app/issues/4) |
-| Related PR | Branch `mvp-002-automated-test-harness` |
+| Related PR | [#57](https://github.com/xela-ash/Music_app/pull/57) |
 | Resolution | The MVP-002 harness imports the exported app and listens on port 0 (`backend/test/harness.js`). `node Index.js` still binds 4000. The old fixed-port characterization file is now `backend/test/routes.smoke.test.js`. |
 
 ### ENG-IMP-018 Characterization DB_PORT guard misses an omitted port
@@ -664,7 +664,7 @@ Copy this template for each new entry:
 | Recommended timing | With the next change to this characterization file, or with MVP-002 |
 | Status | IMPLEMENTED |
 | Related GitHub Issue | [#4](https://github.com/xela-ash/Music_app/issues/4) |
-| Related PR | Branch `mvp-002-automated-test-harness` |
+| Related PR | [#57](https://github.com/xela-ash/Music_app/pull/57) |
 | Resolution | `backend/test/database-guard.js` rejects a missing, blank, or `5432` `DB_PORT` before the pool is created. `backend/test/database-guard.test.js` covers the omitted-port case. |
 
 ### ENG-IMP-019 Frontend comments still cite backend/Index.js for moved constants
@@ -786,7 +786,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 2026-09-25 | ENG-IMP-009, ENG-IMP-010 | `b32bfcd` | `docs: correct MVP implementation dependencies`, the plan 0.1.1 corrections |
 | 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `8b2ec0e` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
 | 2026-09-26 | ENG-IMP-014 | The commit titled `docs: record implementation planning findings` on `docs/specification-foundation` | The plan 0.2.1 citation correction, committed together with this register's 0.4.0 entries |
-| 2026-09-26 | ENG-IMP-017, ENG-IMP-018 | Branch `mvp-002-automated-test-harness` | Ephemeral test port and omitted-`DB_PORT` refusal, implemented by the MVP-002 harness |
+| 2026-09-26 | ENG-IMP-017, ENG-IMP-018 | Pull request #57 | Ephemeral test port and omitted-`DB_PORT` refusal, implemented by the MVP-002 harness |
 
 ## 8. Version history
 
