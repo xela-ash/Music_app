@@ -162,9 +162,21 @@ Independent reviewers must classify each finding as one of:
 
 A reviewer must not block a PR or force a rewrite because of an IMPROVEMENT, unless the existing implementation creates a material correctness, security, or maintainability problem (which makes it a DEFECT). Non-blocking improvements are recorded in the Engineering Improvements Register.
 
-## 9. Version history
+## 9. Cursor Cloud development environment
+
+When working in Cursor Cloud Agents, use the repository-managed configuration in `.cursor/environment.json`.
+
+- **Bootstrap:** `./.cursor/install.sh` (dependencies) and `./.cursor/start.sh` (dev PostgreSQL on port `5432`, database `musicapp`, migrations).
+- **Dev servers:** `terminals` in `.cursor/environment.json` start the backend (`npm run dev`, port `4000`) and frontend (`pnpm dev`, port `5173`) after startup.
+- **Backend tests (MVP-001 characterization):** run `./.cursor/test-backend.sh` only. It provisions an isolated PostgreSQL cluster on port `5433` with database `musicapp_mvp001` and refuses the shared dev database or port `5432`. Never point `npm test` at staging, production, or a developer's local database.
+- **Frontend checks:** `cd frontend && pnpm lint` and `pnpm build` (`tsc -b` plus Vite build).
+
+Cloud agents do not require Docker Desktop or the user's Mac. Push implementation branches and open PRs through the normal GitHub workflow; do not merge to `main`.
+
+## 10. Version history
 
 | Version | Date | Change |
 | --- | --- | --- |
 | 1.0.0 | 2026-09-25 | Initial agent operating instructions, created after the specification consistency audit's readiness gate passed and the MVP implementation plan was created. |
 | 1.1.0 | 2026-09-25 | Integrated the engineering-control documents (`docs/20-engineering/`): added the Engineering Handbook and Engineering Build Record to the source-of-truth order (Section 1); expanded the workflow with a mandatory nine-step pre-implementation sequence and an engineering-documentation step (Section 2); extended the Definition of Done with Build Record, EDR, Improvements Register, and Handbook requirements (Section 5); listed the new documents (Section 7); added Section 8 (document relationship, during-implementation rules, ENG-IMP non-authorization, handoff rule, reviewer DEFECT/IMPROVEMENT rule). Corrected two stale cross-references that pointed stop conditions at Section 5 instead of Section 4. |
+| 1.2.0 | 2026-09-26 | Added Cursor Cloud bootstrap, dev-server, and isolated MVP-001 test guidance (Section 9). |

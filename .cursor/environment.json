@@ -1,11 +1,11 @@
 {
-  "name": "MusicApp 1738",
+  "name": "MusicApp Cloud",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
   "user": "ubuntu",
-  "install": "chmod +x .cursor/install.sh .cursor/start.sh && ./.cursor/install.sh",
+  "install": "chmod +x .cursor/*.sh .cursor/lib/*.sh && ./.cursor/install.sh",
   "start": "./.cursor/start.sh",
   "terminals": [
     {
