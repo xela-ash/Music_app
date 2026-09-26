@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.2.1 |
+| Version | 0.2.2 |
 | Last Reviewed | 2026-09-26 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -311,7 +311,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Implementation status | Partially Implemented: local development only |
-| What exists | `docker-compose.yml` runs one `postgres:16` container (`musicapp_postgres`, port 5432, local development credentials, named volume `postgres_data`). The backend and frontend run as local Node processes. |
+| What exists | `docker-compose.yml` runs one `postgres:16` container (`musicapp_postgres`, port 5432, local development credentials, named volume `postgres_data`). The backend and frontend run as local Node processes. `.cursor/Dockerfile` is the Cursor Cloud Agent image only: Ubuntu 24.04, PostgreSQL 16, Node.js 22.14.0, npm, corepack 0.34.7, and pnpm 12.5.1 ([EDR-002](#edr-002-cloud-agent-node-toolchain)). It is not an application image. |
 | Not present | Application Dockerfiles, hosting configuration, TLS, reverse proxy, CI/CD, environment-specific frontend configuration, observability tooling |
 
 ## 5. Baseline implementation choices (pre-EDR)
@@ -383,11 +383,31 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | Branch `mvp-001-backend-module-decomposition`. No pull request yet. |
 | Status | ACTIVE |
 
+### EDR-002 Cloud Agent Node toolchain
+
+| Field | Value |
+|---|---|
+| ID | EDR-002 |
+| Date | 2026-09-26 |
+| Issue | No `MVP-*` item. Cloud environment build `bld-20260926-dd1c93c3-4038-46a4-8c74-586bcc10e387` failed in `.cursor/install.sh` with `npm: command not found` (exit 127). |
+| Decision | Keep Ubuntu 24.04 and PostgreSQL 16. Install checksum-pinned Node.js 22.14.0 (which includes npm), replace its bundled corepack with corepack 0.34.7, and activate pnpm 12.5.1 non-interactively for every user. |
+| Context | `.cursor/Dockerfile` installed PostgreSQL, git, and curl, and `.cursor/install.sh` assumed `npm` and `corepack`/`pnpm` were already on `PATH`. Node 22.14.0's bundled corepack is 0.31.0. That release looks for `bin/pnpm.cjs`, which pnpm 12.5.1 does not publish, so `pnpm --version` exits before it can run. corepack 0.35.0 and later require Node `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`, so they cannot be the pin while Node stays at 22.14.0. The `ubuntu` user on the failed image was in the `sudo` group but `sudo` demanded a password, and `.cursor/lib/postgres.sh` starts PostgreSQL 16 with `sudo`. |
+| Options considered | Install Node from Ubuntu's archive. That does not pin 22.14.0. Use NodeSource or `n`. That adds an unpinned third-party installer. Leave bundled corepack 0.31.0. It cannot activate pnpm 12.5.1. Install corepack 0.36.0. Its engines reject Node 22.14.0. Install pnpm with `npm install -g` and skip corepack activation. The install script and the frontend path are corepack-based (`corepack enable` then `pnpm`). Upgrade Node past 22.14.0 so current corepack installs. The repair pins 22.14.0. |
+| Chosen approach | Download `node-v22.14.0-linux-x64.tar.gz` from `nodejs.org`, check SHA-256 `9d942932535988091034dc94cc5f42b6dc8784d6366df3a36c4c9ccb3996f0c2`, and extract it to `/usr/local`. Then `npm install -g corepack@0.34.7`, `corepack enable`, and `corepack prepare pnpm@12.5.1 --activate` with `COREPACK_ENABLE_DOWNLOAD_PROMPT=0` and a world-readable `COREPACK_HOME=/usr/local/share/corepack`. Add `sudo` and `/etc/sudoers.d/90-ubuntu-nopasswd` so `ubuntu` can run the existing PostgreSQL helpers. Dev database port 5432, test cluster port 5433, and `./.cursor/test-backend.sh` are unchanged. |
+| Why | This is the smallest image change that makes `.cursor/install.sh` find `npm` and lets the frontend activate the requested pnpm release without an interactive corepack prompt, without moving off PostgreSQL 16. |
+| Trade-offs | corepack stays on 0.34.7 until Node is raised to at least 22.22.2 ([ENG-IMP-021](engineering-improvements.md#eng-imp-021-cloud-image-corepack-cannot-follow-current-releases-on-node-22140)). The image is linux-x64 only. Passwordless sudo is limited to the Cloud Agent `ubuntu` user so the existing helpers keep working. |
+| Affected components | `.cursor/Dockerfile`. No application code, schema, or API. |
+| Reversal / migration considerations | Revert `.cursor/Dockerfile`. No data migration. A new Cloud environment build is required before agents receive the toolchain. |
+| Related specification IDs | None. This does not change product behavior. |
+| Related PR / commit | Branch `cursor/cloud-node-toolchain-ef45`. |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
 |---|---|---|---|
 | [EDR-001](#edr-001-backend-module-layout) | Backend module layout | ACTIVE | 2026-09-26 |
+| [EDR-002](#edr-002-cloud-agent-node-toolchain) | Cloud Agent Node toolchain | ACTIVE | 2026-09-26 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-002 is still expected to record the test-tooling EDR. MVP-001's characterization file uses Node's built-in test runner only so the acceptance snapshot can run; that choice is not an EDR.
 
@@ -401,6 +421,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-25 | Engineering-controls setup (no MVP item) | Created the engineering handbook, improvements register, and this build record. Integrated them into `AGENTS.md`. Governance 1.3.0 added `docs/20-engineering/`. No application code changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-001`–`009` | — (pushed to `docs/specification-foundation`) | The `docs:` commits of 2026-09-25 that introduce `docs/20-engineering/` |
 | 2026-09-26 | MVP-001 / GitHub issue #3 | Split `backend/Index.js` into per-domain route, service, and repository modules without changing observable behavior. | Backend application, testing | None | None | None | None | `backend/test/routes.characterization.test.js` | EDR-001 | None | — | `860ff90` and the MVP-001 implementation commit on `mvp-001-backend-module-decomposition` |
 | 2026-09-26 | MVP-001 review follow-up / GitHub issue #3 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-017`–`020` | — | The commit that adds those register entries on `mvp-001-backend-module-decomposition` |
+| 2026-09-26 | Cloud environment repair (no MVP item) | Pinned Node.js 22.14.0, corepack 0.34.7, and pnpm 12.5.1 in `.cursor/Dockerfile` so Cloud install can find `npm` and activate pnpm without a prompt. PostgreSQL 16, port 5432, and the isolated test cluster on 5433 are unchanged. | Cloud Agent image only | None | None | None | Passwordless sudo for the image `ubuntu` user, required by the existing PostgreSQL helpers | None | EDR-002 | `ENG-IMP-021` | Branch `cursor/cloud-node-toolchain-ef45` | The Cloud toolchain commit on that branch |
 
 ## 8. Version history
 
@@ -409,3 +430,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.1.0 | 2026-09-25 | Initial build record: status for 20 subsystems verified against commit `2defbea`, baseline implementation choices, EDR system (no initial EDRs), append-only change history. Proposed pending human review. | Engineering (drafted by Claude Code) |
 | 0.2.0 | 2026-09-26 | Recorded the MVP-001 module split: backend and testing subsystem status, EDR-001, and a change-history row. | Engineering |
 | 0.2.1 | 2026-09-26 | Appended a change-history row for `ENG-IMP-017`–`020`, recorded from the MVP-001 independent review and not implemented. Section 4's verification stamp is unchanged (`ENG-IMP-020`). | Engineering |
+| 0.2.2 | 2026-09-26 | Recorded the Cloud Agent image toolchain: Section 4.21, EDR-002, and a change-history row. No application subsystem behavior changed. | Engineering |
