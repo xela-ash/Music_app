@@ -92,7 +92,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Disputes](#417-disputes) | Not Implemented (enum values and one column only) | [disputes.md](../09-moderation-trust-safety/disputes.md) |
 | [Notifications](#418-notifications) | Not Implemented | [notifications.md](../10-notifications/notifications.md) |
 | [Database and migrations](#419-database-and-migrations) | Implemented | [Governance §17](../00-governance/README.md#17-database-documentation-standards) |
-| [Testing](#420-testing) | Partially Implemented (route characterization only) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-001 characterization, MVP-002 harness |
+| [Testing](#420-testing) | Partially Implemented (backend smoke harness and frontend component runner; no CI) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-002 harness, MVP-004 CI |
 | [Deployment and infrastructure](#421-deployment-and-infrastructure) | Partially Implemented (local PostgreSQL container only) | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps) |
 
 *Ratings is labeled "Schema Implemented" in [System Architecture §15](../01-foundation/system-architecture.md#15-current-implementation-status-summary) on the strength of the `buyer_rated`/`seller_rated` enum values. This record uses "Not Implemented (enum values only)" because no ratings table exists. That is consistent with [Governance §28](../00-governance/README.md#28-worked-examples-by-domain), which labels only the enum as implemented.*
@@ -136,14 +136,14 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Purpose | Browser single-page application for signup, login, discovery, project creation, project listing, and milestone locking |
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs |
 | Implementation status | Partially Implemented. Almost all code is in one module. |
-| Entry points | `pnpm dev` (Vite, port 5173), `pnpm build` (`tsc -b && vite build`), `pnpm lint` |
-| Important files | `frontend/src/main.tsx` (mount), `frontend/src/App.tsx` (1,816 lines: types, all screens, helpers), `frontend/src/api/api.js` (fetch client), `App.css`, `index.css`, `eslint.config.js`, `tsconfig.app.json` |
+| Entry points | `pnpm dev` (Vite, port 5173), `pnpm build` (`tsc -b && vite build`), `pnpm lint`, `pnpm test` (Vitest) |
+| Important files | `frontend/src/main.tsx` (mount), `frontend/src/App.tsx` (1,816 lines: types, all screens, helpers), `frontend/src/api/api.js` (fetch client), `frontend/vitest.config.ts`, `frontend/src/test/setup.ts`, `App.css`, `index.css`, `eslint.config.js`, `tsconfig.app.json` |
 | Frontend components | `App` (auth bootstrap; `AppState`), `LoginForm`, `SignupForm`, `AppShell` (navigation; `AuthenticatedView` = `home`/`discover`/`profileDetail`/`createProject`/`projects`/`projectDetail`), `DiscoverScreen`, `ProfileCard`, `ProfileDetailScreen`, `CreateProjectScreen`, `ProjectsScreen`, `ProjectCard`, `ProjectDetailScreen`, `MilestoneLockSection` |
 | How it works | View switching through `useState`, with no router. Data is fetched in `useEffect` and held in component state. All requests go through `apiGet`/`apiPost`, which prefix `API_BASE = "http://localhost:4000"`, attach `Authorization: Bearer <token>`, parse the body as text then JSON, and throw `Error(data.error)` when the response is not OK. The JWT is stored in `localStorage` under `musicapp_token`. On load, the app calls `GET /auth/me` and clears the token on failure. |
 | Security controls | React escaping. There is no `dangerouslySetInnerHTML`. |
 | Tests | Vitest 3 with jsdom 26 and Testing Library. `frontend/src/App.smoke.test.tsx` covers the logged-out screen, the signup password-mismatch message, session loading, and a rejected login. `pnpm lint` and `tsc -b` passed with that suite on 2026-09-26. |
 | Known limitations | Single module (no plan item yet, [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle)). Untyped, unlinted API client ([ENG-IMP-002](engineering-improvements.md#eng-imp-002-frontend-api-client-is-untyped-and-outside-lint-scope)). Hardcoded API base ([ENG-IMP-003](engineering-improvements.md#eng-imp-003-frontend-api-base-url-is-hardcoded)). Token in `localStorage` (`SEC-USERS-005`). |
-| Last materially changed | `88986c5` (2026-07-21) |
+| Last materially changed | Application behavior `88986c5` (2026-07-21). MVP-002 added tests only. |
 
 ### 4.5 Authentication
 

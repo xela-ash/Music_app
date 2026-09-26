@@ -44,7 +44,7 @@ The `blocked` label is applied only when the plan shows that the decision or dep
 
 Five non-autonomous items are **not** blocked, because the plan states that their decision or provider gates only a sub-scope outside their acceptance criteria: `MVP-008` (Administrator bootstrap), `MVP-030` (partial-performance compensation row), and `MVP-010`, `MVP-025`, `MVP-043` (acceptance met with a local or mock adapter). They keep their non-autonomous label, and their issues forbid implementing or defaulting the gated sub-scope. When their dependencies merge they become READY for their acceptance-criteria scope only.
 
-At generation no work item has merged, so READY means "no dependencies".
+At generation no work item had merged, so READY meant "no dependencies". After pull request #56, READY also includes items whose dependencies have since merged.
 
 ## 4. Issue map
 
