@@ -44,14 +44,14 @@ Work one issue at a time, on one dedicated branch, following this sequence.
 17. **Open a PR.** Description cites the source specification section(s) and the `MVP-*` ID, maps each acceptance criterion to its test(s), and lists any EDRs and ENG-IMP entries created.
 18. **Independent review.** A different agent or a human reviews the PR. The implementing agent's own assessment of its work is never the independent review.
 19. **Repair findings.** Address review feedback with new commits on the same branch, not force-pushed rewrites, unless the reviewer explicitly asks for a squash.
-20. **Merge under the governed merge policy.** Merge authority depends on the item's classification (Section 5.1). An AUTONOMOUS-READY PR may be marked Ready for Review and squash-merged by the MusicApp Autonomous Build Orchestrator only after every merge gate in Section 5.1 passes. HUMAN-DECISION-REQUIRED and EXTERNAL-DEPENDENCY items follow the stricter rules in that section.
+20. **Merge under the governed merge policy.** Merge authority depends on the item's classification (Section 5.1). An AUTONOMOUS-READY PR may be marked Ready for Review and squash-merged by the MusicApp Autonomous Build Orchestrator only after every merge gate in Section 5.1 passes. HUMAN-DECISION-REQUIRED and EXTERNAL-DEPENDENCY items keep human final merge (Section 5.1).
 21. **Next issue.**
 
 ## 3. Agent conduct rules
 
 - Work on one issue at a time, on a dedicated branch named for the issue (for example `mvp-018-milestone-state-machine`).
 - Never commit directly to `main`.
-- Never merge a PR outside the governed merge policy (Section 5.1). Only the MusicApp Autonomous Build Orchestrator may merge, only AUTONOMOUS-READY PRs (or the EXTERNAL-DEPENDENCY scope Section 5.1 permits), and only after every merge gate passes. No other agent merges to `main`.
+- Never merge a PR outside the governed merge policy (Section 5.1). Among agents, only the MusicApp Autonomous Build Orchestrator may merge, only AUTONOMOUS-READY PRs, and only after every merge gate passes. No other agent merges to `main`.
 - Never bypass branch protection, repository rulesets, or required status checks, and never weaken them to make a merge possible.
 - Never bypass tests to get a build green — a failing test describes a real gap between the code and the specification.
 - Never invent product rules. If a specification is silent on a case your implementation needs to handle, that silence is a signal to stop (Section 4), not an invitation to decide.
@@ -99,10 +99,9 @@ An implementation issue is not done until all of the following hold:
 - [ ] A PR is created citing the source specification section(s) and `MVP-*` ID.
 - [ ] Independent review is completed.
 - [ ] Every blocking review finding is repaired.
+- [ ] The PR is merged under the governed merge policy (Section 5.1), and GitHub reports it as `MERGED`.
 
-- [ ] The PR is merged under the governed merge policy (Section 5.1).
-
-No item on this checklist is satisfied by an agent's own assertion that it is — a reviewer (human or a second agent) verifies it.
+No item on this checklist before the merge is satisfied by an agent's own assertion that it is — a reviewer (human or a second agent) verifies it. The merging party confirms the final item after the merge.
 
 ### 5.1 Governed merge policy
 
@@ -114,11 +113,12 @@ Merge authority follows the item's single primary classification ([plan Section 
 | --- | --- |
 | AUTONOMOUS-READY | The MusicApp Autonomous Build Orchestrator may mark the PR Ready for Review and squash-merge it after every merge gate below passes. No human merge approval is needed. |
 | HUMAN-DECISION-REQUIRED | Human authority remains required. The orchestrator does not implement, default, or merge the decision-gated scope. A human records the decision in the owning specification (Section 6) and performs the final merge of any PR for the item. |
-| EXTERNAL-DEPENDENCY | The orchestrator stops wherever the unselected or unavailable provider, system, credential, or account prevents safe completion. It may merge only when the issue's acceptance criteria are fully met through the provider-neutral adapter and an approved local or mock adapter, and the PR neither selects nor defaults a provider. Otherwise it stops and escalates (Section 4). |
+| EXTERNAL-DEPENDENCY | The orchestrator stops wherever the unselected or unavailable provider, system, credential, or account prevents safe completion. It may implement the provider-neutral and mock portion the issue permits, without selecting or defaulting a provider, then stops and escalates (Section 4). A human performs the final merge of any PR for the item. |
+| No `MVP-*` classification (governance, documentation, or environment PRs) | A human merges, unless the product owner has explicitly authorized the orchestrator to land that specific change. The PR description records that authorization. |
 
 **Merge gates.** The orchestrator merges only when all of these hold. Any gate that fails blocks the merge:
 
-1. The item is AUTONOMOUS-READY, or is the permitted EXTERNAL-DEPENDENCY scope above.
+1. The item is AUTONOMOUS-READY.
 2. Every `Depends on` item is merged.
 3. Every acceptance criterion is satisfied and mapped to tests.
 4. The required backend, frontend, and integration validation passes, including required CI status checks once they exist.
@@ -134,7 +134,7 @@ Merge authority follows the item's single primary classification ([plan Section 
 14. The PR contains only the issue's authorized scope and its supporting engineering records.
 15. Branch protection and repository rulesets permit the merge without a bypass.
 
-**Merge procedure.** Mark the PR Ready for Review if it is a draft; confirm it is mergeable against current `main`; squash-merge it; and confirm GitHub reports the PR as `MERGED`. Merge credentials are used only for authorized MusicApp repository operations and are never printed, logged, committed, or exposed. If the environment lacks merge permission, report that as a permissions blocker instead of asking a human to click Merge for an AUTONOMOUS-READY item.
+**Merge procedure.** Mark the PR Ready for Review if it is a draft; confirm it is mergeable against current `main`; confirm the validation and review results apply to the PR's current head commit, since a later commit needs revalidation; squash-merge that head commit; and confirm GitHub reports the PR as `MERGED`. Merge credentials are used only for authorized MusicApp repository operations and are never printed, logged, committed, or exposed. If the environment lacks merge permission, report that as a permissions blocker instead of asking a human to click Merge for an AUTONOMOUS-READY item.
 
 ## 6. What agents must never do to a canonical specification
 
@@ -215,4 +215,4 @@ Cloud agents do not require Docker Desktop or the user's Mac. Push implementatio
 | 1.0.0 | 2026-09-25 | Initial agent operating instructions, created after the specification consistency audit's readiness gate passed and the MVP implementation plan was created. |
 | 1.1.0 | 2026-09-25 | Integrated the engineering-control documents (`docs/20-engineering/`): added the Engineering Handbook and Engineering Build Record to the source-of-truth order (Section 1); expanded the workflow with a mandatory nine-step pre-implementation sequence and an engineering-documentation step (Section 2); extended the Definition of Done with Build Record, EDR, Improvements Register, and Handbook requirements (Section 5); listed the new documents (Section 7); added Section 8 (document relationship, during-implementation rules, ENG-IMP non-authorization, handoff rule, reviewer DEFECT/IMPROVEMENT rule). Corrected two stale cross-references that pointed stop conditions at Section 5 instead of Section 4. |
 | 1.2.0 | 2026-09-26 | Added Cursor Cloud bootstrap, dev-server, and isolated MVP-001 test guidance (Section 9). |
-| 1.3.0 | 2026-09-26 | Product-owner-authorized governance migration from human-final-merge to the governed merge policy. Added Section 5.1 (merge authority by classification, fifteen merge gates, merge procedure). Section 2 steps 18 and 20, Section 3, the Section 5 checklist, and Section 9 now defer to Section 5.1. HUMAN-DECISION-REQUIRED items keep human final merge. No quality gate, test requirement, stop condition, specification-precedence rule, or security control was weakened. |
+| 1.3.0 | 2026-09-26 | Product-owner-authorized governance migration from human-final-merge to the governed merge policy. Added Section 5.1: merge authority by classification, fifteen merge gates, and the merge procedure, including a head-commit revalidation check. AUTONOMOUS-READY PRs may be squash-merged by the MusicApp Autonomous Build Orchestrator once every gate passes. HUMAN-DECISION-REQUIRED and EXTERNAL-DEPENDENCY items, and PRs with no `MVP-*` classification unless specifically authorized, keep human final merge. Section 2 step 18 drops "you never merge your own PR", because the orchestrator now both builds and merges AUTONOMOUS-READY work. Separation of duties is kept by requiring a separate reviewer: the implementer's self-assessment never counts (step 18, gate 5). Step 20, Section 3 (which also gains a rule against bypassing branch protection, rulesets, or required checks), the Section 5 checklist, and Section 9 now defer to Section 5.1. No quality gate, test requirement, stop condition, specification-precedence rule, or human-decision requirement was weakened. |
