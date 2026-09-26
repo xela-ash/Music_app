@@ -51,7 +51,7 @@ Work one issue at a time, on one dedicated branch, following this sequence.
 
 - Work on one issue at a time, on a dedicated branch named for the issue (for example `mvp-018-milestone-state-machine`).
 - Never commit directly to `main`.
-- Never merge a PR outside the governed merge policy (Section 5.1). Among agents, only the MusicApp Autonomous Build Orchestrator may merge, only AUTONOMOUS-READY PRs, and only after every merge gate passes. No other agent merges to `main`.
+- Never merge a PR outside the governed merge policy (Section 5.1). Among agents, only the MusicApp Autonomous Build Orchestrator may merge, only AUTONOMOUS-READY PRs or a PR with no `MVP-*` classification that the product owner specifically authorized (Section 5.1), and only after every applicable merge gate passes. No other agent merges to `main`.
 - Never bypass branch protection, repository rulesets, or required status checks, and never weaken them to make a merge possible.
 - Never bypass tests to get a build green — a failing test describes a real gap between the code and the specification.
 - Never invent product rules. If a specification is silent on a case your implementation needs to handle, that silence is a signal to stop (Section 4), not an invitation to decide.
@@ -112,11 +112,11 @@ Merge authority follows the item's single primary classification ([plan Section 
 | Classification | Merge authority |
 | --- | --- |
 | AUTONOMOUS-READY | The MusicApp Autonomous Build Orchestrator may mark the PR Ready for Review and squash-merge it after every merge gate below passes. No human merge approval is needed. |
-| HUMAN-DECISION-REQUIRED | Human authority remains required. The orchestrator does not implement, default, or merge the decision-gated scope. A human records the decision in the owning specification (Section 6) and performs the final merge of any PR for the item. |
+| HUMAN-DECISION-REQUIRED | Human authority remains required. No agent implements, defaults, or merges the decision-gated scope. A human records the decision in the owning specification (Section 6) and performs the final merge of any PR for the item. |
 | EXTERNAL-DEPENDENCY | The orchestrator stops wherever the unselected or unavailable provider, system, credential, or account prevents safe completion. It may implement the provider-neutral and mock portion the issue permits, without selecting or defaulting a provider, then stops and escalates (Section 4). A human performs the final merge of any PR for the item. |
-| No `MVP-*` classification (governance, documentation, or environment PRs) | A human merges, unless the product owner has explicitly authorized the orchestrator to land that specific change. The PR description records that authorization. |
+| No `MVP-*` classification (governance, documentation, or environment PRs) | A human merges, unless the product owner has explicitly authorized the orchestrator to land that specific change. The PR description quotes the authorizing instruction, limited to that change. The recorded authorization replaces gate 1; every other applicable gate below still has to pass. |
 
-**Merge gates.** The orchestrator merges only when all of these hold. Any gate that fails blocks the merge:
+**Merge gates.** The orchestrator merges only when all of these hold (for an authorized PR with no `MVP-*` classification, the authorization replaces gate 1 as stated above). Any gate that fails blocks the merge:
 
 1. The item is AUTONOMOUS-READY.
 2. Every `Depends on` item is merged.
