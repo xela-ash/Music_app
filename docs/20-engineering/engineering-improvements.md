@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.5.0 |
+| Version | 0.5.1 |
 | Last Reviewed | 2026-09-26 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -125,6 +125,7 @@ Copy this template for each new entry:
 | [ENG-IMP-018](#eng-imp-018-characterization-db_port-guard-misses-an-omitted-port) | Characterization `DB_PORT` guard misses an omitted port | Testing, Reliability | Medium | PROPOSED |
 | [ENG-IMP-019](#eng-imp-019-frontend-comments-still-cite-backendindexjs-for-moved-constants) | Frontend comments still cite `backend/Index.js` for moved constants | Documentation, Maintainability | Low | PROPOSED |
 | [ENG-IMP-020](#eng-imp-020-build-record-section-4-verification-stamp-predates-the-mvp-001-baseline) | Build Record Section 4 verification stamp predates the MVP-001 baseline | Documentation | Low | PROPOSED |
+| [ENG-IMP-021](#eng-imp-021-cloud-image-corepack-cannot-follow-current-releases-on-node-22140) | Cloud image corepack cannot follow current releases on Node 22.14.0 | Developer Experience, Dependency | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -346,7 +347,7 @@ Copy this template for each new entry:
 | Identified by | Claude Code (Opus 5.5), engineering-controls setup, initial repository review |
 | Category | Developer Experience |
 | Affected subsystem | Repository / tooling |
-| Current state | `README.md` says "Node.js (v20+)". Neither `package.json` declares `engines`. The frontend declares no `packageManager`. There is no `.nvmrc` or `.node-version`. The reviewing machine ran Node 24.12.0 and pnpm 10.26.1. |
+| Current state | `README.md` says "Node.js (v20+)". Neither `package.json` declares `engines`. The frontend declares no `packageManager`. There is no `.nvmrc` or `.node-version`. The reviewing machine ran Node 24.12.0 and pnpm 10.26.1. The Cursor Cloud image now pins Node.js 22.14.0, corepack 0.34.7, and pnpm 12.5.1 ([EDR-002](engineering-build-record.md#edr-002-cloud-agent-node-toolchain)). That pin is the image only; the manifests are still unpinned. |
 | Evidence / problem | CI (MVP-004), human engineers, and agents can each run different Node and pnpm majors against the same lockfiles, so toolchain-dependent failures cannot be reproduced reliably. |
 | Suggested improvement | Declare `engines.node` in both manifests, add `packageManager` to the frontend, and add a `.nvmrc` that CI also reads. |
 | Expected benefit | The same toolchain locally and in CI. |
@@ -726,6 +727,36 @@ Copy this template for each new entry:
 | Related PR | — |
 | Resolution | — |
 
+### ENG-IMP-021 Cloud image corepack cannot follow current releases on Node 22.14.0
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-021 |
+| Title | Cloud image corepack cannot follow current releases on Node 22.14.0 |
+| Date identified | 2026-09-26 |
+| Identified by | Cloud environment repair (no MVP item) |
+| Category | Developer Experience, Dependency |
+| Affected subsystem | Cloud Agent image |
+| Current state | `.cursor/Dockerfile` installs Node.js 22.14.0 and then `corepack@0.34.7` so `pnpm@12.5.1` can be activated. Node 22.14.0 ships corepack 0.31.0. |
+| Evidence / problem | `npm view corepack@0.35.0 engines` and `corepack@0.36.0` both require `node: ^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`. `corepack@0.31.0` through `0.33.0` prepare pnpm 12.5.1 and then fail looking for `bin/pnpm.cjs`, which that package does not contain. `corepack@0.34.7` activates pnpm 12.5.1 on Node 22.14.0. A later corepack bump on this Node version is an engines violation. |
+| Suggested improvement | When a human chooses a newer Node for the Cloud image, move corepack forward in the same change and re-check `pnpm --version` for the ubuntu user. Do not bump Node as part of an unrelated repair. |
+| Expected benefit | The image can take current corepack releases without an engines mismatch. |
+| Risk of doing nothing | The next corepack update attempt either fails the image build or silently uses an unsupported Node. |
+| Implementation risk | Low, once a Node version is chosen. The Node pin itself is a separate decision from this repair. |
+| Estimated scope | S: one Dockerfile pin, plus the install and frontend checks |
+| Dependencies | A decision to move the Cloud image off Node 22.14.0. Not authorized by the environment repair. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next intentional Cloud toolchain bump |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | Branch `cursor/cloud-node-toolchain-ef45` |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -765,3 +796,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.3.0 | 2026-09-25 | `ENG-IMP-011` and `ENG-IMP-012` set to IMPLEMENTED after the Product/Architecture decisions, with resolutions (plan 0.2.0). Added `ENG-IMP-013` (PROPOSED, non-blocking): release and financial items are not wired to the verification and idempotency foundations. Other entries unchanged. | Engineering (drafted by Claude Code) |
 | 0.4.0 | 2026-09-26 | Added three findings from GitHub issue generation: `ENG-IMP-014` (IMPLEMENTED: `MVP-009` plan citation corrected to Authentication §15/§16, plan 0.2.1), `ENG-IMP-015` (PROPOSED, requires Architecture clarification: the Project term-version record `MVP-015` needs is not defined), and `ENG-IMP-016` (PROPOSED: password reset requires session revocation that no work item builds). None blocks `MVP-001`. Other entries unchanged. | Engineering (drafted by Claude Code) |
 | 0.5.0 | 2026-09-26 | Recorded four non-blocking improvements from the MVP-001 independent review: `ENG-IMP-017` (fixed characterization port 4000), `ENG-IMP-018` (omitted `DB_PORT` bypasses the 5432 guard), `ENG-IMP-019` (frontend comments still cite `backend/Index.js`), and `ENG-IMP-020` (Section 4 verification stamp predates the module split). All `PROPOSED`. None are authorized, and none are part of MVP-001. | Engineering |
+| 0.5.1 | 2026-09-26 | Noted in `ENG-IMP-008` that the Cloud image pin does not pin the application manifests. Added `ENG-IMP-021` (`PROPOSED`): current corepack releases require Node >= 22.22.2, so they are not part of the Node 22.14.0 image repair. | Engineering |
