@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -6,7 +6,6 @@ import App from "./App";
 const TOKEN_KEY = "musicapp_token";
 
 afterEach(() => {
-  cleanup();
   localStorage.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -64,10 +63,10 @@ describe("MVP-002 auth screen smoke", () => {
 
   it("shows the server error when login is rejected", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse(401, { error: "Invalid email or password" }))
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(401, { error: "Invalid email or password" })
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
     await user.type(screen.getByLabelText("Email"), "ada@example.com");
@@ -76,5 +75,13 @@ describe("MVP-002 auth screen smoke", () => {
 
     expect(await screen.findByText("Invalid email or password")).toBeTruthy();
     expect(screen.queryByText("Loading session…")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("http://localhost:4000/auth/login");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      email: "ada@example.com",
+      password: "password-1",
+    });
   });
 });
