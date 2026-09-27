@@ -53,7 +53,13 @@ function assertResult(result) {
 //
 // A concurrent claim of the same scope and key blocks on the unique index
 // until the first transaction ends. If that transaction commits, this one
-// sees the committed row; if it rolls back, this one claims the key.
+// sees the committed row; if it rolls back, this one claims the key. Seeing
+// the committed row relies on READ COMMITTED (PostgreSQL's default). Under
+// REPEATABLE READ or SERIALIZABLE the waiting claim fails with 40001, and
+// the caller must retry the whole transaction.
+//
+// A replay returns the stored response body, so callers authorize the actor
+// before calling this and never put tokens or secrets in the body.
 async function claimIdempotencyKey(client, { actorType, actorId, operation, resourceRef = "", key, requestHash }) {
   assertScope({ actorType, actorId, operation, resourceRef });
   const inserted = await client.query(
@@ -140,7 +146,10 @@ async function executeIdempotent(client, { actorType, actorId, operation, resour
   const result = await handler(client);
   assertResult(result);
   await completeIdempotencyKey(client, claim.recordId, result);
-  return { outcome: "executed", status: result.status, body: result.body === undefined ? null : result.body };
+  // Return the JSON form that was stored, so the first response and every
+  // replay carry identical values (a Date, for example, becomes a string).
+  const body = result.body === undefined ? null : JSON.parse(JSON.stringify(result.body));
+  return { outcome: "executed", status: result.status, body };
 }
 
 module.exports = {

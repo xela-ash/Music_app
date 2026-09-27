@@ -35,7 +35,14 @@ async function consumeInboxEvent(client, { consumer, source, eventId, eventType 
       `SELECT result FROM inbox_events WHERE consumer = $1 AND source = $2 AND event_id = $3`,
       [consumer, source, eventId]
     );
-    return { duplicate: true, result: existing.rows[0] ? existing.rows[0].result : null };
+    const record = existing.rows[0];
+    // This helper records the result in the same transaction that inserts the
+    // row, so a row without one means this transaction is still processing
+    // the event (a re-entrant call).
+    if (!record || record.result === null) {
+      throw new Error("inbox: event is already being processed in this transaction");
+    }
+    return { duplicate: true, result: record.result };
   }
 
   const returned = await handler(client);

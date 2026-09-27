@@ -44,14 +44,46 @@ async function inTransaction(fn) {
   }
 }
 
-async function rejects(sql, params, code) {
+// expected is the violated constraint's name for CHECK/unique errors, or a
+// message pattern for trigger errors, so a case cannot pass because some
+// other rule happened to fire.
+async function rejects(sql, params, code, expected) {
   await assert.rejects(
     inTransaction((client) => client.query(sql, params)),
     (err) => {
       assert.equal(err.code, code, err.message);
+      if (expected instanceof RegExp) {
+        assert.match(err.message, expected);
+      } else if (Array.isArray(expected)) {
+        assert.ok(expected.includes(err.constraint), `${err.constraint} is not one of ${expected.join(", ")}`);
+      } else {
+        assert.equal(err.constraint, expected, err.message);
+      }
       return true;
     }
   );
+}
+
+// Inserts base with overrides applied. Column names come from the test's own
+// constants, never from input.
+function insertRow(table, base, overrides) {
+  const row = { ...base, ...overrides };
+  const columns = Object.keys(row);
+  const placeholders = columns.map((_, i) => `$${i + 1}`);
+  const overriding = Object.prototype.hasOwnProperty.call(row, "sequence") ? " OVERRIDING SYSTEM VALUE" : "";
+  return {
+    sql: `INSERT INTO ${table} (${columns.join(", ")})${overriding} VALUES (${placeholders.join(", ")})`,
+    params: columns.map((column) => row[column]),
+  };
+}
+
+async function assertConstraintCases(table, baseRow, cases) {
+  const valid = insertRow(table, baseRow(), {});
+  await inTransaction((client) => client.query(valid.sql, valid.params));
+  for (const [constraint, overrides, code = CHECK] of cases) {
+    const { sql, params } = insertRow(table, baseRow(), overrides);
+    await rejects(sql, params, code, constraint);
+  }
 }
 
 async function effectCount(aggregateId) {
@@ -121,6 +153,16 @@ describe("idempotency keys", () => {
     assert.deepEqual(second.body, first.body);
     assert.equal(handler.calls, 1);
     assert.equal(await effectCount(aggregateId), 1);
+  });
+
+  it("returns the same JSON values on the first call and on a replay", async () => {
+    const key = unique("key");
+    const handler = async () => ({ status: 201, body: { at: new Date("2026-09-27T10:00:00Z"), z: 1, a: [1, { y: 2, b: 3 }] } });
+    const first = await inTransaction((client) => executeIdempotent(client, { ...scope(), key, request: {} }, handler));
+    const replay = await inTransaction((client) => executeIdempotent(client, { ...scope(), key, request: {} }, handler));
+    assert.equal(replay.outcome, "replay");
+    assert.deepEqual(first.body, { at: "2026-09-27T10:00:00.000Z", z: 1, a: [1, { y: 2, b: 3 }] });
+    assert.deepEqual(replay.body, first.body);
   });
 
   it("rejects the same key with a different request and changes nothing", async () => {
@@ -296,30 +338,47 @@ describe("idempotency keys", () => {
 
   describe("database constraints (application checks bypassed)", () => {
     const hash = "a".repeat(64);
-    const insert = `INSERT INTO idempotency_keys (actor_type, actor_id, operation, resource_ref, idempotency_key, request_hash, status, response_status, completed_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
-
-    it("rejects a duplicate scope and key", async () => {
-      const key = unique("dup");
-      await inTransaction((client) => client.query(insert, ["user", "u1", "op", "", key, hash, "in_progress", null, null]));
-      await rejects(insert, ["user", "u1", "op", "", key, hash, "in_progress", null, null], UNIQUE);
+    const baseRow = () => ({
+      actor_type: "user",
+      actor_id: "u1",
+      operation: "op",
+      resource_ref: "",
+      idempotency_key: unique("k"),
+      request_hash: hash,
+      status: "in_progress",
     });
+    const completed = { status: "completed", response_status: 200, completed_at: "2026-09-27T10:00:00Z" };
 
-    it("rejects malformed rows", async () => {
-      const cases = [
-        ["robot", "u1", "op", "", unique("k"), hash, "in_progress", null, null],
-        ["user", "", "op", "", unique("k"), hash, "in_progress", null, null],
-        ["user", "u1", "", "", unique("k"), hash, "in_progress", null, null],
-        ["user", "u1", "op", "", "has space", hash, "in_progress", null, null],
-        ["user", "u1", "op", "", unique("k"), "not-a-hash", "in_progress", null, null],
-        ["user", "u1", "op", "", unique("k"), hash, "done", null, null],
-        ["user", "u1", "op", "", unique("k"), hash, "completed", null, null],
-        ["user", "u1", "op", "", unique("k"), hash, "in_progress", 200, null],
-        ["user", "u1", "op", "", unique("k"), hash, "completed", 42, new Date()],
-      ];
-      for (const params of cases) {
-        await rejects(insert, params, CHECK);
-      }
+    it("rejects every row that violates a named constraint", async () => {
+      const duplicateKey = unique("dup");
+      const first = insertRow("idempotency_keys", baseRow(), { idempotency_key: duplicateKey });
+      await inTransaction((client) => client.query(first.sql, first.params));
+
+      await assertConstraintCases("idempotency_keys", baseRow, [
+        ["idempotency_keys_scope_unique", { idempotency_key: duplicateKey }, UNIQUE],
+        ["idempotency_keys_actor_type_allowed", { actor_type: "robot" }],
+        ["idempotency_keys_actor_id_present", { actor_id: "" }],
+        ["idempotency_keys_actor_id_present", { actor_id: "x".repeat(256) }],
+        ["idempotency_keys_operation_present", { operation: "" }],
+        ["idempotency_keys_resource_ref_bounded", { resource_ref: "x".repeat(256) }],
+        ["idempotency_keys_key_format", { idempotency_key: "has space" }],
+        ["idempotency_keys_key_format", { idempotency_key: "x".repeat(256) }],
+        ["idempotency_keys_request_hash_sha256", { request_hash: "not-a-hash" }],
+        // completed_has_response also admits only in_progress and completed,
+        // so either constraint may report an unknown status.
+        [["idempotency_keys_status_allowed", "idempotency_keys_completed_has_response"], { status: "done" }],
+        ["idempotency_keys_completed_has_response", { status: "completed" }],
+        ["idempotency_keys_completed_has_response", { response_status: 200 }],
+        ["idempotency_keys_completed_has_response", { ...completed, response_status: 42 }],
+        [
+          "idempotency_keys_completed_after_created",
+          { ...completed, created_at: "2026-09-27T10:00:01Z" },
+        ],
+        [
+          "idempotency_keys_expires_after_created",
+          { created_at: "2026-09-27T10:00:00Z", expires_at: "2026-09-27T10:00:00Z" },
+        ],
+      ]);
     });
 
     it("keeps the scope and hash immutable, freezes completed rows, and blocks deletes", async () => {
@@ -329,16 +388,20 @@ describe("idempotency keys", () => {
         return claim.recordId;
       });
 
-      await rejects("UPDATE idempotency_keys SET request_hash = $2 WHERE id = $1", [recordId, "b".repeat(64)], RAISE);
-      await rejects("UPDATE idempotency_keys SET idempotency_key = 'other' WHERE id = $1", [recordId], RAISE);
-      await rejects("DELETE FROM idempotency_keys WHERE id = $1", [recordId], RAISE);
+      const identity = /identity columns are immutable/;
+      await rejects("UPDATE idempotency_keys SET request_hash = $2 WHERE id = $1", [recordId, "b".repeat(64)], RAISE, identity);
+      await rejects("UPDATE idempotency_keys SET idempotency_key = 'other' WHERE id = $1", [recordId], RAISE, identity);
+      await rejects("UPDATE idempotency_keys SET actor_id = 'other' WHERE id = $1", [recordId], RAISE, identity);
+      await rejects("DELETE FROM idempotency_keys WHERE id = $1", [recordId], RAISE, /cannot be deleted/);
 
       await inTransaction((client) => completeIdempotencyKey(client, recordId, { status: 200, body: { v: 1 } }));
-      await rejects("UPDATE idempotency_keys SET response_body = '{\"v\":2}' WHERE id = $1", [recordId], RAISE);
+      const frozen = /completed idempotency_keys rows are immutable/;
+      await rejects("UPDATE idempotency_keys SET response_body = '{\"v\":2}' WHERE id = $1", [recordId], RAISE, frozen);
       await rejects(
         "UPDATE idempotency_keys SET status = 'in_progress', response_status = NULL, response_body = NULL, completed_at = NULL WHERE id = $1",
         [recordId],
-        RAISE
+        RAISE,
+        frozen
       );
     });
   });
@@ -537,36 +600,50 @@ describe("transactional outbox", () => {
       return eventId;
     }
 
-    it("rejects a duplicate event_id and a non-object payload", async () => {
+    it("rejects every row that violates a named constraint", async () => {
       const eventId = await pendingMessage();
-      await rejects(
-        "INSERT INTO outbox_messages (event_id, event_type, aggregate_type, aggregate_id) VALUES ($1, 'E', 'test', 'x')",
-        [eventId],
-        UNIQUE
-      );
-      await rejects(
-        "INSERT INTO outbox_messages (event_type, aggregate_type, aggregate_id, payload) VALUES ('E', 'test', 'x', '[1]'::jsonb)",
-        [],
-        CHECK
-      );
-      await rejects(
-        "INSERT INTO outbox_messages (event_type, aggregate_type, aggregate_id, status) VALUES ('E', 'test', 'x', 'published')",
-        [],
-        CHECK
-      );
+      const { rows } = await pool.query("SELECT sequence FROM outbox_messages WHERE event_id = $1", [eventId]);
+      const long = "x".repeat(256);
+      const baseRow = () => ({ event_type: "E", aggregate_type: "test", aggregate_id: unique("row") });
+
+      await assertConstraintCases("outbox_messages", baseRow, [
+        ["outbox_messages_event_id_unique", { event_id: eventId }, UNIQUE],
+        ["outbox_messages_sequence_unique", { sequence: rows[0].sequence }, UNIQUE],
+        ["outbox_messages_event_type_present", { event_type: "" }],
+        ["outbox_messages_event_type_present", { event_type: long }],
+        ["outbox_messages_event_version_positive", { event_version: 0 }],
+        ["outbox_messages_aggregate_type_present", { aggregate_type: "" }],
+        ["outbox_messages_aggregate_id_present", { aggregate_id: long }],
+        ["outbox_messages_aggregate_version_positive", { aggregate_version: 0 }],
+        ["outbox_messages_payload_is_object", { payload: "[1]" }],
+        ["outbox_messages_correlation_bounded", { correlation_id: "" }],
+        ["outbox_messages_causation_bounded", { causation_id: long }],
+        ["outbox_messages_status_allowed", { status: "sent" }],
+        ["outbox_messages_attempts_nonnegative", { attempts: -1 }],
+        ["outbox_messages_published_consistent", { status: "published" }],
+        ["outbox_messages_published_consistent", { published_at: "2026-09-27T10:00:00Z" }],
+        ["outbox_messages_last_error_bounded", { last_error: "x".repeat(501) }],
+      ]);
     });
 
     it("keeps event content immutable, freezes published rows, and blocks deletes", async () => {
       const eventId = await pendingMessage();
-      await rejects("UPDATE outbox_messages SET payload = '{\"a\":2}' WHERE event_id = $1", [eventId], RAISE);
-      await rejects("UPDATE outbox_messages SET event_type = 'Other' WHERE event_id = $1", [eventId], RAISE);
-      await rejects("UPDATE outbox_messages SET attempts = attempts - 1 WHERE event_id = $1", [eventId], RAISE);
-      await rejects("DELETE FROM outbox_messages WHERE event_id = $1", [eventId], RAISE);
+      const content = /event columns are immutable/;
+      await rejects("UPDATE outbox_messages SET payload = '{\"a\":2}' WHERE event_id = $1", [eventId], RAISE, content);
+      await rejects("UPDATE outbox_messages SET event_type = 'Other' WHERE event_id = $1", [eventId], RAISE, content);
+      await rejects("UPDATE outbox_messages SET aggregate_id = 'other' WHERE event_id = $1", [eventId], RAISE, content);
+      await rejects(
+        "UPDATE outbox_messages SET attempts = attempts - 1 WHERE event_id = $1",
+        [eventId],
+        RAISE,
+        /attempts cannot decrease/
+      );
+      await rejects("DELETE FROM outbox_messages WHERE event_id = $1", [eventId], RAISE, /cannot be deleted/);
 
       await inTransaction((client) =>
         client.query("UPDATE outbox_messages SET attempts = 2 WHERE event_id = $1", [eventId])
       );
-      await rejects("UPDATE outbox_messages SET attempts = 1 WHERE event_id = $1", [eventId], RAISE);
+      await rejects("UPDATE outbox_messages SET attempts = 1 WHERE event_id = $1", [eventId], RAISE, /attempts cannot decrease/);
 
       await inTransaction((client) =>
         client.query(
@@ -577,7 +654,8 @@ describe("transactional outbox", () => {
       await rejects(
         "UPDATE outbox_messages SET status = 'pending', published_at = NULL WHERE event_id = $1",
         [eventId],
-        RAISE
+        RAISE,
+        /published outbox_messages rows are immutable/
       );
     });
   });
@@ -649,6 +727,18 @@ describe("inbox deduplication", () => {
     assert.deepEqual(retry, { duplicate: false, result: "applied" });
   });
 
+  it("throws on a re-entrant delivery of an event this transaction is still processing", async () => {
+    const event = inboxEvent();
+    await assert.rejects(
+      inTransaction((client) =>
+        consumeInboxEvent(client, event, (tx) => consumeInboxEvent(tx, event, async () => "applied"))
+      ),
+      /already being processed/
+    );
+    const { rows } = await pool.query("SELECT count(*)::int AS n FROM inbox_events WHERE event_id = $1", [event.eventId]);
+    assert.equal(rows[0].n, 0);
+  });
+
   it("rejects an unknown handler outcome", async () => {
     const event = inboxEvent();
     await assert.rejects(
@@ -713,23 +803,45 @@ describe("inbox deduplication", () => {
   });
 
   describe("database constraints (application checks bypassed)", () => {
-    const insert = "INSERT INTO inbox_events (consumer, source, event_id, event_type, result, processed_at) VALUES ($1, $2, $3, $4, $5, $6)";
+    it("rejects every row that violates a named constraint", async () => {
+      const duplicateId = unique("dup");
+      const baseRow = () => ({ consumer: "c", source: "s", event_id: unique("row"), event_type: "E" });
+      const first = insertRow("inbox_events", baseRow(), { event_id: duplicateId });
+      await inTransaction((client) => client.query(first.sql, first.params));
+      const long = "x".repeat(256);
 
-    it("rejects a duplicate (consumer, source, event_id) and malformed rows", async () => {
-      const eventId = unique("dup");
-      await inTransaction((client) => client.query(insert, ["c", "s", eventId, "E", null, null]));
-      await rejects(insert, ["c", "s", eventId, "E2", null, null], UNIQUE);
-      await rejects(insert, ["", "s", unique("x"), "E", null, null], CHECK);
-      await rejects(insert, ["c", "s", unique("x"), "E", "done", new Date()], CHECK);
-      await rejects(insert, ["c", "s", unique("x"), "E", "applied", null], CHECK);
+      await assertConstraintCases("inbox_events", baseRow, [
+        ["inbox_events_consumer_source_event_unique", { event_id: duplicateId, event_type: "E2" }, UNIQUE],
+        ["inbox_events_consumer_present", { consumer: "" }],
+        ["inbox_events_source_present", { source: long }],
+        ["inbox_events_event_id_present", { event_id: "" }],
+        ["inbox_events_event_type_present", { event_type: "" }],
+        ["inbox_events_result_allowed", { result: "done", processed_at: "2026-09-27T10:00:00Z" }],
+        ["inbox_events_result_with_processed_at", { result: "applied" }],
+        ["inbox_events_result_with_processed_at", { processed_at: "2026-09-27T10:00:00Z" }],
+        [
+          "inbox_events_processed_after_received",
+          { result: "applied", received_at: "2026-09-27T10:00:01Z", processed_at: "2026-09-27T10:00:00Z" },
+        ],
+      ]);
     });
 
     it("records the result once and blocks deletes", async () => {
       const event = inboxEvent();
       await inTransaction((client) => consumeInboxEvent(client, event, async () => "applied"));
-      await rejects("UPDATE inbox_events SET result = 'ignored' WHERE event_id = $1", [event.eventId], RAISE);
-      await rejects("UPDATE inbox_events SET event_id = 'other' WHERE event_id = $1", [event.eventId], RAISE);
-      await rejects("DELETE FROM inbox_events WHERE event_id = $1", [event.eventId], RAISE);
+      await rejects(
+        "UPDATE inbox_events SET result = 'ignored' WHERE event_id = $1",
+        [event.eventId],
+        RAISE,
+        /processed inbox_events rows are immutable/
+      );
+      await rejects(
+        "UPDATE inbox_events SET event_id = 'other' WHERE event_id = $1",
+        [event.eventId],
+        RAISE,
+        /identity columns are immutable/
+      );
+      await rejects("DELETE FROM inbox_events WHERE event_id = $1", [event.eventId], RAISE, /cannot be deleted/);
     });
   });
 });
