@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared PostgreSQL helpers for Cloud Agent dev and isolated MVP-001 tests.
+# Shared PostgreSQL helpers for Cloud Agent dev and isolated backend tests.
 
 ensure_postgresql_packages() {
   if command -v psql >/dev/null 2>&1; then

@@ -16,12 +16,12 @@ export DB_NAME="musicapp_mvp001"
 export JWT_SECRET="${JWT_SECRET:-cloud-mvp001-test-jwt-secret}"
 
 if [[ "$DB_PORT" == "5432" ]]; then
-  echo "Refusing to run MVP-001 tests on shared port 5432."
+  echo "Refusing to run backend tests on shared port 5432."
   exit 1
 fi
 
 if [[ "$DB_NAME" != "musicapp_mvp001" ]]; then
-  echo "Refusing to run MVP-001 tests: DB_NAME must be musicapp_mvp001."
+  echo "Refusing to run backend tests: DB_NAME must be musicapp_mvp001."
   exit 1
 fi
 
