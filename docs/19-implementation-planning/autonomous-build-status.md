@@ -21,4 +21,6 @@ Operational status for the autonomous implementation loop. This file is not a pr
 
 ## This run
 
-Recovery on 2026-09-28 found `origin/main` at `6c3dda0`, pull request #60 MERGED, issue #5 CLOSED, and no open pull request. The issue index already listed `MVP-003` as MERGED. This file did not. `MVP-004` (issue #6) is the next AUTONOMOUS-READY item in the plan's first-ten order. Its dependency `MVP-002` is merged. `MVP-006` is also dependency-ready and waits until this item merges.
+Recovery on 2026-09-28 found `origin/main` at `6c3dda0`, pull request #60 MERGED, issue #5 CLOSED, and no open pull request. The issue index already listed `MVP-003` as MERGED. This file did not. `MVP-004` (issue #6) is the next AUTONOMOUS-READY item in the plan's first-ten order. Its dependency `MVP-002` is merged.
+
+The workflow is in pull request #61. Actions run 36413566852 passed all four jobs on `dea7ad8`. Actions run 36413806267 failed only `backend-test` on `36432fc` because of a deliberate `assert.equal(1, 0)`. GitHub still reported that red head as `MERGEABLE` / `UNSTABLE`. `PUT` of ruleset `24033491` returned HTTP 403, so the required-check gate is not installed. `MVP-006` can proceed while this pull request waits for that permission.
