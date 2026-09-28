@@ -347,7 +347,15 @@ describe("idempotency keys", () => {
       request_hash: hash,
       status: "in_progress",
     });
-    const completed = { status: "completed", response_status: 200, completed_at: "2026-09-27T10:00:00Z" };
+    // Pin created_at with completed_at. A completed_at in the past against
+    // DEFAULT now() also fails idempotency_keys_completed_after_created, so
+    // PostgreSQL reports that constraint instead of the one under test.
+    const completed = {
+      status: "completed",
+      response_status: 200,
+      created_at: "2026-09-27T10:00:00Z",
+      completed_at: "2026-09-27T10:00:00Z",
+    };
 
     it("rejects every row that violates a named constraint", async () => {
       const duplicateKey = unique("dup");
@@ -816,9 +824,15 @@ describe("inbox deduplication", () => {
         ["inbox_events_source_present", { source: long }],
         ["inbox_events_event_id_present", { event_id: "" }],
         ["inbox_events_event_type_present", { event_type: "" }],
-        ["inbox_events_result_allowed", { result: "done", processed_at: "2026-09-27T10:00:00Z" }],
+        [
+          "inbox_events_result_allowed",
+          { result: "done", received_at: "2026-09-27T10:00:00Z", processed_at: "2026-09-27T10:00:00Z" },
+        ],
         ["inbox_events_result_with_processed_at", { result: "applied" }],
-        ["inbox_events_result_with_processed_at", { processed_at: "2026-09-27T10:00:00Z" }],
+        [
+          "inbox_events_result_with_processed_at",
+          { received_at: "2026-09-27T10:00:00Z", processed_at: "2026-09-27T10:00:00Z" },
+        ],
         [
           "inbox_events_processed_after_received",
           { result: "applied", received_at: "2026-09-27T10:00:01Z", processed_at: "2026-09-27T10:00:00Z" },

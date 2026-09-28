@@ -6,8 +6,8 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.4.0 |
-| Last Reviewed | 2026-09-27 |
+| Version | 0.4.1 |
+| Last Reviewed | 2026-09-28 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
@@ -484,6 +484,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-26 | Cloud environment repair (no MVP item) | Pinned Node.js 22.14.0, corepack 0.34.7, and pnpm 12.5.1 in `.cursor/Dockerfile` so Cloud install can find `npm` and activate pnpm without a prompt. PostgreSQL 16, port 5432, and the isolated test cluster on 5433 are unchanged. | Cloud Agent image only | None | None | None | Passwordless sudo for the image `ubuntu` user, required by the existing PostgreSQL helpers | None | EDR-002 | `ENG-IMP-021` | Branch `cursor/cloud-node-toolchain-ef45` | The Cloud toolchain commit on that branch |
 | 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-003 | `ENG-IMP-022` | #57 | Branch `mvp-002-automated-test-harness` |
 | 2026-09-27 | MVP-003 / GitHub issue #5 | Added the shared idempotency-key store, transactional outbox with a transport-neutral dispatcher, and inbox deduplication. The migration adds tables only, the helpers run in the caller's transaction, and triggers block deletes and edits to evidence columns. No route or domain command uses them yet. | Backend application, database, testing | 009 | None | None | Database-enforced single effect per idempotency key and per inbound event; immutable, undeletable evidence rows | `backend/test/canonical-json.test.js`, `backend/test/infrastructure.test.js` (every named constraint in migration 009 has a case); `npm test` now runs one file at a time | EDR-004 | `ENG-IMP-023`, `ENG-IMP-024` | #60 | Branch `mvp-003-idempotency-outbox-inbox` |
+| 2026-09-28 | MVP-003 review repair / GitHub issue #5 | Constraint cases that set `completed_at` or `processed_at` now also set `created_at` or `received_at` to the same instant. A fixed completion time against `DEFAULT now()` started failing `*_after_created` / `*_after_received` once that instant was in the past, so PostgreSQL reported the wrong constraint. No schema or helper behavior changed. | Testing | None | None | None | None | `backend/test/infrastructure.test.js` | None | None | #60 | The review-repair commit on `mvp-003-idempotency-outbox-inbox` |
 
 ## 8. Version history
 
@@ -495,3 +496,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.2.2 | 2026-09-26 | Recorded the Cloud Agent image toolchain: Section 4.21, EDR-002, and a change-history row. No application subsystem behavior changed. | Engineering |
 | 0.3.0 | 2026-09-26 | Recorded the MVP-002 harness: testing and backend/frontend test fields, EDR-003, EDR-001's merged pull request, and a change-history row. Section 4's verification stamp is still `2defbea` (`ENG-IMP-020`). | Engineering |
 | 0.4.0 | 2026-09-27 | Recorded MVP-003: new Section 4.22, backend, database, and testing fields, EDR-004, and a change-history row. | Engineering |
+| 0.4.1 | 2026-09-28 | Recorded the MVP-003 constraint-test clock repair. No subsystem behavior changed. | Engineering |
