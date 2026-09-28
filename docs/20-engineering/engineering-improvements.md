@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.8.0 |
+| Version | 0.8.1 |
 | Last Reviewed | 2026-09-28 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -131,6 +131,7 @@ Copy this template for each new entry:
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
 | [ENG-IMP-025](#eng-imp-025-ci-does-not-typecheck-or-build-the-frontend) | CI does not typecheck or build the frontend | CI/CD, Testing | Low | PROPOSED |
 | [ENG-IMP-026](#eng-imp-026-github-actions-are-referenced-by-major-tag) | GitHub Actions are referenced by major tag | CI/CD, Security | Low | PROPOSED |
+| [ENG-IMP-027](#eng-imp-027-ci-workflow-guard-test-does-not-run-if-the-backend-test-job-is-removed) | CI workflow guard test does not run if the backend-test job is removed | CI/CD, Testing | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -912,6 +913,36 @@ Copy this template for each new entry:
 | Related PR | — |
 | Resolution | — |
 
+### ENG-IMP-027 CI workflow guard test does not run if the backend-test job is removed
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-027 |
+| Title | CI workflow guard test does not run if the backend-test job is removed |
+| Date identified | 2026-09-28 |
+| Identified by | Independent review of MVP-004 pull request #61, commit `00e9d7b` |
+| Category | CI/CD, Testing |
+| Affected subsystem | CI, Testing |
+| Current state | `backend/test/ci-workflow.test.js` asserts that `.github/workflows/ci.yml` still defines `lint`, `frontend-test`, `backend-test`, and `migration-dry-run`. `npm test` runs only in the `backend-test` job. |
+| Evidence / problem | Deleting the `backend-test` job would also delete the process that runs this test. The other three jobs could stay green. Deleting one of those three jobs still fails `backend-test`, because the test file runs there. |
+| Suggested improvement | Run the workflow-structure test in a job that does not depend on `backend-test`, or add a second copy of that check to another job. |
+| Expected benefit | Removing the backend test job cannot silently drop its own guard. |
+| Risk of doing nothing | Low. The job is visible in the workflow file and in review. |
+| Implementation risk | Low. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (review finding; not part of the acceptance criteria) |
+| Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -956,3 +987,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.6.0 | 2026-09-26 | Set `ENG-IMP-017` and `ENG-IMP-018` to IMPLEMENTED because the MVP-002 harness is the resolution those entries named. Added `ENG-IMP-022` (PROPOSED): handbook current-state snapshots still describe the pre-split, pre-harness repository. | Engineering |
 | 0.7.0 | 2026-09-27 | Added `ENG-IMP-023` (PROPOSED), found during MVP-003: nothing runs the outbox dispatcher yet, there is no transport, and dead letters raise no alert. Added `ENG-IMP-024` (PROPOSED): non-blocking helper edge cases from the MVP-003 independent review. | Engineering |
 | 0.8.0 | 2026-09-28 | Noted in `ENG-IMP-022` that Handbook §14 still describes CI as future work after MVP-004. Added `ENG-IMP-025` (PROPOSED): CI does not run `pnpm build`. Added `ENG-IMP-026` (PROPOSED): Actions are referenced by major tag. | Engineering |
+| 0.8.1 | 2026-09-28 | Added `ENG-IMP-027` (PROPOSED) from the MVP-004 review: the workflow-structure test runs only inside the `backend-test` job. | Engineering |
