@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.0 |
-| Last Reviewed | 2026-09-27 |
+| Version | 0.8.0 |
+| Last Reviewed | 2026-09-28 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -129,6 +129,8 @@ Copy this template for each new entry:
 | [ENG-IMP-022](#eng-imp-022-handbook-current-state-snapshots-predate-mvp-001-and-mvp-002) | Handbook current-state snapshots predate MVP-001 and MVP-002 | Documentation | Low | PROPOSED |
 | [ENG-IMP-023](#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting) | Outbox dispatcher has no process runner, transport, or alerting | Reliability, Observability, Architecture | Medium | PROPOSED |
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
+| [ENG-IMP-025](#eng-imp-025-ci-does-not-typecheck-or-build-the-frontend) | CI does not typecheck or build the frontend | CI/CD, Testing | Low | PROPOSED |
+| [ENG-IMP-026](#eng-imp-026-github-actions-are-referenced-by-major-tag) | GitHub Actions are referenced by major tag | CI/CD, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -770,7 +772,7 @@ Copy this template for each new entry:
 | Identified by | Cursor autonomous build, while implementing MVP-002 (GitHub issue #4) |
 | Category | Documentation |
 | Affected subsystem | Documentation |
-| Current state | [Handbook §5.1](engineering-handbook.md#51-current-verified-2026-09-25) still describes `backend/Index.js` as the whole backend. [Handbook §14](engineering-handbook.md#14-testing-strategy) still says no tests exist and that `backend/package.json`'s `test` script is a placeholder that exits 1. |
+| Current state | [Handbook §5.1](engineering-handbook.md#51-current-verified-2026-09-25) still describes `backend/Index.js` as the whole backend. [Handbook §14](engineering-handbook.md#14-testing-strategy) still says no tests exist and that `backend/package.json`'s `test` script is a placeholder that exits 1. After MVP-004, that section also still says CI is future work, while `.github/workflows/ci.yml` exists. |
 | Evidence / problem | MVP-001 split the backend into domain modules. MVP-002's `npm test` runs the smoke suite, and `frontend` has `pnpm test`. A later agent that trusts the handbook's "Current" paragraphs will plan against a repository that no longer exists. The Build Record is the implementation record; the handbook's current-state notes were not refreshed because MVP-002 does not change an engineering standard. |
 | Suggested improvement | Refresh the handbook's "Current" snapshots in one documentation pass after the corresponding build-record sections are verified. Do not change the required standards in the same edit unless a standard actually changed. |
 | Expected benefit | The next implementer does not rebuild the module split or the test harness. |
@@ -850,6 +852,66 @@ Copy this template for each new entry:
 | Related PR | [#60](https://github.com/xela-ash/Music_app/pull/60) |
 | Resolution | — |
 
+### ENG-IMP-025 CI does not typecheck or build the frontend
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-025 |
+| Title | CI does not typecheck or build the frontend |
+| Date identified | 2026-09-28 |
+| Identified by | Cursor autonomous build, while implementing MVP-004 (GitHub issue #6) |
+| Category | CI/CD, Testing |
+| Affected subsystem | Frontend, CI |
+| Current state | `.github/workflows/ci.yml` runs `pnpm lint` and `pnpm test`. It does not run `pnpm build` (`tsc -b && vite build`). |
+| Evidence / problem | MVP-004's work column lists lint, backend test, frontend test, and a migration dry-run. A TypeScript error that ESLint and Vitest do not catch can merge. Local `pnpm build` is still a manual check. |
+| Suggested improvement | Add a frontend job that runs `pnpm build` once a later issue authorizes it. |
+| Expected benefit | Type errors and Vite build failures fail the pull request. |
+| Risk of doing nothing | A merged frontend change can fail the production build. |
+| Implementation risk | Low. The script already exists. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (found during implementation; not part of the acceptance criteria) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-026 GitHub Actions are referenced by major tag
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-026 |
+| Title | GitHub Actions are referenced by major tag |
+| Date identified | 2026-09-28 |
+| Identified by | Cursor autonomous build, while implementing MVP-004 (GitHub issue #6) |
+| Category | CI/CD, Security |
+| Affected subsystem | CI |
+| Current state | `.github/workflows/ci.yml` uses `actions/checkout@v4`, `actions/setup-node@v4`, and `pnpm/action-setup@v4`. |
+| Evidence / problem | A mutable major tag can move to a new commit without a repository change. The workflow grants `contents: read` only, which limits the blast radius, but it does not pin the action source. |
+| Suggested improvement | Pin each action to a full commit SHA and update those pins in a dedicated change. |
+| Expected benefit | CI runs a reviewed action revision. |
+| Risk of doing nothing | A compromised or broken tag update runs on the next pull request. |
+| Implementation risk | Low. Renovate or a manual pin update. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Minor positive once pinned |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A dedicated CI-hardening change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (found during implementation; not part of the acceptance criteria) |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -857,7 +919,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 | Observation | Owner |
 |---|---|
 | `backend/Index.js` and `frontend/src/App.tsx` are single-module tiers | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle); backend: MVP-001 |
-| No automated tests or CI | MVP-002, MVP-004 |
+| Automated tests and CI were absent at the initial review | Closed for the harness by MVP-002 and for the workflow by MVP-004. Remaining coverage gaps stay with the findings that own them, including `SEC-PROJECTS-019` |
 | Unauthenticated `POST /users`, `POST /profiles`, `GET /users` | `SEC-001` / MVP-005; `SEC-AUTHZ-003`, `SEC-AUTH-008` |
 | Open CORS, no rate limiting, no JWT algorithm allowlist, weak secret accepted | `SEC-AUTH-004`, `SEC-AUTH-005`, `SEC-AUTH-009`, `SEC-AUTH-006` ([Authentication](../02-users-roles-permissions/authentication.md)) |
 | Account status not re-checked on protected routes | `SEC-AUTH-002` / MVP-006 |
@@ -893,3 +955,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.5.1 | 2026-09-26 | Noted in `ENG-IMP-008` that the Cloud image pin does not pin the application manifests. Added `ENG-IMP-021` (`PROPOSED`): current corepack releases require Node >= 22.22.2, so they are not part of the Node 22.14.0 image repair. | Engineering |
 | 0.6.0 | 2026-09-26 | Set `ENG-IMP-017` and `ENG-IMP-018` to IMPLEMENTED because the MVP-002 harness is the resolution those entries named. Added `ENG-IMP-022` (PROPOSED): handbook current-state snapshots still describe the pre-split, pre-harness repository. | Engineering |
 | 0.7.0 | 2026-09-27 | Added `ENG-IMP-023` (PROPOSED), found during MVP-003: nothing runs the outbox dispatcher yet, there is no transport, and dead letters raise no alert. Added `ENG-IMP-024` (PROPOSED): non-blocking helper edge cases from the MVP-003 independent review. | Engineering |
+| 0.8.0 | 2026-09-28 | Noted in `ENG-IMP-022` that Handbook §14 still describes CI as future work after MVP-004. Added `ENG-IMP-025` (PROPOSED): CI does not run `pnpm build`. Added `ENG-IMP-026` (PROPOSED): Actions are referenced by major tag. | Engineering |

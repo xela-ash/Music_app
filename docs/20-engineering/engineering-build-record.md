@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.4.1 |
+| Version | 0.5.0 |
 | Last Reviewed | 2026-09-28 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -93,7 +93,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Notifications](#418-notifications) | Not Implemented | [notifications.md](../10-notifications/notifications.md) |
 | [Database and migrations](#419-database-and-migrations) | Implemented | [Governance §17](../00-governance/README.md#17-database-documentation-standards) |
 | [Idempotency, outbox, and inbox](#422-idempotency-outbox-and-inbox) | Partially Implemented (tables and helpers; no domain command uses them yet) | [Projects §24](../05-projects-milestones/projects.md#24-concurrency-and-idempotency), [Milestones §24](../05-projects-milestones/milestones.md#24-concurrency-and-idempotency), [Escrow §22](../06-payments-escrow/escrow.md#22-idempotency-and-concurrency), [Payments §14](../06-payments-escrow/payments.md#14-idempotency-and-concurrency) |
-| [Testing](#420-testing) | Partially Implemented (backend smoke harness and frontend component runner; no CI) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-002 harness, MVP-004 CI |
+| [Testing](#420-testing) | Partially Implemented (backend smoke harness, frontend component runner, and GitHub Actions CI) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-002 harness, MVP-004 CI |
 | [Deployment and infrastructure](#421-deployment-and-infrastructure) | Partially Implemented (local PostgreSQL container only) | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps) |
 
 *Ratings is labeled "Schema Implemented" in [System Architecture §15](../01-foundation/system-architecture.md#15-current-implementation-status-summary) on the strength of the `buyer_rated`/`seller_rated` enum values. This record uses "Not Implemented (enum values only)" because no ratings table exists. That is consistent with [Governance §28](../00-governance/README.md#28-worked-examples-by-domain), which labels only the enum as implemented.*
@@ -104,11 +104,11 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Purpose | Local-first monorepo with two independently installed applications and a containerized database |
 | Implementation status | Implemented for local development |
-| Important files | `README.md` (setup), `docker-compose.yml`, `.gitignore`, `backend/package.json` + `package-lock.json` (npm), `frontend/package.json` + `pnpm-lock.yaml` + `pnpm-workspace.yaml` (pnpm), `AGENTS.md`, `docs/` |
+| Important files | `README.md` (setup), `docker-compose.yml`, `.gitignore`, `.github/workflows/ci.yml`, `backend/package.json` + `package-lock.json` (npm), `frontend/package.json` + `pnpm-lock.yaml` + `pnpm-workspace.yaml` (pnpm), `AGENTS.md`, `docs/` |
 | External dependencies | Docker (PostgreSQL 16 image), Node.js (README: "v20+", no pin), npm, pnpm |
 | Operational considerations | `.env` and `.env.*` are gitignored and `backend/.env.example` is tracked. `.vscode/` is untracked and not part of the repository. Backend `node_modules` stopped being tracked in `d908ed1`. |
-| Known limitations | No shared code between tiers. No workspace-level scripts. No CI (`.github/` absent). No formatter configuration. No toolchain pin ([ENG-IMP-008](engineering-improvements.md#eng-imp-008-toolchain-versions-are-not-pinned)). |
-| Last materially changed | `191b2a0` (2026-07-12), "Stabilize local development setup and automate migrations" |
+| Known limitations | No shared code between tiers. No workspace-level scripts. No formatter configuration. No application-manifest toolchain pin ([ENG-IMP-008](engineering-improvements.md#eng-imp-008-toolchain-versions-are-not-pinned)). CI pins Node.js 22.14.0 and pnpm 12.5.1 for the workflow only. Backend lint is still absent ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)), so the lint job runs `frontend` `pnpm lint` only. |
+| Last materially changed | MVP-004 (2026-09-28): `.github/workflows/ci.yml` |
 
 ### 4.3 Backend application
 
@@ -117,7 +117,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Purpose | HTTP JSON API for authentication, users, profiles, projects, and milestone locking |
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs below |
 | Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
-| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the four files in `backend/test/` listed in [Testing](#420-testing) |
+| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the five files in `backend/test/` listed in [Testing](#420-testing) |
 | Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/src/infrastructure/` (shared idempotency, outbox, and inbox helpers; see [§4.22](#422-idempotency-outbox-and-inbox)), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
 | API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/lock-milestones` (12 total) |
 | Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
@@ -303,10 +303,10 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 
 | Field | Record |
 |---|---|
-| Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
-| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/routes.smoke.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
-| Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
-| Next | MVP-004 adds the CI workflow that runs these commands. |
+| Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. MVP-004 adds `.github/workflows/ci.yml`. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/ci-workflow.test.js` (reads the workflow file; no database), `backend/test/routes.smoke.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. CI runs `pnpm lint`, `pnpm test`, `npm test` against PostgreSQL 16 on port 5433, and `npm run migrate` twice against a disposable database `musicapp_ci_migrate`. |
+| Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. The lint job does not lint the backend ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). CI does not run `pnpm build` ([ENG-IMP-025](engineering-improvements.md#eng-imp-025-ci-does-not-typecheck-or-build-the-frontend)). Action references use major tags ([ENG-IMP-026](engineering-improvements.md#eng-imp-026-github-actions-are-referenced-by-major-tag)). |
+| Next | MVP-006 adds the live account-status re-check. |
 
 ### 4.21 Deployment and infrastructure
 
@@ -314,7 +314,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Implementation status | Partially Implemented: local development only |
 | What exists | `docker-compose.yml` runs one `postgres:16` container (`musicapp_postgres`, port 5432, local development credentials, named volume `postgres_data`). The backend and frontend run as local Node processes. `.cursor/Dockerfile` is the Cursor Cloud Agent image only: Ubuntu 24.04, PostgreSQL 16, Node.js 22.14.0, npm, corepack 0.34.7, and pnpm 12.5.1 ([EDR-002](#edr-002-cloud-agent-node-toolchain)). It is not an application image. |
-| Not present | Application Dockerfiles, hosting configuration, TLS, reverse proxy, CI/CD, environment-specific frontend configuration, observability tooling |
+| Not present | Application Dockerfiles, hosting configuration, TLS, reverse proxy, deployment pipeline, environment-specific frontend configuration, observability tooling. Pull-request CI is present: `.github/workflows/ci.yml` ([EDR-005](#edr-005-pull-request-ci-workflow)). |
 
 ### 4.22 Idempotency, outbox, and inbox
 
@@ -460,6 +460,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | Pull request #60, branch `mvp-003-idempotency-outbox-inbox` |
 | Status | ACTIVE |
 
+### EDR-005 Pull-request CI workflow
+
+| Field | Value |
+|---|---|
+| ID | EDR-005 |
+| Date | 2026-09-28 |
+| Issue | MVP-004 / GitHub issue #6 |
+| Decision | Run four GitHub Actions jobs from `.github/workflows/ci.yml`: frontend `pnpm lint`, frontend `pnpm test`, backend `npm test` against an ephemeral PostgreSQL 16 database named `musicapp_mvp001` on port 5433, and a migration check that applies `npm run migrate` to a disposable database `musicapp_ci_migrate` and then requires a second run to skip every file. |
+| Context | Governance §25 requires review of documentation changes but defines no CI identifier. The plan's work column is `.github/workflows/ci.yml` with lint, backend test, frontend test, and a migration dry-run. `SEC-PROJECTS-019` is the related finding: missing automated coverage lets regressions merge. The backend has no lint script ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)), and the issue forbids inventing one. `migrate.js` has no dry-run flag and commits each file inside that file's own transaction. Backend tests refuse port 5432 and any database name other than `musicapp_mvp001` (`backend/test/database-guard.js`). The Cloud image and [EDR-002](#edr-002-cloud-agent-node-toolchain) already pin Node.js 22.14.0 and pnpm 12.5.1. |
+| Options considered | (1) Add ESLint to the backend so the lint job covers both packages. The issue says that is outside scope. (2) Treat the backend test job's migrate step as the migration check. A migration failure would then be mixed with test failures, and the plan lists the dry-run as its own gate. (3) Add a `--dry-run` mode that parses SQL and rolls back. The runner records applied files only after each file commits, and editing `migrate.js` is not in the work column. (4) Chosen: four jobs, frontend-only lint, and a real apply against a throwaway database. |
+| Chosen approach | `ubuntu-24.04` runners. Node.js 22.14.0. Frontend jobs install with pnpm 12.5.1 and `pnpm install --frozen-lockfile`. Backend jobs use `npm ci`. PostgreSQL is the `postgres:16` service image, matching `docker-compose.yml`. The backend-test job publishes container port 5432 on host port 5433 and sets `DB_NAME=musicapp_mvp001` so the existing guard accepts it. The migration job uses database `musicapp_ci_migrate` on port 5432, which is that job's own container, not a shared developer database. The second migrate must print `skip` lines and `Migrations up to date.` and must not print a line beginning with `apply`. `backend/test/ci-workflow.test.js` fails if any of those four jobs, the isolated database settings, or the disposable migration database disappears from the workflow file. |
+| Why | The acceptance criteria are a failing test failing the workflow and a passing change showing green on every job. Separate jobs make each gate visible. Reusing `musicapp_mvp001` on port 5433 keeps CI on the same isolation rule as `./.cursor/test-backend.sh`. Applying migrations for real is the check this runner can perform; a SQL-only dry-run would not execute the triggers and extensions the files create. |
+| Trade-offs | The lint gate does not inspect backend JavaScript. The migration check does not detect an edited file that is already recorded ([ENG-IMP-001](engineering-improvements.md#eng-imp-001-migration-runner-cannot-detect-edited-migrations-and-records-applied-state-non-atomically)). CI does not run `pnpm build` ([ENG-IMP-025](engineering-improvements.md#eng-imp-025-ci-does-not-typecheck-or-build-the-frontend)). Actions are pinned to major tags ([ENG-IMP-026](engineering-improvements.md#eng-imp-026-github-actions-are-referenced-by-major-tag)). Whether a red check blocks merge depends on the repository ruleset requiring those check names; the workflow file alone cannot change that ruleset. |
+| Affected components | `.github/workflows/ci.yml`, `backend/package.json` (test file list), `backend/test/ci-workflow.test.js` |
+| Reversal / migration considerations | Delete the workflow and the workflow test, and remove the test file from `npm test`. No schema or client contract changes. |
+| Related specification IDs | `SEC-PROJECTS-019`. CI is the gate that finding asks for. It does not by itself close the finding, because domain security behavior is still covered only by the suites each later item adds. |
+| Related PR / commit | Branch `cursor/mvp-004-ci-pipeline-32e3` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -468,6 +487,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-002](#edr-002-cloud-agent-node-toolchain) | Cloud Agent Node toolchain | ACTIVE | 2026-09-26 |
 | [EDR-003](#edr-003-test-runners-and-database-fixture) | Test runners and database fixture | ACTIVE | 2026-09-26 |
 | [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) | Shared idempotency, outbox, and inbox model | ACTIVE | 2026-09-27 |
+| [EDR-005](#edr-005-pull-request-ci-workflow) | Pull-request CI workflow | ACTIVE | 2026-09-28 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -485,6 +505,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-003 | `ENG-IMP-022` | #57 | Branch `mvp-002-automated-test-harness` |
 | 2026-09-27 | MVP-003 / GitHub issue #5 | Added the shared idempotency-key store, transactional outbox with a transport-neutral dispatcher, and inbox deduplication. The migration adds tables only, the helpers run in the caller's transaction, and triggers block deletes and edits to evidence columns. No route or domain command uses them yet. | Backend application, database, testing | 009 | None | None | Database-enforced single effect per idempotency key and per inbound event; immutable, undeletable evidence rows | `backend/test/canonical-json.test.js`, `backend/test/infrastructure.test.js` (every named constraint in migration 009 has a case); `npm test` now runs one file at a time | EDR-004 | `ENG-IMP-023`, `ENG-IMP-024` | #60 | Branch `mvp-003-idempotency-outbox-inbox` |
 | 2026-09-28 | MVP-003 review repair / GitHub issue #5 | Constraint cases that set `completed_at` or `processed_at` now also set `created_at` or `received_at` to the same instant. A fixed completion time against `DEFAULT now()` started failing `*_after_created` / `*_after_received` once that instant was in the past, so PostgreSQL reported the wrong constraint. No schema or helper behavior changed. | Testing | None | None | None | None | `backend/test/infrastructure.test.js` | None | None | #60 | The review-repair commit on `mvp-003-idempotency-outbox-inbox` |
+| 2026-09-28 | MVP-004 / GitHub issue #6 | Added the pull-request CI workflow: frontend lint, frontend test, backend test on isolated PostgreSQL 16, and a disposable-database migration apply plus skip re-run. Backend lint was not added. | Repository tooling, testing | None | None | None | CI gate for `SEC-PROJECTS-019`; no authorization or money-path change | `backend/test/ci-workflow.test.js` | EDR-005 | `ENG-IMP-025`, `ENG-IMP-026` | Branch `cursor/mvp-004-ci-pipeline-32e3` | The MVP-004 commit on that branch |
 
 ## 8. Version history
 
@@ -497,3 +518,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.3.0 | 2026-09-26 | Recorded the MVP-002 harness: testing and backend/frontend test fields, EDR-003, EDR-001's merged pull request, and a change-history row. Section 4's verification stamp is still `2defbea` (`ENG-IMP-020`). | Engineering |
 | 0.4.0 | 2026-09-27 | Recorded MVP-003: new Section 4.22, backend, database, and testing fields, EDR-004, and a change-history row. | Engineering |
 | 0.4.1 | 2026-09-28 | Recorded the MVP-003 constraint-test clock repair. No subsystem behavior changed. | Engineering |
+| 0.5.0 | 2026-09-28 | Recorded MVP-004: CI in Sections 4.2, 4.20, and 4.21, EDR-005, and a change-history row. | Engineering |
