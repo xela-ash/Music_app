@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.5.0 |
+| Version | 0.6.0 |
 | Last Reviewed | 2026-09-28 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -78,7 +78,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Backend application](#43-backend-application) | Partially Implemented (per-domain modules) | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle) |
 | [Frontend application](#44-frontend-application) | Partially Implemented (single module) | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle) |
 | [Authentication](#45-authentication) | Partially Implemented | [authentication.md](../02-users-roles-permissions/authentication.md) |
-| [Authorization](#46-authorization) | Partially Implemented (inline checks) | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
+| [Authorization](#46-authorization) | Partially Implemented (`authorize()` for existing project rules) | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
 | [Users, profiles, and discovery](#47-users-profiles-and-discovery) | Partially Implemented | [users.md](../02-users-roles-permissions/users.md), [profiles.md](../02-users-roles-permissions/profiles.md), [user-settings.md](../03-identity-profiles-verification/user-settings.md) |
 | [Identity verification](#48-identity-verification) | Schema Implemented | [verification.md](../03-identity-profiles-verification/verification.md) |
 | [Assets](#49-assets) | Not Implemented (placeholder columns only) | [assets-and-media.md](../03-identity-profiles-verification/assets-and-media.md) |
@@ -166,10 +166,13 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Canonical specification | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
-| Implementation status | Partially Implemented. There is no central policy function and no roles. |
-| Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, and all `/projects` routes. Relationship checks are inline. `POST /projects` takes the buyer from `req.auth.sub` and never from the body. `GET /projects` filters `buyer_user_id = $1 OR seller_user_id = $1`. Lock-milestones loads the project `FOR UPDATE` and returns the same `404` for missing or not-buyer (`backend/src/milestones/service.js`). Self-dealing is rejected in `backend/src/projects/service.js` and by the `projects_no_self_dealing` constraint. |
-| Known limitations | `POST /users`, `GET /users`, and `POST /profiles` are unauthenticated (`SEC-001`, `SEC-AUTHZ-003`; MVP-005). Checks are duplicated inline (`SEC-AUTHZ-004`; MVP-007). There are no role tables (MVP-008). |
-| Engineering decisions | The concealing-`404` pattern in lock-milestones is documented in its code comment and adopted as the reference pattern in [Handbook §7.3](engineering-handbook.md#73-authorization). |
+| Implementation status | Partially Implemented. `authorize()` decides the existing project create, list, and lock rules. There are no roles, no audit writer, and no policies for routes that do not exist yet. |
+| Entry points | `backend/src/authorization/authorize.js`. `createProject` and `listProjects` call it. `lockMilestones` calls it after `SELECT … FOR UPDATE`. |
+| Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, and all `/projects` routes. Account status is enforced only in `requireAuth` (`BR-AUTHZ-005`). `project.create` denies self-dealing with `400` and an ineligible seller with `404`, and the inserted buyer is `obligations.buyerUserId`. `GET /projects` calls `authorize` for the list action, then filters `buyer_user_id = $1 OR seller_user_id = $1` in SQL. Lock-milestones returns the same `404` for missing or not-buyer, `409` when already locked, and `400` when the project is not draft. The `projects_no_self_dealing` constraint remains. |
+| Known limitations | `POST /users`, `GET /users`, and `POST /profiles` are unauthenticated (`SEC-001`, `SEC-AUTHZ-003`; MVP-005). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). Seller invitation and acceptance are not implemented (`SEC-AUTHZ-007`, MVP-014). There are no role tables (MVP-008). An unknown action fails closed with `403`, and no current route uses that path. |
+| Engineering decisions | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) |
+| Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. |
+| Last materially changed | MVP-007 (2026-09-28) |
 
 ### 4.7 Users, profiles, and discovery
 
@@ -305,7 +308,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
-| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/authorize.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, `backend/test/authorization.http.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
 | Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
 | Next | MVP-004 adds the CI workflow that runs these commands. |
 
@@ -480,6 +483,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | Branch `cursor/mvp-006-live-account-status-32e3` |
 | Status | ACTIVE |
 
+### EDR-007 authorize() for the existing project rules
+
+| Field | Value |
+|---|---|
+| ID | EDR-007 |
+| Date | 2026-09-28 |
+| Issue | MVP-007 / GitHub issue #9 |
+| Decision | One `authorize(actor, action, resource)` function decides the project rules that already exist. Services call it and map a denial to the same HTTP status and `{ error }` body as before. |
+| Context | `SEC-AUTHZ-004`, `REQ-AUTHZ-001`, `REQ-AUTHZ-004`, and `BR-AUTHZ-024` require route policy to go through `INT-AUTHZ-001`. Authorization §10.1 is the evaluation order. §9.2's full decision record and §26's audit writer (`INT-AUTHZ-004`) are Planned, and this issue cites no `AUD-*`. `BR-AUTHZ-005` keeps suspended, disabled, deleted, and archived denial in Authentication. `SEC-AUTHZ-007` (seller acceptance) is a later project item, not a new permission to invent here. The plan names five inline checks. Account-status on `/auth/me` moved to Authentication in MVP-006, so the five that remain are seller eligibility, server-derived buyer identity, participant list scope, lock relationship, and lock state. |
+| Options considered | (1) Return the full §9.2 object now, including audit and step-up fields nothing writes. That adds a product-shaped record this issue does not require. (2) Re-check account status inside `authorize()`. That duplicates `BR-AUTHZ-005` and can disagree with the middleware. (3) Change the non-draft lock response from `400` to the §27 default `409`. The issue requires existing behavior to stay unchanged, and §14.3 records the current `400`. (4) Fetch every project and filter the list in memory through `authorize()`. That breaks `BR-AUTHZ-023`. (5) Chosen: a small decision object, SQL list scope kept, lock evaluated on the locked row. |
+| Chosen approach | Actions are `project.create`, `project.list`, and `project.lock_milestones`. An unknown action or a missing actor fails closed (`403` or `401`). Create denies self-dealing with `400` before it denies an ineligible seller with `404`, and the buyer written to the row is `obligations.buyerUserId`. List with no resource allows the action and obligates participant scope; list with a project allows only a buyer or seller and otherwise returns the concealing `404`. The repository query still applies that scope in SQL. Lock, inside the existing transaction after `FOR UPDATE`, returns `404`, then `409` when `milestones_locked_at` is set, then `400` when `state` is not `draft`. Milestone amount and currency checks stay in the domain service. `authorize` ignores an account-status field on the actor. |
+| Why | Existing protected responses stay the same, and a new route has one function that denies by default. The list stays a scoped query. Lock still revalidates under the row lock (`BR-AUTHZ-029`). |
+| Trade-offs | Create now loads the seller before the self-dealing denial, so a database failure on that lookup returns `500` instead of the previous `400`. A successful self-dealing request is unchanged. The JavaScript participant rule and the list SQL can drift; both are covered by tests. The decision object is not the §9.2 record. EDR-005 is reserved by the unmerged MVP-004 branch, so this record is EDR-007. |
+| Affected components | `backend/src/authorization/authorize.js`, `backend/src/projects/service.js`, `backend/src/projects/repository.js`, `backend/src/milestones/service.js`, `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` |
+| Reversal / migration considerations | Move the conditionals back into the two services. No schema change. |
+| Related specification IDs | `REQ-AUTHZ-001`, `REQ-AUTHZ-004`, `BR-AUTHZ-002`, `BR-AUTHZ-003`, `BR-AUTHZ-005`, `BR-AUTHZ-023`, `BR-AUTHZ-024`, `BR-AUTHZ-029`, `SEC-AUTHZ-004`, `INT-AUTHZ-001` |
+| Related PR / commit | Branch `cursor/mvp-007-authorize-decision-32e3` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -489,6 +511,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-003](#edr-003-test-runners-and-database-fixture) | Test runners and database fixture | ACTIVE | 2026-09-26 |
 | [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) | Shared idempotency, outbox, and inbox model | ACTIVE | 2026-09-27 |
 | [EDR-006](#edr-006-live-account-status-inside-requireauth) | Live account status inside requireAuth | ACTIVE | 2026-09-28 |
+| [EDR-007](#edr-007-authorize-for-the-existing-project-rules) | authorize() for the existing project rules | ACTIVE | 2026-09-28 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -508,6 +531,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-28 | MVP-003 review repair / GitHub issue #5 | Constraint cases that set `completed_at` or `processed_at` now also set `created_at` or `received_at` to the same instant. A fixed completion time against `DEFAULT now()` started failing `*_after_created` / `*_after_received` once that instant was in the past, so PostgreSQL reported the wrong constraint. No schema or helper behavior changed. | Testing | None | None | None | None | `backend/test/infrastructure.test.js` | None | None | #60 | The review-repair commit on `mvp-003-idempotency-outbox-inbox` |
 | 2026-09-28 | MVP-006 / GitHub issue #8 | Every `requireAuth` route reloads `users.status` and rejects a suspended, deleted, or otherwise non-authenticatable account before the handler runs. Login issuance stays `active`-only. No schema change. | Authentication, testing | None | Protected routes now return `401` for a still-valid JWT whose account cannot authenticate. `/auth/me` no longer applies its own status predicate. | None | `SEC-AUTH-002`, `SEC-AUTHZ-002`, `SEC-PROJECTS-002` | `backend/test/account-status.test.js`, `backend/test/live-status.test.js` | EDR-006 | None | Branch `cursor/mvp-006-live-account-status-32e3` | The MVP-006 commit on that branch |
 | 2026-09-28 | MVP-006 review / GitHub issue #8 | Recorded the review's non-blocking HTTP-coverage limit. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-028` | #62 | The review-record commit on `cursor/mvp-006-live-account-status-32e3` |
+| 2026-09-28 | MVP-007 / GitHub issue #9 | Project create, list, and lock decisions go through `authorize()`. HTTP status and error text for those routes stay the same. No schema change, no new permission, and no audit writer. | Authorization, projects, milestones, testing | None | None | None | `SEC-AUTHZ-004` for the five existing project checks. Account-status denial stays in Authentication. | `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` | EDR-007 | None | Branch `cursor/mvp-007-authorize-decision-32e3` | The MVP-007 commit on that branch |
 
 ## 8. Version history
 
@@ -521,3 +545,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.4.0 | 2026-09-27 | Recorded MVP-003: new Section 4.22, backend, database, and testing fields, EDR-004, and a change-history row. | Engineering |
 | 0.4.1 | 2026-09-28 | Recorded the MVP-003 constraint-test clock repair. No subsystem behavior changed. | Engineering |
 | 0.5.0 | 2026-09-28 | Recorded MVP-006: live account-status check inside `requireAuth`, Section 4.5, EDR-006, and a change-history row. | Engineering |
+| 0.6.0 | 2026-09-28 | Recorded MVP-007: `authorize()` for the existing project rules, Section 4.6, EDR-007, and a change-history row. | Engineering |

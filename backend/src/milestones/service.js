@@ -1,6 +1,7 @@
 const pool = require("../../db/db");
 const repository = require("./repository");
 const projectsRepository = require("../projects/repository");
+const { PROJECT_LOCK_MILESTONES, authorize } = require("../authorization/authorize");
 
 // projects.price_amount and project_milestones.amount are PostgreSQL INTEGER
 // columns — values above this would overflow the column at INSERT time
@@ -99,22 +100,17 @@ async function lockMilestones(projectId, actorUserId) {
     const projectResult = await projectsRepository.lockProjectForUpdate(client, projectId);
     const project = projectResult.rows[0];
 
-    // Same safe 404 for "doesn't exist" and "exists but you're not the buyer" —
-    // sellers/unrelated users must not learn a project exists via a different
-    // error shape.
-    if (!project || project.buyer_user_id !== actorUserId) {
+    // Relationship, then already-locked, then draft. Same 404 for a missing
+    // project and a project the actor does not buy. Decided by authorize()
+    // while the row is locked (BR-AUTHZ-029).
+    const lockDecision = authorize(
+      { id: actorUserId },
+      PROJECT_LOCK_MILESTONES,
+      project ?? null
+    );
+    if (!lockDecision.allowed) {
       await client.query("ROLLBACK");
-      return { status: 404, body: { error: "Project not found" } };
-    }
-
-    if (project.milestones_locked_at !== null) {
-      await client.query("ROLLBACK");
-      return { status: 409, body: { error: "Project milestones are already locked" } };
-    }
-
-    if (project.state !== "draft") {
-      await client.query("ROLLBACK");
-      return { status: 400, body: { error: "Only draft projects can lock milestones" } };
+      return { status: lockDecision.status, body: { error: lockDecision.error } };
     }
 
     const milestonesResult = await repository.listMilestonesForProject(client, projectId);

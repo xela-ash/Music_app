@@ -43,6 +43,9 @@ function insertProject(db, values) {
   );
 }
 
+// Participant scope is the project.list rule in authorize.js. This query is
+// the database-level enforcement of that rule (BR-AUTHZ-023): it does not
+// load every project and filter in memory.
 function listProjectsForParticipant(db, userId) {
   return db.query(
     `SELECT
