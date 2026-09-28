@@ -22,10 +22,6 @@ function jobBlock(yaml, jobId) {
 }
 
 describe("MVP-004 CI workflow (SEC-PROJECTS-019 gate)", () => {
-  it("deliberate failure to prove a red test fails the workflow", () => {
-    assert.equal(1, 0);
-  });
-
   it("defines separate lint, frontend test, backend test, and migration dry-run jobs", () => {
     const yaml = fs.readFileSync(workflowPath, "utf8");
     const lint = jobBlock(yaml, "lint");
