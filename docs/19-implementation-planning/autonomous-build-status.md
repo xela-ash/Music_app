@@ -12,8 +12,8 @@ Operational status for the autonomous implementation loop. This file is not a pr
 | Next dependency-ready items | `MVP-007` (issue #9) is READY. `MVP-004` remains open on the ruleset permission and does not block `MVP-007`. |
 | Human-decision blockers | `MVP-005`, `MVP-027`, `MVP-044`, `MVP-052`. `MVP-008` and `MVP-030` remain gated sub-scopes. |
 | External-dependency blockers | `MVP-009` needs an email provider. `MVP-010`, `MVP-025`, and `MVP-043` have no provider; their acceptance criteria allow a local or mock adapter once dependencies merge. |
-| Latest completed tests | 2026-09-28 for `MVP-007` before review: `./.cursor/test-backend.sh` 85 pass, 0 fail. Frontend `pnpm test` 4 pass, `pnpm lint` exit 0. |
-| Active PR | #61 for `MVP-004`, not merged. `MVP-007` branch `cursor/mvp-007-authorize-decision-32e3` is the implementation branch; the pull request is opened from that branch. |
+| Latest completed tests | 2026-09-28 for `MVP-007` after the list-scope repair: `./.cursor/test-backend.sh` 86 pass, 0 fail. Frontend `pnpm test` 4 pass, `pnpm lint` exit 0. |
+| Active PR | #64 for `MVP-007`, draft, branch `cursor/mvp-007-authorize-decision-32e3`. #61 for `MVP-004` remains unmerged on the ruleset permission. |
 | Last successful run timestamp | 2026-09-28 |
 | Human intervention required | Yes, only to require the four CI checks on ruleset `24033491`, or to grant ruleset write permission. That does not block `MVP-007`. |
 | User-testable checkpoint | None. Account suspension has no UI control. The live-status check is API-level: a still-valid token for a suspended or deleted account receives `401` on every authenticated route. |

@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { participantWhereSql } = require("../authorization/authorize");
 
 const SAFE_PROJECT_FIELDS = `
   id, external_id, buyer_user_id, seller_user_id, title, requirements,
@@ -43,10 +44,19 @@ function insertProject(db, values) {
   );
 }
 
-// Participant scope is the project.list rule in authorize.js. This query is
-// the database-level enforcement of that rule (BR-AUTHZ-023): it does not
-// load every project and filter in memory.
-function listProjectsForParticipant(db, userId) {
+// The WHERE clause is the project.list obligation from authorize(). This
+// query does not load every project and filter in memory (BR-AUTHZ-023).
+function listProjectsForParticipant(db, scope) {
+  const whereSql = participantWhereSql("pr");
+  if (
+    !scope ||
+    scope.scope !== "participant" ||
+    scope.whereSql !== whereSql ||
+    !Array.isArray(scope.params) ||
+    scope.params.length !== 1
+  ) {
+    throw new Error("project.list requires the participant scope from authorize()");
+  }
   return db.query(
     `SELECT
        ${SAFE_PROJECT_FIELDS_JOINED},
@@ -61,9 +71,9 @@ function listProjectsForParticipant(db, userId) {
      FROM projects pr
      JOIN profiles bp ON bp.user_id = pr.buyer_user_id
      JOIN profiles sp ON sp.user_id = pr.seller_user_id
-     WHERE pr.buyer_user_id = $1 OR pr.seller_user_id = $1
+     WHERE ${whereSql}
      ORDER BY pr.created_at DESC`,
-    [userId]
+    scope.params
   );
 }
 

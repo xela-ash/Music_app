@@ -19,6 +19,18 @@ const PROJECT_CREATE = "project.create";
 const PROJECT_LIST = "project.list";
 const PROJECT_LOCK_MILESTONES = "project.lock_milestones";
 
+// Columns that make an actor a project participant. The list query and the
+// single-project relationship check both use this list, so they cannot drift.
+const PARTICIPANT_COLUMNS = ["buyer_user_id", "seller_user_id"];
+
+function participantWhereSql(alias) {
+  return PARTICIPANT_COLUMNS.map((column) => `${alias}.${column} = $1`).join(" OR ");
+}
+
+function isProjectParticipant(actorId, project) {
+  return PARTICIPANT_COLUMNS.some((column) => project[column] === actorId);
+}
+
 function deny(status, error) {
   return { allowed: false, status, error };
 }
@@ -45,15 +57,15 @@ function authorizeProjectCreate(actor, resource) {
   return allow({ buyerUserId: actor.id });
 }
 
-function isProjectParticipant(actor, project) {
-  return project.buyer_user_id === actor.id || project.seller_user_id === actor.id;
-}
-
 function authorizeProjectList(actor, resource) {
   if (resource == null) {
-    return allow({ scope: "participant" });
+    return allow({
+      scope: "participant",
+      whereSql: participantWhereSql("pr"),
+      params: [actor.id],
+    });
   }
-  if (isProjectParticipant(actor, resource)) {
+  if (isProjectParticipant(actor.id, resource)) {
     return allow();
   }
   return deny(404, "Project not found");
@@ -95,5 +107,6 @@ module.exports = {
   PROJECT_CREATE,
   PROJECT_LIST,
   PROJECT_LOCK_MILESTONES,
+  participantWhereSql,
   authorize,
 };

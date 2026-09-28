@@ -168,7 +168,7 @@ async function listProjects(actorUserId) {
     if (!listDecision.allowed) {
       return { status: listDecision.status, body: { error: listDecision.error } };
     }
-    const result = await repository.listProjectsForParticipant(pool, actorUserId);
+    const result = await repository.listProjectsForParticipant(pool, listDecision.obligations);
 
     const projects = result.rows.map((row) => ({
       id: row.id,

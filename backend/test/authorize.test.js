@@ -6,6 +6,7 @@ const {
   PROJECT_LOCK_MILESTONES,
   authorize,
 } = require("../src/authorization/authorize");
+const projectsRepository = require("../src/projects/repository");
 
 const BUYER = "11111111-1111-4111-8111-111111111111";
 const SELLER = "22222222-2222-4222-8222-222222222222";
@@ -54,17 +55,43 @@ describe("authorize project.create (BR-AUTHZ-024)", () => {
 describe("authorize project.list (BR-AUTHZ-023)", () => {
   const project = { buyer_user_id: BUYER, seller_user_id: SELLER };
 
-  it("allows the list action with a participant scope obligation", () => {
+  it("allows the list action with the participant SQL the repository must run", () => {
     const decision = authorize(actor(BUYER), PROJECT_LIST, null);
-    assert.deepEqual(decision, {
-      allowed: true,
-      obligations: { scope: "participant" },
-    });
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.obligations.scope, "participant");
+    assert.equal(
+      decision.obligations.whereSql,
+      "pr.buyer_user_id = $1 OR pr.seller_user_id = $1"
+    );
+    assert.deepEqual(decision.obligations.params, [BUYER]);
   });
 
   it("allows the buyer and the seller to read the project", () => {
     assert.equal(authorize(actor(BUYER), PROJECT_LIST, project).allowed, true);
     assert.equal(authorize(actor(SELLER), PROJECT_LIST, project).allowed, true);
+  });
+
+  it("runs that obligation SQL and rejects a different scope", async () => {
+    const decision = authorize(actor(BUYER), PROJECT_LIST, null);
+    let captured;
+    const db = {
+      query(sql, params) {
+        captured = { sql, params };
+        return Promise.resolve({ rows: [] });
+      },
+    };
+    await projectsRepository.listProjectsForParticipant(db, decision.obligations);
+    assert.match(captured.sql, /WHERE pr\.buyer_user_id = \$1 OR pr\.seller_user_id = \$1/);
+    assert.deepEqual(captured.params, [BUYER]);
+    assert.throws(
+      () =>
+        projectsRepository.listProjectsForParticipant(db, {
+          scope: "participant",
+          whereSql: "true",
+          params: [BUYER],
+        }),
+      /participant scope from authorize/
+    );
   });
 
   it("conceals the project from a non-participant", () => {
