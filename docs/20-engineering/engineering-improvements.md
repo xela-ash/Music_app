@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.0 |
-| Last Reviewed | 2026-09-27 |
+| Version | 0.7.1 |
+| Last Reviewed | 2026-09-28 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -129,6 +129,7 @@ Copy this template for each new entry:
 | [ENG-IMP-022](#eng-imp-022-handbook-current-state-snapshots-predate-mvp-001-and-mvp-002) | Handbook current-state snapshots predate MVP-001 and MVP-002 | Documentation | Low | PROPOSED |
 | [ENG-IMP-023](#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting) | Outbox dispatcher has no process runner, transport, or alerting | Reliability, Observability, Architecture | Medium | PROPOSED |
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
+| [ENG-IMP-028](#eng-imp-028-future-authenticatable-statuses-are-not-covered-by-an-http-test) | Future authenticatable statuses are not covered by an HTTP test | Testing | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -850,6 +851,36 @@ Copy this template for each new entry:
 | Related PR | [#60](https://github.com/xela-ash/Music_app/pull/60) |
 | Resolution | — |
 
+### ENG-IMP-028 Future authenticatable statuses are not covered by an HTTP test
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-028 |
+| Title | Future authenticatable statuses are not covered by an HTTP test |
+| Date identified | 2026-09-28 |
+| Identified by | Independent review of MVP-006 pull request #62, commit `6ec173c` |
+| Category | Testing |
+| Affected subsystem | Authentication, Testing |
+| Current state | `accountMayAuthenticate` allows `restricted` and `email_verification_pending`. `backend/test/account-status.test.js` covers that function. `backend/test/live-status.test.js` covers `active`, `suspended`, and `deleted` over HTTP. The `user_status` enum does not contain the two future labels. |
+| Evidence / problem | An HTTP test would still pass if `requireLiveStatus` compared the row to `active` alone. Those labels cannot be stored until a later migration, and MVP-006 forbids a schema change, so this pull request cannot add the HTTP allow-case. The middleware does call `accountMayAuthenticate`. IDs `ENG-IMP-025` through `ENG-IMP-027` are used on the unmerged MVP-004 branch, so this entry is `028`. |
+| Suggested improvement | When a migration adds `restricted` or `email_verification_pending`, add an HTTP test that a token for that row is accepted on a protected route. |
+| Expected benefit | The allow list cannot drift from the middleware without a failing request test. |
+| Risk of doing nothing | Low until the enum grows. |
+| Implementation risk | Low. It needs the enum values first. |
+| Estimated scope | S |
+| Dependencies | A later migration that adds those `user_status` values |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The migration that adds the enum values |
+| Status | PROPOSED |
+| Related GitHub Issue | [#8](https://github.com/xela-ash/Music_app/issues/8) (review finding; not part of the acceptance criteria) |
+| Related PR | [#62](https://github.com/xela-ash/Music_app/pull/62) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -860,7 +891,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 | No automated tests or CI | MVP-002, MVP-004 |
 | Unauthenticated `POST /users`, `POST /profiles`, `GET /users` | `SEC-001` / MVP-005; `SEC-AUTHZ-003`, `SEC-AUTH-008` |
 | Open CORS, no rate limiting, no JWT algorithm allowlist, weak secret accepted | `SEC-AUTH-004`, `SEC-AUTH-005`, `SEC-AUTH-009`, `SEC-AUTH-006` ([Authentication](../02-users-roles-permissions/authentication.md)) |
-| Account status not re-checked on protected routes | `SEC-AUTH-002` / MVP-006 |
+| Account status was not re-checked on protected routes | Current `requireAuth` routes reload `users.status` in MVP-006. `SEC-AUTH-002` stays in `authentication.md` until Product/Architecture updates that document. |
 | JWT in `localStorage` | `SEC-USERS-005`; [Authentication §19.3](../02-users-roles-permissions/authentication.md#193-browser-token-delivery--target-vs-current) |
 | `err.detail` echoed in error responses | [Authentication §22](../02-users-roles-permissions/authentication.md#22-failure-handling) |
 | `RETURNING *` returns full Profile rows | [Profiles](../02-users-roles-permissions/profiles.md) findings |
@@ -893,3 +924,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.5.1 | 2026-09-26 | Noted in `ENG-IMP-008` that the Cloud image pin does not pin the application manifests. Added `ENG-IMP-021` (`PROPOSED`): current corepack releases require Node >= 22.22.2, so they are not part of the Node 22.14.0 image repair. | Engineering |
 | 0.6.0 | 2026-09-26 | Set `ENG-IMP-017` and `ENG-IMP-018` to IMPLEMENTED because the MVP-002 harness is the resolution those entries named. Added `ENG-IMP-022` (PROPOSED): handbook current-state snapshots still describe the pre-split, pre-harness repository. | Engineering |
 | 0.7.0 | 2026-09-27 | Added `ENG-IMP-023` (PROPOSED), found during MVP-003: nothing runs the outbox dispatcher yet, there is no transport, and dead letters raise no alert. Added `ENG-IMP-024` (PROPOSED): non-blocking helper edge cases from the MVP-003 independent review. | Engineering |
+| 0.7.1 | 2026-09-28 | Added `ENG-IMP-028` (PROPOSED) from the MVP-006 review: `restricted` and `email_verification_pending` have no HTTP allow-case until the enum contains them. | Engineering |

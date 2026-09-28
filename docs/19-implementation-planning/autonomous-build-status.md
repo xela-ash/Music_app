@@ -7,7 +7,7 @@ Operational status for the autonomous implementation loop. This file is not a pr
 | Total MVP work items | 52 (`MVP-001`–`MVP-052`) |
 | Completed/merged items | 3 / 52. `MVP-001` (#56), `MVP-002` (#57), `MVP-003` (#60, issue #5 closed) |
 | Currently active item | `MVP-006` — Live account-status re-check middleware (GitHub issue #8) |
-| Current phase | BUILD on `cursor/mvp-006-live-account-status-32e3` |
+| Current phase | REVIEWED. No blocking defect on `6ec173c`. This commit records `ENG-IMP-028` only. Squash-merge of #62 is next. |
 | Blocked item left open | `MVP-004` pull request #61. The workflow is implemented. A deliberate failing test failed `backend-test` (Actions run 36413806267) while the other three jobs passed. GitHub still reported that head `MERGEABLE` / `UNSTABLE`. Updating ruleset `24033491` returned HTTP 403. Do not merge #61 until `lint`, `frontend-test`, `backend-test`, and `migration-dry-run` are required checks. |
 | Next dependency-ready items | After `MVP-006` merges: `MVP-007` (issue #9). `MVP-004` stays blocked on the ruleset permission. |
 | Human-decision blockers | `MVP-005`, `MVP-027`, `MVP-044`, `MVP-052`. `MVP-008` and `MVP-030` remain gated sub-scopes. |
