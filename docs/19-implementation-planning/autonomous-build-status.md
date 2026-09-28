@@ -13,7 +13,7 @@ Operational status for the autonomous implementation loop. This file is not a pr
 | Human-decision blockers | `MVP-005`, `MVP-027`, `MVP-044`, `MVP-052`. `MVP-008` and `MVP-030` remain gated sub-scopes. |
 | External-dependency blockers | `MVP-009` needs an email provider. `MVP-010`, `MVP-025`, and `MVP-043` have no provider; their acceptance criteria allow a local or mock adapter once dependencies merge. |
 | Latest completed tests | 2026-09-28 on `cursor/mvp-006-live-account-status-32e3`: `./.cursor/test-backend.sh` 69 pass, 0 fail. Frontend `pnpm test` 4 pass, `pnpm lint` exit 0. No frontend code changed. |
-| Active PR | #61 for `MVP-004` (not merged). No pull request yet for `MVP-006`. |
+| Active PR | #62 for `MVP-006` — https://github.com/xela-ash/Music_app/pull/62 . #61 for `MVP-004` remains open and unmerged. |
 | Last successful run timestamp | 2026-09-28 |
 | Human intervention required | Yes, only to require the four CI checks on ruleset `24033491`, or to grant ruleset write permission. That does not block `MVP-006`. |
 | User-testable checkpoint | None yet. Account suspension has no UI control; the check is API-level. |
