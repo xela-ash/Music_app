@@ -5,20 +5,22 @@ Operational status for the autonomous implementation loop. This file is not a pr
 | Field | Value |
 |---|---|
 | Total MVP work items | 52 (`MVP-001`–`MVP-052`) |
-| Completed/merged items | 2 before this item: `MVP-001` Backend module decomposition scaffold (pull request #56, merge `1952e82`) and `MVP-002` Automated test harness (pull request #57, squash `069ab04`) |
-| Currently active item | `MVP-003` — Shared idempotency/outbox/inbox infrastructure (GitHub issue #5) |
-| Current phase | REVIEWING, then MERGING under `AGENTS.md` Section 5.1 (AUTONOMOUS-READY) |
-| Next dependency-ready items | After `MVP-003` merges: `MVP-004` (issue #6, CI pipeline) and `MVP-006` (issue #8, the next critical-path item). Recommended next issue: `MVP-004`, which the plan's first-ten order lists next. |
-| Human-decision blockers | `MVP-005` (legacy direct-creation routes), `MVP-027` (fee schedule), `MVP-044` (rating scale), `MVP-052` (payout schedule). `MVP-008` bootstrap and `MVP-030` partial-performance compensation remain gated sub-scopes; those issues are not fully blocked. |
-| External-dependency blockers | `MVP-009` is blocked on an email provider. `MVP-010`, `MVP-025`, and `MVP-043` still have no provider, and their acceptance criteria allow a local or mock adapter once their dependencies merge. |
-| Latest completed tests | 2026-09-27 on branch `mvp-003-idempotency-outbox-inbox`, after the review repairs, against a freshly created test database: `./.cursor/test-backend.sh` 60 pass, 0 fail (21 existing plus 39 new). Every named constraint in migration 009 has a test case. Frontend: `pnpm test` 4 pass, `pnpm lint` exit 0, `pnpm build` exit 0. There are no frontend or dependency changes. |
-| Active PR | #60 — https://github.com/xela-ash/Music_app/pull/60 |
-| Last successful run timestamp | 2026-09-27 |
-| What was completed | Migration 009 (`idempotency_keys`, `outbox_messages`, `inbox_events` and their protection triggers), the helpers in `backend/src/infrastructure/`, unit, constraint, concurrency, and property tests, EDR-004, `ENG-IMP-023`, and `ENG-IMP-024`. |
-| What remains | Independent review, then squash-merge. No domain command uses the infrastructure yet. Each later item wires its own commands, and `ENG-IMP-023` records that nothing runs the dispatcher yet. |
+| Completed/merged items | 3 / 52. `MVP-001` (pull request #56), `MVP-002` (pull request #57, `069ab04`), `MVP-003` (pull request #60, `6c3dda0`, issue #5 closed) |
+| Currently active item | `MVP-004` — CI pipeline (GitHub issue #6) |
+| Current phase | BLOCKED on a repository permission. The workflow is implemented. A failing test fails `backend-test`, but GitHub still reports the pull request MERGEABLE because the ruleset does not require the checks and this token cannot update rulesets (HTTP 403). |
+| Next dependency-ready items | `MVP-006` (issue #8) is in pull request #62. It does not wait on this ruleset. |
+| Human-decision blockers | `MVP-005` (legacy direct-creation routes), `MVP-027` (fee schedule), `MVP-044` (rating scale), `MVP-052` (payout schedule). `MVP-008` bootstrap and `MVP-030` partial-performance compensation remain gated sub-scopes. |
+| External-dependency blockers | `MVP-009` is blocked on an email provider. `MVP-010`, `MVP-025`, and `MVP-043` still have no provider. Their acceptance criteria allow a local or mock adapter once their dependencies merge. |
+| Latest completed tests | Local, before the pull request: `./.cursor/test-backend.sh` 63 pass, 0 fail; frontend `pnpm test` 4 pass, `pnpm lint` exit 0, `pnpm build` exit 0. GitHub Actions on `dea7ad8`: all four jobs passed (run 36413566852). On `36432fc` a deliberate `assert.equal(1, 0)` failed only `backend-test` (run 36413806267). At that red head, `mergeable` was `MERGEABLE` and `mergeStateStatus` was `UNSTABLE`. |
+| Active PR | #61 — https://github.com/xela-ash/Music_app/pull/61 |
+| Last successful run timestamp | 2026-09-28 (recovery). `MVP-003` is merged. This file previously said that pull request was still merging. |
+| What was completed | The CI workflow, `backend/test/ci-workflow.test.js`, EDR-005, and the red-then-green Actions evidence. The deliberate `assert.equal(1, 0)` was removed. Head `6416fdb` is green on all four jobs. |
+| What remains | Do not restore the deliberate failure. Independent review of `00e9d7b` found that instruction was a defect and this commit removes it. Merge stays blocked until an admin adds required status checks named `lint`, `frontend-test`, `backend-test`, and `migration-dry-run` to ruleset `24033491` ("Protect main — autonomous build"), or grants ruleset write permission. |
+| Human intervention required | Yes, for the ruleset only. Other dependency-ready autonomous items can continue. |
+| User-testable checkpoint | None. CI does not change the Buyer or Seller UI. |
 
 ## This run
 
-The trigger was the merge event for pull request #57 (`MVP-002`). Recovery found `main` at `069ab04`, no open pull requests, and `MVP-003`, `MVP-004`, and `MVP-006` dependency-ready. This run took `MVP-003`, the plan's next recommended item, whose only dependency (`MVP-001`) is merged.
+Recovery on 2026-09-28 found `origin/main` at `6c3dda0`, pull request #60 MERGED, issue #5 CLOSED, and no open pull request. The issue index already listed `MVP-003` as MERGED. This file did not. `MVP-004` (issue #6) is the next AUTONOMOUS-READY item in the plan's first-ten order. Its dependency `MVP-002` is merged.
 
-Independent review of head `033d3cc` found one blocking defect: 18 of the 33 named constraints had no database-constraint test (Handbook §14.1). This run repaired it. Every constraint now has a case, and the `rejects` helper asserts the constraint name. The review's non-blocking points are fixed where they touched this item's own new code (the first call and a replay now return the same JSON body, and an inbox re-entry throws). Otherwise they are recorded in EDR-004, `ENG-IMP-023`, and `ENG-IMP-024`. The issue index shows `MVP-003` as MERGED. That row becomes true only when this pull request merges.
+The workflow is in pull request #61. Actions run 36413566852 passed all four jobs on `dea7ad8`. Actions run 36413806267 failed only `backend-test` on `36432fc` because of a deliberate `assert.equal(1, 0)`. GitHub still reported that red head as `MERGEABLE` / `UNSTABLE`. `PUT` of ruleset `24033491` returned HTTP 403, so the required-check gate is not installed. `MVP-006` can proceed while this pull request waits for that permission.

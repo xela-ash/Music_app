@@ -7,7 +7,7 @@
     "start": "node Index.js",
     "dev": "node --watch Index.js",
     "migrate": "node db/migrate.js",
-    "test": "node --test --test-concurrency=1 test/database-guard.test.js test/canonical-json.test.js test/routes.smoke.test.js test/infrastructure.test.js"
+    "test": "node --test --test-concurrency=1 test/database-guard.test.js test/canonical-json.test.js test/ci-workflow.test.js test/routes.smoke.test.js test/infrastructure.test.js"
   },
   "keywords": [],
   "author": "",
