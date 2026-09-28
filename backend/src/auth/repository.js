@@ -24,7 +24,11 @@ function findLoginByEmail(db, email) {
   );
 }
 
-function findActiveUserById(db, userId) {
+function findUserStatusById(db, userId) {
+  return db.query(`SELECT id, status FROM users WHERE id = $1`, [userId]);
+}
+
+function findUserWithProfileById(db, userId) {
   return db.query(
     `SELECT
        u.id, u.external_id, u.email, u.phone_e164, u.status, u.created_at,
@@ -35,7 +39,7 @@ function findActiveUserById(db, userId) {
        p.created_at AS profile_created_at, p.updated_at AS profile_updated_at
      FROM users u
      JOIN profiles p ON p.user_id = u.id
-     WHERE u.id = $1 AND u.status = 'active'::user_status`,
+     WHERE u.id = $1`,
     [userId]
   );
 }
@@ -43,5 +47,6 @@ function findActiveUserById(db, userId) {
 module.exports = {
   insertCredentials,
   findLoginByEmail,
-  findActiveUserById,
+  findUserStatusById,
+  findUserWithProfileById,
 };

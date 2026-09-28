@@ -201,7 +201,7 @@ async function login(body) {
 
 async function currentUser(userId) {
   try {
-    const result = await repository.findActiveUserById(pool, userId);
+    const result = await repository.findUserWithProfileById(pool, userId);
 
     const row = result.rows[0];
 
