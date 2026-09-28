@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.4.1 |
+| Version | 0.5.0 |
 | Last Reviewed | 2026-09-28 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -117,7 +117,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Purpose | HTTP JSON API for authentication, users, profiles, projects, and milestone locking |
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs below |
 | Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
-| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the four files in `backend/test/` listed in [Testing](#420-testing) |
+| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the files in `backend/test/` listed in [Testing](#420-testing) |
 | Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/src/infrastructure/` (shared idempotency, outbox, and inbox helpers; see [§4.22](#422-idempotency-outbox-and-inbox)), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
 | API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/lock-milestones` (12 total) |
 | Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
@@ -154,11 +154,12 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Implementation status | Partially Implemented: signup, login, current-user lookup, and bearer-token middleware |
 | API routes | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me` in `backend/src/auth/` |
 | Database tables | `users`, `profiles`, `auth_credentials` (migration 007: `password_hash`, `password_changed_at`) |
-| How it works | **Signup** validates input, including a password length of 8 characters to 72 bytes (the bcrypt limit). It hashes with `bcryptjs` cost 12, then inserts the `users`, `profiles`, and `auth_credentials` rows in one transaction and returns `201 { user, profile }` without issuing a token. **Login** looks up an `active` user by case-insensitive email joined to profile and credentials, compares with bcrypt, and returns the same `401 "Invalid email or password"` whether the email is unknown or the password is wrong. On success it signs a JWT (`sub`, `external_id`, `profile_id`, `status`; issuer `musicapp-api`, audience `musicapp-web`, expiry `JWT_EXPIRES_IN`, default `7d`). **`requireAuth`** in `backend/src/auth/routes.js` accepts only `Bearer <token>` and verifies signature, issuer, and audience. **`/auth/me`** re-reads the user and requires `status = 'active'`. |
+| How it works | **Signup** validates input, including a password length of 8 characters to 72 bytes (the bcrypt limit). It hashes with `bcryptjs` cost 12, then inserts the `users`, `profiles`, and `auth_credentials` rows in one transaction and returns `201 { user, profile }` without issuing a token. **Login** looks up an `active` user by case-insensitive email joined to profile and credentials, compares with bcrypt, and returns the same `401 "Invalid email or password"` whether the email is unknown, the password is wrong, or the account is not `active`. On success it signs a JWT (`sub`, `external_id`, `profile_id`, `status`; issuer `musicapp-api`, audience `musicapp-web`, expiry `JWT_EXPIRES_IN`, default `7d`). **`requireAuth`** in `backend/src/auth/routes.js` accepts only `Bearer <token>`, verifies signature, issuer, and audience, then calls **`requireLiveStatus`**. That loads `users.status` by `sub` and rejects the request with `401 { error: "Unauthorized" }` unless `accountMayAuthenticate` allows it (`backend/src/auth/account-status.js`: `active`, `restricted`, `email_verification_pending`). A missing row or a non-UUID `sub` is the same `401`. The live status replaces the token's `status` claim on `req.auth`. **`/auth/me`** re-reads the user and profile and no longer repeats the status predicate. |
 | Frontend components | `LoginForm`, `SignupForm`, the `App` bootstrap |
 | Security controls | bcrypt, a uniform login failure message, a fail-fast missing secret, and issuer/audience checks |
-| Known limitations | Owned by the spec: no live status check on routes other than `/auth/me` (`SEC-AUTH-002`, MVP-006), no algorithm allowlist (`SEC-AUTH-009`), no rate limiting (`SEC-AUTH-005`), no revocation or refresh, login by email only, no password reset or email verification (MVP-009). |
-| Last materially changed | `395396c` (2026-07-15), "feat: complete authentication foundation" |
+| Known limitations | No algorithm allowlist (`SEC-AUTH-009`), no rate limiting (`SEC-AUTH-005`), no authentication-version comparison (Authentication §12.3 step 7; the column is not implemented), no revocation or refresh, login by email only, no password reset or email verification (MVP-009). `restricted` and `email_verification_pending` are not in the `user_status` enum, so only `active` can pass the middleware until a later migration adds them. |
+| Engineering decisions | [EDR-006](#edr-006-live-account-status-inside-requireauth) |
+| Last materially changed | MVP-006 (2026-09-28) |
 
 ### 4.6 Authorization
 
@@ -304,7 +305,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
-| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/routes.smoke.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
 | Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
 | Next | MVP-004 adds the CI workflow that runs these commands. |
 
@@ -460,6 +461,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | Pull request #60, branch `mvp-003-idempotency-outbox-inbox` |
 | Status | ACTIVE |
 
+### EDR-006 Live account status inside requireAuth
+
+| Field | Value |
+|---|---|
+| ID | EDR-006 |
+| Date | 2026-09-28 |
+| Issue | MVP-006 / GitHub issue #8 |
+| Decision | `requireAuth` calls `requireLiveStatus` after a successful JWT verification. The live check loads `users.id` and `users.status` and allows only the account statuses Authentication §8.1 says may authenticate. |
+| Context | `SEC-AUTH-002`, `SEC-AUTHZ-002`, and `SEC-PROJECTS-002` are the same gap: four protected routes trusted a still-valid JWT. `REQ-AUTH-004`, `BR-AUTH-019`, and Authentication §12.3 require one shared middleware, in order, and forbid handlers from recreating the status check. `BR-AUTH-006` allows `Restricted` and denies `Suspended`, `Disabled`, `Deleted`, and `Archived`. The plan's acceptance text says `user_status = active`. The specification also allows `Restricted` and `Email Verification Pending`. The enum today is only `active`, `suspended`, and `deleted`. Step 7 of §12.3, the authentication-version comparison, has no column. No route sets `suspended` or `deleted`. |
+| Options considered | (1) Compare status to `active` only. That matches the plan sentence and rejects `Restricted`, which §12.3 and `BR-AUTH-006` forbid. (2) Put a copy of the status query in each route. That repeats the duplication `BR-AUTH-019` exists to stop. (3) Add `auth_version` in this change. The plan specifies no schema change, and §12.3 says the comparison happens once that mechanism exists. (4) Chosen: one allow-list function, invoked from `requireAuth`, with no schema change. |
+| Chosen approach | `backend/src/auth/account-status.js` allows `active`, `restricted`, and `email_verification_pending`. Any other value, including `suspended`, `disabled`, `deleted`, `archived`, and a missing row, is `401 { error: "Unauthorized" }`. A `sub` that is not a UUID (`22P02`) is the same `401`. `requireLiveStatus` replaces `req.auth.status` with the database value. Login still requires `status = 'active'` in `findLoginByEmail`, because login is issuance, not a protected request, and a non-active account must not receive a new token. `/auth/me` no longer filters on status. The seller lookup in `findActiveSellerWithProfile` is unchanged. |
+| Why | Every current `requireAuth` route gets the check without a second call site to forget. The allow list follows §8.1 rather than the narrower plan sentence, and the two future labels do nothing until a migration adds them to the enum. The `401` body matches the existing unauthorized response, so a suspended account is not distinguishable from an invalid token. |
+| Trade-offs | `email_verification_pending` is a label this code chose by snake_case convention. The specification does not name the enum literal. A later migration must use that literal or change this allow list in the same change. Authentication version is still not checked. Login remains `active`-only, which is stricter than the middleware allow list and matches the current issuance query. |
+| Affected components | `backend/src/auth/routes.js`, `backend/src/auth/account-status.js`, `backend/src/auth/repository.js`, `backend/src/auth/service.js` |
+| Reversal / migration considerations | Remove the `requireLiveStatus` call from `requireAuth` and restore the `status = 'active'` predicate on the `/auth/me` query. No schema change to reverse. |
+| Related specification IDs | `REQ-AUTH-004`, `BR-AUTH-006`, `BR-AUTH-019`, `BR-AUTHZ-005`, `SEC-AUTH-002`, `SEC-AUTHZ-002`, `SEC-PROJECTS-002`, `INT-AUTH-004` |
+| Related PR / commit | Branch `cursor/mvp-006-live-account-status-32e3` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -468,6 +488,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-002](#edr-002-cloud-agent-node-toolchain) | Cloud Agent Node toolchain | ACTIVE | 2026-09-26 |
 | [EDR-003](#edr-003-test-runners-and-database-fixture) | Test runners and database fixture | ACTIVE | 2026-09-26 |
 | [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) | Shared idempotency, outbox, and inbox model | ACTIVE | 2026-09-27 |
+| [EDR-006](#edr-006-live-account-status-inside-requireauth) | Live account status inside requireAuth | ACTIVE | 2026-09-28 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -485,6 +506,8 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-003 | `ENG-IMP-022` | #57 | Branch `mvp-002-automated-test-harness` |
 | 2026-09-27 | MVP-003 / GitHub issue #5 | Added the shared idempotency-key store, transactional outbox with a transport-neutral dispatcher, and inbox deduplication. The migration adds tables only, the helpers run in the caller's transaction, and triggers block deletes and edits to evidence columns. No route or domain command uses them yet. | Backend application, database, testing | 009 | None | None | Database-enforced single effect per idempotency key and per inbound event; immutable, undeletable evidence rows | `backend/test/canonical-json.test.js`, `backend/test/infrastructure.test.js` (every named constraint in migration 009 has a case); `npm test` now runs one file at a time | EDR-004 | `ENG-IMP-023`, `ENG-IMP-024` | #60 | Branch `mvp-003-idempotency-outbox-inbox` |
 | 2026-09-28 | MVP-003 review repair / GitHub issue #5 | Constraint cases that set `completed_at` or `processed_at` now also set `created_at` or `received_at` to the same instant. A fixed completion time against `DEFAULT now()` started failing `*_after_created` / `*_after_received` once that instant was in the past, so PostgreSQL reported the wrong constraint. No schema or helper behavior changed. | Testing | None | None | None | None | `backend/test/infrastructure.test.js` | None | None | #60 | The review-repair commit on `mvp-003-idempotency-outbox-inbox` |
+| 2026-09-28 | MVP-006 / GitHub issue #8 | Every `requireAuth` route reloads `users.status` and rejects a suspended, deleted, or otherwise non-authenticatable account before the handler runs. Login issuance stays `active`-only. No schema change. | Authentication, testing | None | Protected routes now return `401` for a still-valid JWT whose account cannot authenticate. `/auth/me` no longer applies its own status predicate. | None | `SEC-AUTH-002`, `SEC-AUTHZ-002`, `SEC-PROJECTS-002` | `backend/test/account-status.test.js`, `backend/test/live-status.test.js` | EDR-006 | None | Branch `cursor/mvp-006-live-account-status-32e3` | The MVP-006 commit on that branch |
+| 2026-09-28 | MVP-006 review / GitHub issue #8 | Recorded the review's non-blocking HTTP-coverage limit. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-028` | #62 | The review-record commit on `cursor/mvp-006-live-account-status-32e3` |
 
 ## 8. Version history
 
@@ -497,3 +520,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.3.0 | 2026-09-26 | Recorded the MVP-002 harness: testing and backend/frontend test fields, EDR-003, EDR-001's merged pull request, and a change-history row. Section 4's verification stamp is still `2defbea` (`ENG-IMP-020`). | Engineering |
 | 0.4.0 | 2026-09-27 | Recorded MVP-003: new Section 4.22, backend, database, and testing fields, EDR-004, and a change-history row. | Engineering |
 | 0.4.1 | 2026-09-28 | Recorded the MVP-003 constraint-test clock repair. No subsystem behavior changed. | Engineering |
+| 0.5.0 | 2026-09-28 | Recorded MVP-006: live account-status check inside `requireAuth`, Section 4.5, EDR-006, and a change-history row. | Engineering |
