@@ -6,8 +6,8 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.3.0 |
-| Last Reviewed | 2026-09-26 |
+| Version | 0.4.1 |
+| Last Reviewed | 2026-09-28 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
@@ -92,6 +92,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Disputes](#417-disputes) | Not Implemented (enum values and one column only) | [disputes.md](../09-moderation-trust-safety/disputes.md) |
 | [Notifications](#418-notifications) | Not Implemented | [notifications.md](../10-notifications/notifications.md) |
 | [Database and migrations](#419-database-and-migrations) | Implemented | [Governance §17](../00-governance/README.md#17-database-documentation-standards) |
+| [Idempotency, outbox, and inbox](#422-idempotency-outbox-and-inbox) | Partially Implemented (tables and helpers; no domain command uses them yet) | [Projects §24](../05-projects-milestones/projects.md#24-concurrency-and-idempotency), [Milestones §24](../05-projects-milestones/milestones.md#24-concurrency-and-idempotency), [Escrow §22](../06-payments-escrow/escrow.md#22-idempotency-and-concurrency), [Payments §14](../06-payments-escrow/payments.md#14-idempotency-and-concurrency) |
 | [Testing](#420-testing) | Partially Implemented (backend smoke harness and frontend component runner; no CI) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-002 harness, MVP-004 CI |
 | [Deployment and infrastructure](#421-deployment-and-infrastructure) | Partially Implemented (local PostgreSQL container only) | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps) |
 
@@ -116,8 +117,8 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Purpose | HTTP JSON API for authentication, users, profiles, projects, and milestone locking |
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs below |
 | Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
-| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test test/database-guard.test.js test/routes.smoke.test.js` |
-| Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
+| Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the four files in `backend/test/` listed in [Testing](#420-testing) |
+| Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/src/infrastructure/` (shared idempotency, outbox, and inbox helpers; see [§4.22](#422-idempotency-outbox-and-inbox)), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
 | API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/lock-milestones` (12 total) |
 | Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
 | External dependencies | `express` 5.2.1, `pg` 8.16.3, `jsonwebtoken` 9.0.3, `bcryptjs` 3.0.3, `cors` 2.8.5, `dotenv` 17.2.3 (locked versions). No dependency was added for MVP-001. |
@@ -126,8 +127,8 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Tests | `backend/test/routes.smoke.test.js` asserts status and body for every existing route against a real PostgreSQL database, through `backend/test/harness.js`. `backend/test/database-guard.test.js` checks the isolation guard without opening a pool. Run with `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` is the supported entry point. |
 | Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. Run `npm install` before starting. |
 | Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). |
-| Engineering decisions | [EDR-001](#edr-001-backend-module-layout). [EDR-003](#edr-003-test-runners-and-database-fixture) for the test entry point. Baseline choices remain in Section 5. |
-| Last materially changed | MVP-002 (2026-09-26), test harness listens on the exported app |
+| Engineering decisions | [EDR-001](#edr-001-backend-module-layout). [EDR-003](#edr-003-test-runners-and-database-fixture) for the test entry point. [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) for `backend/src/infrastructure/`. Baseline choices remain in Section 5. |
+| Last materially changed | MVP-003 (2026-09-27), shared infrastructure helpers added; no route changed |
 
 ### 4.4 Frontend application
 
@@ -292,18 +293,18 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Purpose | Schema definition and evolution for PostgreSQL 16 |
 | Implementation status | Implemented |
-| Important files | `backend/db/001_create_users.sql` … `008_add_milestone_locking.sql`, `backend/db/migrate.js`, `backend/db/db.js` |
+| Important files | `backend/db/001_create_users.sql` … `009_create_idempotency_outbox_inbox.sql`, `backend/db/migrate.js`, `backend/db/db.js` |
 | How it works | `npm run migrate` creates `schema_migrations(id, filename UNIQUE, applied_at)` if missing, reads `db/*.sql` sorted by filename, skips filenames already recorded, and runs each remaining file with one `client.query` (each file has its own `BEGIN`/`COMMIT`) followed by an `INSERT` of the filename. The files are written to be re-runnable: `CREATE … IF NOT EXISTS`, enum creation guarded by a `pg_type` lookup, constraint creation guarded by `pg_constraint`, and `CREATE OR REPLACE FUNCTION` / `DROP TRIGGER IF EXISTS`. Extensions: `pgcrypto` (`gen_random_uuid()`) and `citext`. |
 | Conventions in use | Three-digit numeric prefix plus a snake_case description. UUID PK plus a unique application-generated `external_id` per business table. Named constraints `<table>_<rule>`. `created_at`/`updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` (no update trigger). Enums for lifecycle state. |
 | Known limitations | No checksum or drift detection, and applied-state recording is not atomic ([ENG-IMP-001](engineering-improvements.md#eng-imp-001-migration-runner-cannot-detect-edited-migrations-and-records-applied-state-non-atomically)). No down-migrations. |
-| Last materially changed | Runner `191b2a0` (2026-07-12). Latest migration `008` in `88986c5` (2026-07-21). |
+| Last materially changed | Runner `191b2a0` (2026-07-12). Latest migration `009` (MVP-003, 2026-09-27): `idempotency_keys`, `outbox_messages`, `inbox_events`, and their protection triggers. It is additive: no existing table, column, or constraint changes. |
 
 ### 4.20 Testing
 
 | Field | Record |
 |---|---|
 | Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
-| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js` and `backend/test/routes.smoke.test.js` with Node's built-in `node:test` runner. The smoke file migrates, truncates application tables, and listens on an ephemeral port. It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/routes.smoke.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
 | Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
 | Next | MVP-004 adds the CI workflow that runs these commands. |
 
@@ -314,6 +315,23 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Implementation status | Partially Implemented: local development only |
 | What exists | `docker-compose.yml` runs one `postgres:16` container (`musicapp_postgres`, port 5432, local development credentials, named volume `postgres_data`). The backend and frontend run as local Node processes. `.cursor/Dockerfile` is the Cursor Cloud Agent image only: Ubuntu 24.04, PostgreSQL 16, Node.js 22.14.0, npm, corepack 0.34.7, and pnpm 12.5.1 ([EDR-002](#edr-002-cloud-agent-node-toolchain)). It is not an application image. |
 | Not present | Application Dockerfiles, hosting configuration, TLS, reverse proxy, CI/CD, environment-specific frontend configuration, observability tooling |
+
+### 4.22 Idempotency, outbox, and inbox
+
+| Field | Record |
+|---|---|
+| Purpose | Shared retry-safety infrastructure that domain commands and event consumers call inside their own transaction |
+| Canonical specification | [Projects §24](../05-projects-milestones/projects.md#24-concurrency-and-idempotency) and [§26](../05-projects-milestones/projects.md#26-target-data-model), [Milestones §24](../05-projects-milestones/milestones.md#24-concurrency-and-idempotency), [Escrow §22](../06-payments-escrow/escrow.md#22-idempotency-and-concurrency), [Payments §14](../06-payments-escrow/payments.md#14-idempotency-and-concurrency) |
+| Implementation status | Partially Implemented. The tables and helpers exist and are tested. No route or domain command calls them yet, and no process runs the outbox dispatcher ([ENG-IMP-023](engineering-improvements.md#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting)). |
+| Database tables | Migration 009. `idempotency_keys`: unique `(actor_type, actor_id, operation, resource_ref, idempotency_key)`, `actor_type` `user` or `system`, key of 1–255 visible ASCII characters, SHA-256 `request_hash`, `status` `in_progress` or `completed`, stored `response_status`/`response_body`, nullable `expires_at`. `outbox_messages`: unique `event_id` and `sequence`, event type and version, opaque aggregate reference and version, object `payload`, correlation and causation IDs, `status` `pending`/`published`/`dead_letter`, attempts, `available_at`, `last_error` (at most 500 characters), partial index on pending rows. `inbox_events`: unique `(consumer, source, event_id)`, `result` `applied`/`ignored`/`quarantined`, set together with `processed_at`. None has a foreign key to or from a domain table. |
+| Services/modules | `backend/src/infrastructure/canonical-json.js`: `canonicalJson` (sorted keys; rejects values a JSON body cannot carry) and `hashRequest` (SHA-256 hex). `idempotency.js`: `validateIdempotencyKey`, `claimIdempotencyKey`, `completeIdempotencyKey`, `executeIdempotent`. `outbox.js`: `enqueueOutboxMessage`, `publishPendingOutbox(pool, publish, options)`. `inbox.js`: `consumeInboxEvent`. |
+| How it works | Every helper except the dispatcher takes the caller's pooled client and runs inside the caller's transaction, so the state change, idempotency result, outbox event, and inbox record commit or roll back together. `executeIdempotent` inserts the key with `ON CONFLICT DO NOTHING`. A concurrent claim of the same key waits on the unique index. After the first transaction commits, the waiting claim sees that transaction's row. After a rollback, it claims the key itself. The same request hash replays the stored `{ status, body }` without calling the handler. A different hash returns `409`, and so does a claim that was committed without completion. `consumeInboxEvent` inserts the inbox row before running the handler, so a duplicate delivery is acknowledged without a second effect. `publishPendingOutbox` locks due rows with `FOR UPDATE SKIP LOCKED` in sequence order, calls the injected `publish` function, and marks each row published. On failure it retries with bounded exponential backoff (1 s doubling to 5 min) and dead-letters the row after 10 attempts, or the `maxAttempts` a caller passes. Delivery is at-least-once, and consumers deduplicate by `event_id`. |
+| Security controls | Triggers reject any change to the scope, key, request hash, event content, or inbox identity. They also reject any change to a completed key, a published message, or a processed inbox row, and any `DELETE` on the three tables. `TRUNCATE` is not blocked, so the test fixture can reset. Actor and scope are server-derived arguments, and helpers throw on invalid ones. Only the idempotency key is client input, validated by `validateIdempotencyKey`. |
+| Tests | `backend/test/canonical-json.test.js` and `backend/test/infrastructure.test.js` (Section 4.20) |
+| Known limitations | No domain route accepts an `Idempotency-Key` yet. Each later item wires its own commands. Retention purge is not built, because the retention period is an open Legal decision (Escrow Question EQ11): `expires_at` stays null and rows are kept. Reordered facts are not held back until their source version arrives. That check belongs to each consumer's own handler (Milestones §24). Outbox order is by `sequence`, which is not commit order. |
+| Engineering decisions | [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) |
+| Related issues | MVP-003 / [#5](https://github.com/xela-ash/Music_app/issues/5) |
+| Last materially changed | MVP-003 (2026-09-27) |
 
 ## 5. Baseline implementation choices (pre-EDR)
 
@@ -422,6 +440,26 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | Pull request #57, branch `mvp-002-automated-test-harness`. |
 | Status | ACTIVE |
 
+### EDR-004 Shared idempotency, outbox, and inbox model
+
+| Field | Value |
+|---|---|
+| ID | EDR-004 |
+| Date | 2026-09-27 |
+| Issue | MVP-003 / GitHub issue #5 |
+| Decision | Build three shared tables (`idempotency_keys`, `outbox_messages`, `inbox_events`) and plain helper functions in `backend/src/infrastructure/`. Each helper takes the caller's transaction client. Uniqueness is enforced by the database, and the outbox dispatcher is transport-neutral. |
+| Context | Projects §24 and §26, Milestones §24, Escrow §22, and Payments §14 require idempotency by key and request hash, a durable outbox published after commit, and consumer deduplication by immutable event ID. Projects §26 and Escrow §24.1 say these records are shared infrastructure, not Escrow-specific tables. Their ownership and constraints must be explicit before implementation. The plan names the tables but no specification defines their columns. No message broker, job runner, or consumer exists. Payments' `payment_provider_events` (`DATA-ESCROW-008`) belongs to Payments and is not part of this item, but `(provider, provider_event_id)` deduplication has to be expressible on the shared inbox. |
+| Options considered | (1) Per-domain idempotency columns on each aggregate table. The specifications ask for shared infrastructure, and each domain would reimplement the claim. (2) Claim and complete the key in separate transactions around the domain work, as for an external call. A crash would leave an `in_progress` key that blocks retries, and no current command makes an external call. (3) Advisory locks keyed by a hash of the idempotency scope instead of a unique index. Serialization then depends on hash collisions and on callers, not on a constraint. (4) A generic `withTransaction` helper that owns the transaction ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). It is not authorized, and it would move the transaction boundary away from the domain services that already own it. (5) Chosen: shared tables and caller-client helpers. |
+| Chosen approach | The idempotency scope is actor type (`user` or `system`, per Roles §7.11 and Escrow's `actor_type`/`actor_id`), actor ID, operation, resource reference, and key. The request hash is SHA-256 over canonical JSON with sorted keys. The claim is an `INSERT … ON CONFLICT DO NOTHING` in the caller's transaction, so the unique index serializes concurrent claims. The response is stored in the same transaction as the state change. The inbox key is `(consumer, source, event_id)`, where `source` is the producer or payment provider, so one consumer's `(provider, provider_event_id)` is unique. The outbox gets a UUID `event_id` and an identity `sequence`. The dispatcher claims rows with `SKIP LOCKED` and hands them to an injected `publish` function. Triggers make evidence columns immutable and block `DELETE`. Callers lock aggregate rows before claiming a key or inbox record, which keeps the Milestones §24 lock order. |
+| Why | The database, not application code, guarantees one effect per key and per event under concurrency, which is what `BR-PROJECTS-026`, `BR-ESCROW-027`, and `BR-ESCROW-041` require. Keeping the caller's client gives one atomic boundary for state, idempotency, and outbox (`REQ-PROJECTS-018`, `REQ-ESCROW-018`) without changing how existing services own transactions. A transport-neutral dispatcher needs no broker or provider decision. |
+| Trade-offs | A losing concurrent claim waits for the winner's transaction instead of failing fast. A `409` "in progress" is only reachable when a caller commits a claim without completing it. A published outbox message may be delivered more than once. Rows are never deleted until a retention decision exists. `resource_ref` uses `''` for "no resource", because a null would defeat the unique constraint. |
+| Interpretations recorded | (a) Projects §24 and Milestones §24 say the key stores a "response reference". This implementation stores the full response `{ status, body }` as that reference, so a replay needs no second read. Callers therefore authorize before claiming the key and keep tokens and secrets out of the body. (b) Milestones §24 names the inbox key `(consumer, event_id)`. This uses `(consumer, source, event_id)`, which still gives one row per consumer and event ID for a given source. `source` is the producer or provider, which Payments' `(provider, provider_event_id)` needs. Each consumer supplies its own `source` label. (c) Serialization relies on READ COMMITTED. A caller that runs at REPEATABLE READ or SERIALIZABLE gets `40001` on a contended claim and must retry the transaction. |
+| Affected components | `backend/db/009_create_idempotency_outbox_inbox.sql`, `backend/src/infrastructure/`, `backend/test/harness.js` (truncate list), `backend/package.json` (test files, one file at a time) |
+| Reversal / migration considerations | No domain table references these tables, so they can be dropped by a forward migration once no caller uses them. Existing rows would be lost, and they are the evidence that prevents replays, so export them first. |
+| Related specification IDs | `REQ-PROJECTS-018`, `REQ-PROJECTS-039`, `REQ-ESCROW-018`, `REQ-ESCROW-031`, `BR-PROJECTS-026`, `BR-PROJECTS-027`, `BR-PROJECTS-049`, `BR-ESCROW-027`, `BR-ESCROW-041`, `SEC-PROJECTS-011`, `SEC-PROJECTS-013`, `SEC-ESCROW-003`, `SEC-ESCROW-018`, `SEC-ESCROW-020`. The infrastructure is a prerequisite for those findings, but no domain command uses it yet, so none of them is closed. |
+| Related PR / commit | Pull request #60, branch `mvp-003-idempotency-outbox-inbox` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -429,6 +467,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-001](#edr-001-backend-module-layout) | Backend module layout | ACTIVE | 2026-09-26 |
 | [EDR-002](#edr-002-cloud-agent-node-toolchain) | Cloud Agent Node toolchain | ACTIVE | 2026-09-26 |
 | [EDR-003](#edr-003-test-runners-and-database-fixture) | Test runners and database fixture | ACTIVE | 2026-09-26 |
+| [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) | Shared idempotency, outbox, and inbox model | ACTIVE | 2026-09-27 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -444,6 +483,8 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-26 | MVP-001 review follow-up / GitHub issue #3 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-017`–`020` | — | The commit that adds those register entries on `mvp-001-backend-module-decomposition` |
 | 2026-09-26 | Cloud environment repair (no MVP item) | Pinned Node.js 22.14.0, corepack 0.34.7, and pnpm 12.5.1 in `.cursor/Dockerfile` so Cloud install can find `npm` and activate pnpm without a prompt. PostgreSQL 16, port 5432, and the isolated test cluster on 5433 are unchanged. | Cloud Agent image only | None | None | None | Passwordless sudo for the image `ubuntu` user, required by the existing PostgreSQL helpers | None | EDR-002 | `ENG-IMP-021` | Branch `cursor/cloud-node-toolchain-ef45` | The Cloud toolchain commit on that branch |
 | 2026-09-26 | MVP-002 / GitHub issue #4 | Added the backend smoke harness and the frontend component runner. The harness implements `ENG-IMP-017` and `ENG-IMP-018`. Recorded pull request #56 on EDR-001. | Backend application, frontend application, testing | None | None | None | None | `backend/test/database-guard.test.js`, `backend/test/routes.smoke.test.js`, `frontend/src/App.smoke.test.tsx` | EDR-003 | `ENG-IMP-022` | #57 | Branch `mvp-002-automated-test-harness` |
+| 2026-09-27 | MVP-003 / GitHub issue #5 | Added the shared idempotency-key store, transactional outbox with a transport-neutral dispatcher, and inbox deduplication. The migration adds tables only, the helpers run in the caller's transaction, and triggers block deletes and edits to evidence columns. No route or domain command uses them yet. | Backend application, database, testing | 009 | None | None | Database-enforced single effect per idempotency key and per inbound event; immutable, undeletable evidence rows | `backend/test/canonical-json.test.js`, `backend/test/infrastructure.test.js` (every named constraint in migration 009 has a case); `npm test` now runs one file at a time | EDR-004 | `ENG-IMP-023`, `ENG-IMP-024` | #60 | Branch `mvp-003-idempotency-outbox-inbox` |
+| 2026-09-28 | MVP-003 review repair / GitHub issue #5 | Constraint cases that set `completed_at` or `processed_at` now also set `created_at` or `received_at` to the same instant. A fixed completion time against `DEFAULT now()` started failing `*_after_created` / `*_after_received` once that instant was in the past, so PostgreSQL reported the wrong constraint. No schema or helper behavior changed. | Testing | None | None | None | None | `backend/test/infrastructure.test.js` | None | None | #60 | The review-repair commit on `mvp-003-idempotency-outbox-inbox` |
 
 ## 8. Version history
 
@@ -454,3 +495,5 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.2.1 | 2026-09-26 | Appended a change-history row for `ENG-IMP-017`–`020`, recorded from the MVP-001 independent review and not implemented. Section 4's verification stamp is unchanged (`ENG-IMP-020`). | Engineering |
 | 0.2.2 | 2026-09-26 | Recorded the Cloud Agent image toolchain: Section 4.21, EDR-002, and a change-history row. No application subsystem behavior changed. | Engineering |
 | 0.3.0 | 2026-09-26 | Recorded the MVP-002 harness: testing and backend/frontend test fields, EDR-003, EDR-001's merged pull request, and a change-history row. Section 4's verification stamp is still `2defbea` (`ENG-IMP-020`). | Engineering |
+| 0.4.0 | 2026-09-27 | Recorded MVP-003: new Section 4.22, backend, database, and testing fields, EDR-004, and a change-history row. | Engineering |
+| 0.4.1 | 2026-09-28 | Recorded the MVP-003 constraint-test clock repair. No subsystem behavior changed. | Engineering |

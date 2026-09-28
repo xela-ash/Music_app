@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.6.0 |
-| Last Reviewed | 2026-09-26 |
+| Version | 0.7.0 |
+| Last Reviewed | 2026-09-27 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -127,6 +127,8 @@ Copy this template for each new entry:
 | [ENG-IMP-020](#eng-imp-020-build-record-section-4-verification-stamp-predates-the-mvp-001-baseline) | Build Record Section 4 verification stamp predates the MVP-001 baseline | Documentation | Low | PROPOSED |
 | [ENG-IMP-021](#eng-imp-021-cloud-image-corepack-cannot-follow-current-releases-on-node-22140) | Cloud image corepack cannot follow current releases on Node 22.14.0 | Developer Experience, Dependency | Low | PROPOSED |
 | [ENG-IMP-022](#eng-imp-022-handbook-current-state-snapshots-predate-mvp-001-and-mvp-002) | Handbook current-state snapshots predate MVP-001 and MVP-002 | Documentation | Low | PROPOSED |
+| [ENG-IMP-023](#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting) | Outbox dispatcher has no process runner, transport, or alerting | Reliability, Observability, Architecture | Medium | PROPOSED |
+| [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -788,6 +790,66 @@ Copy this template for each new entry:
 | Related PR | — |
 | Resolution | — |
 
+### ENG-IMP-023 Outbox dispatcher has no process runner, transport, or alerting
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-023 |
+| Title | Outbox dispatcher has no process runner, transport, or alerting |
+| Date identified | 2026-09-27 |
+| Identified by | Cursor autonomous build, while implementing MVP-003 (GitHub issue #5) |
+| Category | Reliability, Observability, Architecture |
+| Affected subsystem | Idempotency, outbox, and inbox |
+| Current state | `publishPendingOutbox(pool, publish, options)` in `backend/src/infrastructure/outbox.js` delivers pending `outbox_messages` rows through an injected `publish` function. Nothing calls it outside the tests. `backend/Index.js` starts no worker or schedule, and no in-process or broker transport exists. Dead-lettered rows are only visible by querying `outbox_messages`. |
+| Evidence / problem | No domain writes outbox events yet, so nothing is lost today. The first item that writes an event for another domain to consume (for example `MVP-021`'s readiness fact or `MVP-041`'s notification intents) needs a running dispatcher and a transport. Otherwise its events stay `pending`. `OPS-PROJECTS-002` and `OPS-ESCROW-002` require alerts on outbox age and dead letters. No plan item names the runner, and Roles §7.11 records that no job runner exists. |
+| Suggested improvement | When the first cross-domain consumer lands, add one small scheduled runner (in-process interval or a separate `node` entry point) that calls `publishPendingOutbox` with an in-process transport to the registered inbox consumers. Log each dead-lettered message with its `event_id` and type. Record the runner choice in an EDR. Redriving a dead letter also needs a design: the `protect_outbox_messages` trigger forbids lowering `attempts`, so a row moved back to `pending` is dead-lettered again after its next failure (found in the MVP-003 independent review). |
+| Expected benefit | Events written by domain commands are actually delivered, and failures are visible. |
+| Risk of doing nothing | A later item writes outbox events that are never published, so dependent state such as a Milestone transition or a notification silently never happens. |
+| Implementation risk | Medium. Background work inside the API process affects shutdown and testing, and the job-runner choice is an engineering decision. |
+| Estimated scope | S to M. One runner and one transport, plus tests. |
+| Dependencies | MVP-003. The first item with a cross-domain outbox consumer. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Indirect: lost financial or notification events are a correctness risk (`SEC-PROJECTS-011`) |
+| Performance impact | A polling interval adds light, periodic database load |
+| Priority suggestion | Medium |
+| Recommended timing | With the first item whose acceptance depends on a consumed outbox event |
+| Status | PROPOSED |
+| Related GitHub Issue | [#5](https://github.com/xela-ash/Music_app/issues/5) (found during MVP-003; not implemented) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-024 Shared infrastructure helper edge cases from the MVP-003 review
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-024 |
+| Title | Shared infrastructure helper edge cases from the MVP-003 review |
+| Date identified | 2026-09-27 |
+| Identified by | Independent reviewer agent, MVP-003 pull request #60 |
+| Category | Reliability, Security, Maintainability |
+| Affected subsystem | Idempotency, outbox, and inbox |
+| Current state | (a) `completeIdempotencyKey` in `backend/src/infrastructure/idempotency.js` writes the response body as `jsonb`. (b) `publishPendingOutbox` in `outbox.js` defaults `now` to the application clock and compares it with `available_at`, which defaults to the database's `now()`. (c) The dispatcher stores the transport error's `message`, truncated to 500 characters, in `outbox_messages.last_error`. (d) The three new tables have purpose-specific timestamps (`completed_at`, `last_attempt_at`, `processed_at`) but no `updated_at` column. (e) In migration 009, `idempotency_keys_completed_has_response` admits only the `in_progress` and `completed` statuses, which duplicates `idempotency_keys_status_allowed`. Removing `status_allowed` changes no behavior, so no test can detect its removal. |
+| Evidence / problem | (a) A response string containing U+0000 is rejected by PostgreSQL `jsonb` (`22P05`), which aborts the whole command. The reviewer reproduced this. (b) Clock skew between the application host and the database delays or advances retries. The tests pass an explicit `now` for that reason. (c) A future transport could put internal details into its error message. (d) Handbook §9 describes a `created_at`/`updated_at` convention. |
+| Suggested improvement | (a) Reject or escape NUL before the write. (b) Default `now` to the database clock (`SELECT now()`) when the caller passes none. (c) Require transports to throw errors with sanitized messages, or store only an error class or code. (d) Decide whether infrastructure tables follow the `updated_at` convention, and add the column with maintenance if so. (e) In a later migration, narrow `completed_has_response` to the response fields, so `status_allowed` alone governs status values and each constraint can be tested on its own. |
+| Expected benefit | Fewer surprising failures, and no transport detail leaking into stored rows. |
+| Risk of doing nothing | Low today, because no caller exists. It rises once domain commands and a transport use these helpers. |
+| Implementation risk | Low. Each item is local to one helper or one migration. |
+| Estimated scope | S |
+| Dependencies | MVP-003 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | (d) only: an additive column |
+| Security impact | (c) reduces the risk of stored internal detail |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the first domain command or transport that uses these helpers |
+| Status | PROPOSED |
+| Related GitHub Issue | [#5](https://github.com/xela-ash/Music_app/issues/5) (found in review; not implemented) |
+| Related PR | [#60](https://github.com/xela-ash/Music_app/pull/60) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -830,3 +892,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.5.0 | 2026-09-26 | Recorded four non-blocking improvements from the MVP-001 independent review: `ENG-IMP-017` (fixed characterization port 4000), `ENG-IMP-018` (omitted `DB_PORT` bypasses the 5432 guard), `ENG-IMP-019` (frontend comments still cite `backend/Index.js`), and `ENG-IMP-020` (Section 4 verification stamp predates the module split). All `PROPOSED`. None are authorized, and none are part of MVP-001. | Engineering |
 | 0.5.1 | 2026-09-26 | Noted in `ENG-IMP-008` that the Cloud image pin does not pin the application manifests. Added `ENG-IMP-021` (`PROPOSED`): current corepack releases require Node >= 22.22.2, so they are not part of the Node 22.14.0 image repair. | Engineering |
 | 0.6.0 | 2026-09-26 | Set `ENG-IMP-017` and `ENG-IMP-018` to IMPLEMENTED because the MVP-002 harness is the resolution those entries named. Added `ENG-IMP-022` (PROPOSED): handbook current-state snapshots still describe the pre-split, pre-harness repository. | Engineering |
+| 0.7.0 | 2026-09-27 | Added `ENG-IMP-023` (PROPOSED), found during MVP-003: nothing runs the outbox dispatcher yet, there is no transport, and dead letters raise no alert. Added `ENG-IMP-024` (PROPOSED): non-blocking helper edge cases from the MVP-003 independent review. | Engineering |
