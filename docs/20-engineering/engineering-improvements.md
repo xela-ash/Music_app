@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.1 |
+| Version | 0.7.2 |
 | Last Reviewed | 2026-09-28 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -130,6 +130,7 @@ Copy this template for each new entry:
 | [ENG-IMP-023](#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting) | Outbox dispatcher has no process runner, transport, or alerting | Reliability, Observability, Architecture | Medium | PROPOSED |
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
 | [ENG-IMP-028](#eng-imp-028-future-authenticatable-statuses-are-not-covered-by-an-http-test) | Future authenticatable statuses are not covered by an HTTP test | Testing | Low | PROPOSED |
+| [ENG-IMP-029](#eng-imp-029-projectcreate-seller-eligibility-is-a-boolean-the-caller-supplies) | project.create seller eligibility is a boolean the caller supplies | Authorization | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -881,6 +882,36 @@ Copy this template for each new entry:
 | Related PR | [#62](https://github.com/xela-ash/Music_app/pull/62) |
 | Resolution | — |
 
+### ENG-IMP-029 project.create seller eligibility is a boolean the caller supplies
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-029 |
+| Title | project.create seller eligibility is a boolean the caller supplies |
+| Date identified | 2026-09-28 |
+| Identified by | Independent review of MVP-007, commit `a3e3cf5` |
+| Category | Authorization |
+| Affected subsystem | Authorization, Projects |
+| Current state | `authorize` denies `project.create` when `resource.sellerEligible` is not true. `createProject` sets that flag from `findActiveSellerWithProfile`, which requires `users.status = 'active'` and a profile row. |
+| Evidence / problem | The active-user-with-profile rule still lives in the repository query. `authorize` trusts the boolean. A later caller can pass `sellerEligible: true` without that query. MVP-007 keeps the current HTTP result and does not move the query into the policy function. |
+| Suggested improvement | Pass the loaded seller row, or its absence, into `authorize`, and decide eligibility there from `status` and profile presence. |
+| Expected benefit | The eligibility rule has one implementation. |
+| Risk of doing nothing | Low while `createProject` is the only caller. |
+| Implementation risk | Low. The HTTP contract stays `404` "Seller not found". |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Low. The current call site still runs the query. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next change that adds another `project.create` caller |
+| Status | PROPOSED |
+| Related GitHub Issue | [#9](https://github.com/xela-ash/Music_app/issues/9) (review finding; not part of the acceptance criteria) |
+| Related PR | [#64](https://github.com/xela-ash/Music_app/pull/64) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -925,3 +956,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.6.0 | 2026-09-26 | Set `ENG-IMP-017` and `ENG-IMP-018` to IMPLEMENTED because the MVP-002 harness is the resolution those entries named. Added `ENG-IMP-022` (PROPOSED): handbook current-state snapshots still describe the pre-split, pre-harness repository. | Engineering |
 | 0.7.0 | 2026-09-27 | Added `ENG-IMP-023` (PROPOSED), found during MVP-003: nothing runs the outbox dispatcher yet, there is no transport, and dead letters raise no alert. Added `ENG-IMP-024` (PROPOSED): non-blocking helper edge cases from the MVP-003 independent review. | Engineering |
 | 0.7.1 | 2026-09-28 | Added `ENG-IMP-028` (PROPOSED) from the MVP-006 review: `restricted` and `email_verification_pending` have no HTTP allow-case until the enum contains them. | Engineering |
+| 0.7.2 | 2026-09-28 | Added `ENG-IMP-029` (PROPOSED) from the MVP-007 review: `project.create` seller eligibility is a boolean the caller supplies. Not implemented. | Engineering |

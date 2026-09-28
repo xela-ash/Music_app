@@ -2,6 +2,7 @@ const pool = require("../../db/db");
 const repository = require("./repository");
 const milestonesRepository = require("../milestones/repository");
 const { POSTGRES_INT_MAX, validateMilestonesInput } = require("../milestones/service");
+const { PROJECT_CREATE, PROJECT_LIST, authorize } = require("../authorization/authorize");
 
 // MusicApp launches India-first: every newly created project and milestone is
 // stamped with this currency server-side. Clients cannot supply or override
@@ -81,14 +82,17 @@ async function createProject(body, actorUserId) {
       return { status: 400, body: { error: "Milestone amounts must equal the project price" } };
     }
 
-    if (seller_user_id === actorUserId) {
-      return { status: 400, body: { error: "You cannot start a project with yourself" } };
-    }
-
     const sellerResult = await repository.findActiveSellerWithProfile(client, seller_user_id);
-
-    if (sellerResult.rows.length === 0) {
-      return { status: 404, body: { error: "Seller not found" } };
+    const createDecision = authorize(
+      { id: actorUserId },
+      PROJECT_CREATE,
+      {
+        sellerUserId: seller_user_id,
+        sellerEligible: sellerResult.rows.length > 0,
+      }
+    );
+    if (!createDecision.allowed) {
+      return { status: createDecision.status, body: { error: createDecision.error } };
     }
 
     const externalId = repository.makeProjectExternalId();
@@ -97,7 +101,7 @@ async function createProject(body, actorUserId) {
 
     const projectResult = await repository.insertProject(client, [
       externalId,
-      actorUserId,
+      createDecision.obligations.buyerUserId,
       seller_user_id,
       title.trim(),
       requirements.trim(),
@@ -160,7 +164,11 @@ async function createProject(body, actorUserId) {
 
 async function listProjects(actorUserId) {
   try {
-    const result = await repository.listProjectsForParticipant(pool, actorUserId);
+    const listDecision = authorize({ id: actorUserId }, PROJECT_LIST, null);
+    if (!listDecision.allowed) {
+      return { status: listDecision.status, body: { error: listDecision.error } };
+    }
+    const result = await repository.listProjectsForParticipant(pool, listDecision.obligations);
 
     const projects = result.rows.map((row) => ({
       id: row.id,
