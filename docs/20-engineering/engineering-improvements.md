@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.8 |
+| Version | 0.7.9 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -142,6 +142,7 @@ Copy this template for each new entry:
 | [ENG-IMP-038](#eng-imp-038-notification-intent-class-is-not-tied-to-the-topic) | Notification intent class is not tied to the topic | Database | Low | PROPOSED |
 | [ENG-IMP-039](#eng-imp-039-notification-preferences-have-no-user-settings-store) | Notification preferences have no User Settings store | Architecture | Medium | PROPOSED |
 | [ENG-IMP-040](#eng-imp-040-quiet-hours-and-digest-are-not-applied) | Quiet hours and digest are not applied | Architecture | Low | PROPOSED |
+| [ENG-IMP-042](#eng-imp-042-completed-send-idempotency-payloads-keep-the-pre-tombstone-body) | Completed send idempotency payloads keep the pre-tombstone body | Security, Database | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1253,6 +1254,36 @@ Copy this template for each new entry:
 | Related PR | [#73](https://github.com/xela-ash/music_app/pull/73) |
 | Resolution | — |
 
+### ENG-IMP-042 Completed send idempotency payloads keep the pre-tombstone body
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-042 |
+| Title | Completed send idempotency payloads keep the pre-tombstone body |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-038 independent review |
+| Category | Security, Database |
+| Affected subsystem | Messaging, idempotency |
+| Current state | A send replay re-reads the message and returns `body: null` after a tombstone. The completed `idempotency_keys.response_body` from the original send is not rewritten. Migration 009 rejects changes to a completed key. |
+| Evidence / problem | `REQ-MESSAGING-005` redacts ordinary display. The HTTP replay does that. A direct read of `idempotency_keys` still shows the original body. Changing the completed-key trigger would weaken MVP-003's evidence rule. |
+| Suggested improvement | Decide a redaction or retention rule for completed idempotency payloads that contain message text, without allowing general edits to completed keys. |
+| Expected benefit | Tombstone redaction would cover the stored HTTP payload as well as the live response. |
+| Risk of doing nothing | An operator or a future dump of `idempotency_keys` can still read a tombstoned body. The message row retains that body on purpose. |
+| Implementation risk | Medium. The idempotency trigger is shared infrastructure. |
+| Estimated scope | S |
+| Dependencies | A decision that does not weaken completed-key immutability for other commands |
+| Product behavior impact | No for the messaging API. The stored payload is not an ordinary participant response. |
+| Specification impact | No, unless Product wants the idempotency copy redacted |
+| Migration impact | None until a redaction rule exists |
+| Security impact | The extra copy is visible to database readers |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | After MVP-038, if a retention review asks for it |
+| Status | PROPOSED |
+| Related GitHub Issue | [#40](https://github.com/xela-ash/Music_app/issues/40) |
+| Related PR | [#79](https://github.com/xela-ash/music_app/pull/79) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1304,3 +1335,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.6 | 2026-09-29 | Added `ENG-IMP-036`, `ENG-IMP-037`, and `ENG-IMP-038` (PROPOSED) from MVP-041 and its review. Three matrix rows have no single mandatory class. Neither a topic/domain pair nor a topic/class pair is enforced. None are authorized. | Engineering |
 | 0.7.7 | 2026-09-29 | Added `ENG-IMP-039` and `ENG-IMP-040` (PROPOSED) from MVP-042. No User Settings store exists, and quiet hours and digest are not applied. Neither is authorized. | Engineering |
 | 0.7.8 | 2026-09-29 | Recorded pull request #73 on `ENG-IMP-039` and `ENG-IMP-040`. Neither is authorized. | Engineering |
+| 0.7.9 | 2026-09-29 | Added `ENG-IMP-042` (PROPOSED) from the MVP-038 review: completed send idempotency payloads keep the pre-tombstone body. Not authorized. | Engineering |
