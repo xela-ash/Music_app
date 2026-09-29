@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.8.1 |
+| Version | 0.9.0 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -90,7 +90,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Messaging](#415-messaging) | Not Implemented | [messaging.md](../07-messaging-collaboration/messaging.md) |
 | [Ratings](#416-ratings) | Not Implemented (enum values only) | [ratings.md](../08-ratings-reputation/ratings.md) |
 | [Disputes](#417-disputes) | Not Implemented (enum values and one column only) | [disputes.md](../09-moderation-trust-safety/disputes.md) |
-| [Notifications](#418-notifications) | Not Implemented | [notifications.md](../10-notifications/notifications.md) |
+| [Notifications](#418-notifications) | Partially Implemented (intent, in-app delivery, read/mark-read) | [notifications.md](../10-notifications/notifications.md) |
 | [Database and migrations](#419-database-and-migrations) | Implemented | [Governance §17](../00-governance/README.md#17-database-documentation-standards) |
 | [Idempotency, outbox, and inbox](#422-idempotency-outbox-and-inbox) | Partially Implemented (invitation commands use the helpers; nothing runs the dispatcher) | [Projects §24](../05-projects-milestones/projects.md#24-concurrency-and-idempotency), [Milestones §24](../05-projects-milestones/milestones.md#24-concurrency-and-idempotency), [Escrow §22](../06-payments-escrow/escrow.md#22-idempotency-and-concurrency), [Payments §14](../06-payments-escrow/payments.md#14-idempotency-and-concurrency) |
 | [Testing](#420-testing) | Partially Implemented (backend smoke harness and frontend component runner; no CI) | [Handbook §14](engineering-handbook.md#14-testing-strategy); MVP-002 harness, MVP-004 CI |
@@ -118,8 +118,8 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Canonical specification | [System Architecture](../01-foundation/system-architecture.md); per-domain specs below |
 | Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
 | Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the files in `backend/test/` listed in [Testing](#420-testing) |
-| Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones}/{routes,service,repository}.js`, `backend/src/infrastructure/` (shared idempotency, outbox, and inbox helpers; see [§4.22](#422-idempotency-outbox-and-inbox)), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
-| API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/invitations`, `GET /projects/:projectId/invitations/:invitationId`, `POST /projects/:projectId/invitations/:invitationId/accept`, `POST /projects/:projectId/invitations/:invitationId/decline`, `POST /projects/:projectId/invitations/:invitationId/withdraw`, `POST /projects/:projectId/lock-milestones` |
+| Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones,notifications}/{routes,service,repository}.js`, `backend/src/notifications/` (topic classification, in-app adapter, and rules), `backend/src/infrastructure/` (shared idempotency, outbox, and inbox helpers; see [§4.22](#422-idempotency-outbox-and-inbox)), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
+| API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/invitations`, `GET /projects/:projectId/invitations/:invitationId`, `POST /projects/:projectId/invitations/:invitationId/accept`, `POST /projects/:projectId/invitations/:invitationId/decline`, `POST /projects/:projectId/invitations/:invitationId/withdraw`, `POST /projects/:projectId/lock-milestones`, `GET /notifications`, `GET /notifications/:externalId`, `POST /notifications/:externalId/mark-read` |
 | Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
 | External dependencies | `express` 5.2.1, `pg` 8.16.3, `jsonwebtoken` 9.0.3, `bcryptjs` 3.0.3, `cors` 2.8.5, `dotenv` 17.2.3 (locked versions). No dependency was added for MVP-001. |
 | How it works | CommonJS. `Index.js` loads `backend/db/db.js` before it loads `backend/src/auth/service.js`, which reads `JWT_SECRET` and exits if that value is blank. Global middleware is still `cors()` then `express.json()`. Each domain route calls one service operation. Services keep the previous validation, transaction boundaries, and PostgreSQL error mapping. Repositories run the previous parameterized SQL. `Index.js` exports `app` and listens on hardcoded port 4000 only when it is the main module. The test harness imports that export and listens on an ephemeral port. |
@@ -128,7 +128,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. Run `npm install` before starting. |
 | Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). |
 | Engineering decisions | [EDR-001](#edr-001-backend-module-layout). [EDR-003](#edr-003-test-runners-and-database-fixture) for the test entry point. [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) for `backend/src/infrastructure/`. Baseline choices remain in Section 5. |
-| Last materially changed | MVP-014 (2026-09-29): seller invitation commands. `GET /projects` no longer treats `seller_user_id` alone as access. |
+| Last materially changed | MVP-041 (2026-09-29): in-app notification list, read, and mark-read. Intent creation stays an in-process producer call. |
 
 ### 4.4 Frontend application
 
@@ -166,13 +166,13 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Canonical specification | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
-| Implementation status | Partially Implemented. `authorize()` decides project create, list, lock, and seller invitation review, invite, accept, decline, and withdraw. There are no roles tables. Invitation commands write `project_audit_events`. |
+| Implementation status | Partially Implemented. `authorize()` decides project create, list, lock, seller invitation commands, and in-app notification list, read, and mark-read. There are no roles tables. Invitation commands write `project_audit_events`. Notification commands write `notification_audit_events`. |
 | Entry points | `backend/src/authorization/authorize.js`. `createProject` and `listProjects` call it. `lockMilestones` calls it after `SELECT … FOR UPDATE`. |
-| Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, and all `/projects` routes. Account status is enforced only in `requireAuth` (`BR-AUTHZ-005`). `project.create` denies self-dealing with `400` and an ineligible seller with `404`, and the inserted buyer is `obligations.buyerUserId`. `GET /projects` runs the participant `whereSql` from `authorize`: the buyer, or an active seller participant. `seller_user_id` alone is not access (`BR-AUTHZ-032`). Invite, withdraw, accept, decline, and review each have an action. A non-buyer invite and a non-invitee accept or decline return a concealing `404`. Lock-milestones is unchanged. |
+| Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, all `/projects` routes, and all `/notifications` routes. Account status is enforced only in `requireAuth` (`BR-AUTHZ-005`). `project.create` denies self-dealing with `400` and an ineligible seller with `404`, and the inserted buyer is `obligations.buyerUserId`. `GET /projects` runs the participant `whereSql` from `authorize`: the buyer, or an active seller participant. `seller_user_id` alone is not access (`BR-AUTHZ-032`). Invite, withdraw, accept, decline, and review each have an action. A non-buyer invite and a non-invitee accept or decline return a concealing `404`. Lock-milestones is unchanged. `notification.list` returns `recipientUserId` and the list query is scoped to that user. Read and mark-read of another user's delivery, or of a missing id, return the same `404`. |
 | Known limitations | `POST /users`, `GET /users`, and `POST /profiles` are unauthenticated (`SEC-001`, `SEC-AUTHZ-003`; MVP-005). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). `POST /projects` still stores `seller_user_id` before acceptance (`ENG-IMP-032`). There are no role tables (MVP-008). An unknown action fails closed with `403`. |
 | Engineering decisions | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) |
-| Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. |
-| Last materially changed | MVP-014 (2026-09-29) |
+| Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule, including notification list, read, and mark-read). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. Notification HTTP coverage is in `backend/test/notifications.http.test.js`. |
+| Last materially changed | MVP-041 (2026-09-29) |
 
 ### 4.7 Users, profiles, and discovery
 
@@ -289,8 +289,15 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Canonical specification | [notifications.md](../10-notifications/notifications.md) |
-| Implementation status | Not Implemented |
-| Next | MVP-041 – MVP-043. No email provider is selected. |
+| Implementation status | Partially Implemented. Intent and in-app delivery exist. Email, push, SMS, preference storage, retry, and rendered templates do not. |
+| Database tables | `notification_intents`, `notification_deliveries`, `notification_audit_events` (011). Intent rows are append-only. A mandatory in-app delivery cannot be suppressed or deleted. |
+| Entry points | `submitVerifiedEvent` in `backend/src/notifications/service.js` (in-process only). `GET /notifications`, `GET /notifications/:externalId`, `POST /notifications/:externalId/mark-read`. |
+| How it works | A classified topic is snapshotted as `MANDATORY` or `CONFIGURABLE` ([EDR-010](#edr-010-in-app-intent-without-a-preference-store)). A mandatory topic always inserts one in-app delivery and the local adapter moves it from `PENDING` to `SENT`. A configurable topic follows the matrix default because User Settings cannot be read yet: default in-app creates a delivery, default off does not. A caller-supplied preference object is ignored. Duplicate `(recipient, topic, source_event_id)` returns the existing intent and does not write a second audit row. List and read return the recipient's in-app rows only, with no template body and no source event id. Mark-read sets `read_at` once and writes `AUD-NOTIFICATIONS-002` only on that change. `GET` does not set `read_at`. |
+| Known limitations | Two matrix rows are refused (`ENG-IMP-036`). `SEC-NOTIFICATIONS-002` stays open: there is no signed HTTP ingestion route. `SENT` is not an `AUD-NOTIFICATIONS-001` terminal state, so the in-app adapter does not write a second audit row when it accepts the delivery. No email provider is selected. Nothing renders notification copy. |
+| Engineering decisions | [EDR-010](#edr-010-in-app-intent-without-a-preference-store) |
+| Tests | `backend/test/notification-rules.test.js`, `backend/test/notifications.http.test.js`, `backend/test/notification-constraints.test.js` |
+| Last materially changed | MVP-041 (2026-09-29) |
+| Next | MVP-042 preference evaluation, then MVP-043 email once a provider is selected. |
 
 ### 4.19 Database and migrations
 
@@ -298,18 +305,18 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Purpose | Schema definition and evolution for PostgreSQL 16 |
 | Implementation status | Implemented |
-| Important files | `backend/db/001_create_users.sql` … `010_project_participants_invitations.sql`, `backend/db/migrate.js`, `backend/db/db.js` |
+| Important files | `backend/db/001_create_users.sql` … `011_notification_intents_deliveries.sql`, `backend/db/migrate.js`, `backend/db/db.js` |
 | How it works | `npm run migrate` creates `schema_migrations(id, filename UNIQUE, applied_at)` if missing, reads `db/*.sql` sorted by filename, skips filenames already recorded, and runs each remaining file with one `client.query` (each file has its own `BEGIN`/`COMMIT`) followed by an `INSERT` of the filename. The files are written to be re-runnable: `CREATE … IF NOT EXISTS`, enum creation guarded by a `pg_type` lookup, constraint creation guarded by `pg_constraint`, and `CREATE OR REPLACE FUNCTION` / `DROP TRIGGER IF EXISTS`. Extensions: `pgcrypto` (`gen_random_uuid()`) and `citext`. |
 | Conventions in use | Three-digit numeric prefix plus a snake_case description. UUID PK plus a unique application-generated `external_id` per business table. Named constraints `<table>_<rule>`. `created_at`/`updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` (no update trigger). Enums for lifecycle state. |
 | Known limitations | No checksum or drift detection, and applied-state recording is not atomic ([ENG-IMP-001](engineering-improvements.md#eng-imp-001-migration-runner-cannot-detect-edited-migrations-and-records-applied-state-non-atomically)). No down-migrations. |
-| Last materially changed | Runner `191b2a0` (2026-07-12). Latest migration `010` (MVP-014, 2026-09-29): `project_invitations`, `project_participants`, `project_audit_events`, nullable `projects.seller_user_id`, and `projects.version`. Existing `seller_user_id` values are not rewritten and no seller participant is backfilled. |
+| Last materially changed | Runner `191b2a0` (2026-07-12). Latest migration `011` (MVP-041, 2026-09-29): `notification_intents`, `notification_deliveries`, and `notification_audit_events`. Migration `010` (MVP-014) added invitations, participants, project audit, nullable `projects.seller_user_id`, and `projects.version`. Existing `seller_user_id` values are not rewritten and no seller participant is backfilled. |
 
 ### 4.20 Testing
 
 | Field | Record |
 |---|---|
 | Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
-| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/authorize.test.js` (no database), `backend/test/profile-search-query.test.js` (no database), `backend/test/invitation-rules.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, `backend/test/authorization.http.test.js`, `backend/test/profile-search.http.test.js`, `backend/test/infrastructure.test.js`, `backend/test/invitations.http.test.js`, and `backend/test/invitation-constraints.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). Invitation tests cover the terminal outcomes, authorization, proposal mismatch, and database constraints. It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/authorize.test.js` (no database), `backend/test/profile-search-query.test.js` (no database), `backend/test/invitation-rules.test.js` (no database), `backend/test/notification-rules.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, `backend/test/authorization.http.test.js`, `backend/test/profile-search.http.test.js`, `backend/test/infrastructure.test.js`, `backend/test/invitations.http.test.js`, `backend/test/invitation-constraints.test.js`, `backend/test/notifications.http.test.js`, and `backend/test/notification-constraints.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). Invitation tests cover the terminal outcomes, authorization, proposal mismatch, and database constraints. Notification tests cover mandatory in-app creation, dedupe, recipient privacy, and the migration's constraints. It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
 | Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
 | Next | MVP-004 adds the CI workflow that runs these commands. |
 
@@ -541,6 +548,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | Branch `cursor/mvp-014-project-invitations-255b` |
 | Status | ACTIVE |
 
+### EDR-010 In-app intent without a preference store
+
+| Field | Value |
+|---|---|
+| ID | EDR-010 |
+| Date | 2026-09-29 |
+| Issue | MVP-041 / GitHub issue #43 |
+| Decision | Store notification intents and in-app deliveries now. Create the durable in-app row for every mandatory topic, and for a configurable topic only when the matrix default includes in-app. Do not read or honor a caller-supplied preference. Do not add an HTTP ingestion route. |
+| Context | Sections 6 and 10 require one intent per recipient, topic, and source event, and an in-app delivery whose `read_at` is recipient-private. `BR-NOTIFICATIONS-001` requires a `MANDATORY` or `CONFIGURABLE` snapshot, and a mandatory topic's in-app record cannot be removed by preference. Section 15.1 says a failed preference read uses the matrix default and must not become "always deliver everything." User Settings has no preference table, and MVP-042 owns that read. Section 11 limits creation to a trusted producer. `SEC-NOTIFICATIONS-002` requires a signed channel, and the specification does not define the signature. The list page size is not specified; Handbook §10.5 requires a bound. |
+| Options considered | (1) Honor a preference argument inside this item. That implements MVP-042 before a settings store exists and lets a producer suppress a mandatory notice. (2) Always create an in-app row for every topic. That delivers marketplace and marketing notices whose matrix default is Off. (3) Invent a signed HTTP ingestion scheme. The signature algorithm is unspecified. (4) Choose a class for "Authentication informational alert" and the split rating topic. Each cell refuses a single class (`ENG-IMP-036`). (5) Chosen: classify only the rows whose cells already say whether the durable in-app record remains, ignore any preference argument, follow the matrix default for the rest, and keep ingestion in-process. |
+| Chosen approach | Migration 011 adds the two delivery tables and an append-only audit table. `submitVerifiedEvent` dedupes on a hash of recipient, topic, and source event. The local in-app adapter returns the delivery external id and the row moves `PENDING` to `SENT` in the same transaction. `GET /notifications` is paged at 1–100 rows, matching the existing profile list bound. Read does not set `read_at`. Mark-read sets it once. |
+| Why | The acceptance criterion is the mandatory in-app record. The matrix default is the specified behavior when preferences cannot be read. A public create route would be an unsigned producer. The page bound copies an existing list limit rather than inventing a notification-specific one. |
+| Trade-offs | Configurable topics whose default is in-app are delivered even if a future user setting would disable them, until MVP-042. The two unclassified topics cannot be submitted. In-app stops at `SENT`, so no terminal-delivery audit row is written for that transition. No notification body is rendered. `SEC-NOTIFICATIONS-002` remains open. |
+| Affected components | `backend/db/011_notification_intents_deliveries.sql`, `backend/src/notifications/`, `backend/src/authorization/authorize.js`, `backend/Index.js`, `backend/test/notification-rules.test.js`, `backend/test/notifications.http.test.js`, `backend/test/notification-constraints.test.js` |
+| Reversal / migration considerations | A later migration can ignore the new tables. Dropping them is destructive and is not part of this change. No existing domain table is altered. |
+| Related specification IDs | `REQ-NOTIFICATIONS-002`, `REQ-NOTIFICATIONS-003`, `REQ-NOTIFICATIONS-006`, `BR-NOTIFICATIONS-001`, `BR-NOTIFICATIONS-002`, `BR-NOTIFICATIONS-003`, `DATA-NOTIFICATIONS-001`, `DATA-NOTIFICATIONS-002`, `SEC-NOTIFICATIONS-001`, `SEC-NOTIFICATIONS-005`, `INT-NOTIFICATIONS-001`, `INT-NOTIFICATIONS-003`, `INT-NOTIFICATIONS-004`, `AUD-NOTIFICATIONS-001`, `AUD-NOTIFICATIONS-002` |
+| Related PR / commit | Branch `cursor/mvp-041-notification-intent-255b` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -553,6 +579,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) | authorize() for the existing project rules | ACTIVE | 2026-09-28 |
 | [EDR-008](#edr-008-server-side-profile-search) | Server-side profile search | ACTIVE | 2026-09-29 |
 | [EDR-009](#edr-009-seller-invitation-without-a-project-state-transition) | Seller invitation without a project-state transition | ACTIVE | 2026-09-29 |
+| [EDR-010](#edr-010-in-app-intent-without-a-preference-store) | In-app intent without a preference store | ACTIVE | 2026-09-29 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -578,6 +605,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-29 | MVP-013 review / GitHub issue #15 | Restored EDR-007's closing rows after EDR-008 was inserted inside that table. No application behavior changed. | Documentation only | None | None | None | None | None | EDR-007, EDR-008 | None | #66 | The review-repair commit on `cursor/mvp-013-profile-search-255b` |
 | 2026-09-29 | MVP-014 / GitHub issue #16 | Seller invitations reach Accepted, Declined, Withdrawn, or Expired. Acceptance adds the only active Seller participant. `projects.state` is unchanged. `GET /projects` no longer treats a named seller as a party. | Projects, authorization, database, testing | 010 | Invitation invite, review, accept, decline, and withdraw. `GET /projects` seller scope. Project responses include `version`. | None | `SEC-PROJECTS-001`, `SEC-PROJECTS-016`, `SEC-AUTHZ-007`, `AUD-PROJECTS-002` | `backend/test/invitations.http.test.js`, `backend/test/invitation-constraints.test.js`, `backend/test/invitation-rules.test.js`; smoke and authorize expectations updated | EDR-009 | `ENG-IMP-032`, `ENG-IMP-033` | Branch `cursor/mvp-014-project-invitations-255b` | The MVP-014 commit on that branch |
 | 2026-09-29 | MVP-014 review / GitHub issue #16 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-034`, `ENG-IMP-035` | #68 | The review-record commit on `cursor/mvp-014-project-invitations-255b` |
+| 2026-09-29 | MVP-041 / GitHub issue #43 | Added notification intents, in-app deliveries, and recipient read/mark-read. A mandatory topic always keeps an in-app record. Preference evaluation and email stay later items. | Notifications, authorization, database, testing | 011 | `GET /notifications`, `GET /notifications/:externalId`, `POST /notifications/:externalId/mark-read` | None | `SEC-NOTIFICATIONS-001`, `SEC-NOTIFICATIONS-005`, `AUD-NOTIFICATIONS-001`, `AUD-NOTIFICATIONS-002` | `backend/test/notification-rules.test.js`, `backend/test/notifications.http.test.js`, `backend/test/notification-constraints.test.js` | EDR-010 | `ENG-IMP-036` | Branch `cursor/mvp-041-notification-intent-255b` | The MVP-041 commit on that branch |
 
 ## 8. Version history
 
@@ -595,3 +623,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.7.0 | 2026-09-29 | Recorded MVP-013: server-side profile search, Sections 4.3, 4.4, 4.7, and 4.20, EDR-008, and a change-history row. | Engineering |
 | 0.8.0 | 2026-09-29 | Recorded MVP-014: seller invitations, Sections 4.3, 4.6, 4.10, 4.19, 4.20, and 4.22, EDR-009, and a change-history row. | Engineering |
 | 0.8.1 | 2026-09-29 | Recorded the MVP-014 review's non-blocking improvements. No subsystem behavior changed. | Engineering |
+| 0.9.0 | 2026-09-29 | Recorded MVP-041: notification intents, in-app delivery, and read/mark-read. Sections 4.1, 4.3, 4.6, 4.18, 4.19, and 4.20, plus EDR-010. | Engineering |

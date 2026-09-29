@@ -7,7 +7,7 @@
     "start": "node Index.js",
     "dev": "node --watch Index.js",
     "migrate": "node db/migrate.js",
-    "test": "node --test --test-concurrency=1 test/database-guard.test.js test/canonical-json.test.js test/account-status.test.js test/authorize.test.js test/profile-search-query.test.js test/invitation-rules.test.js test/routes.smoke.test.js test/live-status.test.js test/authorization.http.test.js test/profile-search.http.test.js test/infrastructure.test.js test/invitations.http.test.js test/invitation-constraints.test.js"
+    "test": "node --test --test-concurrency=1 test/database-guard.test.js test/canonical-json.test.js test/account-status.test.js test/authorize.test.js test/profile-search-query.test.js test/invitation-rules.test.js test/notification-rules.test.js test/routes.smoke.test.js test/live-status.test.js test/authorization.http.test.js test/profile-search.http.test.js test/infrastructure.test.js test/invitations.http.test.js test/invitation-constraints.test.js test/notifications.http.test.js test/notification-constraints.test.js"
   },
   "keywords": [],
   "author": "",

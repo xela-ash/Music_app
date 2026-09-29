@@ -1,6 +1,9 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  NOTIFICATION_LIST,
+  NOTIFICATION_MARK_READ,
+  NOTIFICATION_READ,
   PROJECT_CREATE,
   PROJECT_LIST,
   PROJECT_LOCK_MILESTONES,
@@ -157,6 +160,39 @@ describe("authorize project.lock_milestones (Authorization §14.3)", () => {
     assert.deepEqual(authorize(actor(BUYER), PROJECT_LOCK_MILESTONES, draft), {
       allowed: true,
       obligations: {},
+    });
+  });
+});
+
+describe("authorize notification read (REQ-NOTIFICATIONS-006, BR-NOTIFICATIONS-002, SEC-NOTIFICATIONS-001)", () => {
+  it("lists only the actor's recipient scope", () => {
+    assert.deepEqual(authorize(actor(BUYER), NOTIFICATION_LIST, null), {
+      allowed: true,
+      obligations: { recipientUserId: BUYER },
+    });
+  });
+
+  it("allows the recipient to read and mark their own notification", () => {
+    const resource = { recipientUserId: BUYER };
+    assert.deepEqual(authorize(actor(BUYER), NOTIFICATION_READ, resource), {
+      allowed: true,
+      obligations: {},
+    });
+    assert.deepEqual(authorize(actor(BUYER), NOTIFICATION_MARK_READ, resource), {
+      allowed: true,
+      obligations: {},
+    });
+  });
+
+  it("conceals another user's notification and a missing notification", () => {
+    assert.deepEqual(
+      authorize(actor(OUTSIDER), NOTIFICATION_READ, { recipientUserId: BUYER }),
+      { allowed: false, status: 404, error: "Notification not found" }
+    );
+    assert.deepEqual(authorize(actor(BUYER), NOTIFICATION_MARK_READ, null), {
+      allowed: false,
+      status: 404,
+      error: "Notification not found",
     });
   });
 });

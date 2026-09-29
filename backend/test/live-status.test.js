@@ -89,6 +89,9 @@ const PROTECTED_REQUESTS = [
   ["GET", "/projects"],
   ["POST", "/projects"],
   ["POST", "/projects/00000000-0000-4000-8000-000000000099/lock-milestones"],
+  ["GET", "/notifications"],
+  ["GET", "/notifications/ndl_00000000000000000000"],
+  ["POST", "/notifications/ndl_00000000000000000000/mark-read"],
 ];
 
 describe("MVP-006 live account status (SEC-AUTH-002)", { concurrency: 1, timeout: 30000 }, () => {

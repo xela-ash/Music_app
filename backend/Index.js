@@ -7,6 +7,7 @@ const usersRouter = require("./src/users/routes");
 const profilesRouter = require("./src/profiles/routes");
 const projectsRouter = require("./src/projects/routes");
 const milestonesRouter = require("./src/milestones/routes");
+const notificationsRouter = require("./src/notifications/routes");
 
 const app = express();
 app.use(cors());
@@ -31,6 +32,7 @@ app.use(profilesRouter);
 app.use(authRouter);
 app.use(projectsRouter);
 app.use(milestonesRouter);
+app.use(notificationsRouter);
 
 if (require.main === module) {
   const PORT = 4000;

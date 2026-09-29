@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.5 |
+| Version | 0.7.6 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -137,6 +137,7 @@ Copy this template for each new entry:
 | [ENG-IMP-033](#eng-imp-033-seller-invitation-expiry-has-no-maximum-duration) | Seller invitation expiry has no maximum duration | API, Security | Low | PROPOSED |
 | [ENG-IMP-034](#eng-imp-034-terminal-invitation-rows-can-be-updated) | Terminal invitation rows can be updated | Database | Medium | PROPOSED |
 | [ENG-IMP-035](#eng-imp-035-invitation-review-returns-the-full-proposal-after-a-terminal-outcome) | Invitation review returns the full proposal after a terminal outcome | API, Security | Low | PROPOSED |
+| [ENG-IMP-036](#eng-imp-036-two-notification-topics-have-no-single-mandatory-class) | Two notification topics have no single mandatory class | Documentation, Architecture | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1098,6 +1099,36 @@ Copy this template for each new entry:
 | Related PR | [#68](https://github.com/xela-ash/music_app/pull/68) |
 | Resolution | — |
 
+### ENG-IMP-036 Two notification topics have no single mandatory class
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-036 |
+| Title | Two notification topics have no single mandatory class |
+| Date identified | 2026-09-29 |
+| Identified by | Cursor agent, MVP-041 / GitHub issue #43 |
+| Category | Documentation, Architecture |
+| Affected subsystem | Notifications |
+| Current state | `backend/src/notifications/topics.js` classifies the Section 8.1 rows whose "User May Disable?" cell already says whether the durable in-app record remains. It rejects `Authentication informational alert` ("Policy constrained") and `Rating available/requested, rating hidden/removed` (one row covers an optional notice and a mandatory removal notice). |
+| Evidence / problem | `BR-NOTIFICATIONS-001` requires every topic to be `MANDATORY` or `CONFIGURABLE`. Those two cells do not choose one class. User Settings open question 4 asked the Notifications specification to enumerate non-disableable events, and the matrix still uses prose for these rows. |
+| Suggested improvement | Architecture assigns one class to the authentication-informational row, and splits or classifies the rating row so availability and removal do not share one class. |
+| Expected benefit | Those topics can create intents without a guessed suppression rule. |
+| Risk of doing nothing | Producers of those two topics cannot notify. A later guess in code would suppress or force the wrong record. |
+| Implementation risk | Low once the class is written into the specification. |
+| Estimated scope | S |
+| Dependencies | A specification update. Not authorized by this entry. |
+| Product behavior impact | Yes |
+| Specification impact | Yes |
+| Migration impact | No, until the allowlist gains the topics |
+| Security impact | The authentication-informational row is policy constrained, so leaving it unclassified avoids a wrong suppression |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before any producer emits either topic. MVP-042 should not guess the class. |
+| Status | PROPOSED |
+| Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1146,3 +1177,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.3 | 2026-09-29 | Added `ENG-IMP-030` and `ENG-IMP-031` (PROPOSED) from MVP-013: unindexed leading-wildcard search, and no AND across search dimensions. Neither is authorized. The cross-reference row for profile discovery now records that search is server-side. | Engineering |
 | 0.7.4 | 2026-09-29 | Added `ENG-IMP-032` and `ENG-IMP-033` (PROPOSED) from MVP-014. Neither is authorized. | Engineering |
 | 0.7.5 | 2026-09-29 | Added `ENG-IMP-034` and `ENG-IMP-035` (PROPOSED) from the MVP-014 independent review. Neither is authorized. | Engineering |
+| 0.7.6 | 2026-09-29 | Added `ENG-IMP-036` (PROPOSED) from MVP-041. Two notification matrix rows have no single mandatory class. Not authorized. | Engineering |
