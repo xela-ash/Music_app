@@ -200,8 +200,8 @@ async function sendMessage(projectExternalId, body, actorUserId, idempotencyKeyH
             projectExternalId: project.external_id,
             conversationId: current.id,
             conversationExternalId: current.external_id,
-            messageId: null,
-            messageExternalId: null,
+            messageId: message.id,
+            messageExternalId: message.external_id,
             actorId: actorUserId,
             action: "conversation_created",
             outcome: "created",
@@ -242,7 +242,24 @@ async function sendMessage(projectExternalId, body, actorUserId, idempotencyKeyH
         };
       }
     );
-    return { status: idempotent.status, body: idempotent.body };
+    let responseBody = idempotent.body;
+    if (
+      idempotent.outcome === "replay" &&
+      responseBody &&
+      responseBody.message &&
+      typeof responseBody.message.external_id === "string"
+    ) {
+      const current = await repository.lockMessageInConversation(
+        client,
+        conversation.id,
+        responseBody.message.external_id
+      );
+      const row = current.rows[0];
+      if (row && row.tombstoned_at != null) {
+        responseBody = { message: publicMessage(row, conversation.external_id) };
+      }
+    }
+    return { status: idempotent.status, body: responseBody };
   });
 }
 

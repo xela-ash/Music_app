@@ -259,6 +259,24 @@ describe("MVP-038 conversations and messages", { concurrency: 1, timeout: 30000 
     );
     assert.equal(sellerTombstone.status, 403);
 
+    const outsiderTombstone = await request(
+      "POST",
+      `${messagesPath(project)}/${sent.json.message.external_id}/tombstone`,
+      { token: outsider.token, idempotencyKey: "tomb-outsider" }
+    );
+    assert.equal(outsiderTombstone.status, 404);
+    assert.deepEqual(outsiderTombstone.json, { error: "Project not found" });
+
+    const redactedReplay = await request("POST", messagesPath(project), {
+      token: buyer.token,
+      idempotencyKey: "send-1",
+      body: { body: original },
+    });
+    assert.equal(redactedReplay.status, 201, redactedReplay.text);
+    assert.equal(redactedReplay.json.message.external_id, sent.json.message.external_id);
+    assert.equal(redactedReplay.json.message.body, null);
+    assert.ok(redactedReplay.json.message.tombstoned_at);
+
     const listed = await request("GET", messagesPath(project), { token: seller.token });
     assert.equal(listed.status, 200, listed.text);
     assert.equal(listed.json.messages[0].body, null);
@@ -292,6 +310,13 @@ describe("MVP-038 conversations and messages", { concurrency: 1, timeout: 30000 
     assert.equal(auditCounts.conversation_created, 1);
     assert.equal(auditCounts.message_created, 3);
     assert.equal(auditCounts.message_tombstoned, 1);
+    const createdAudit = await pool.query(
+      `SELECT message_id IS NOT NULL AS has_message
+       FROM messaging_audit_events
+       WHERE project_id = $1 AND action = 'conversation_created'`,
+      [project.id]
+    );
+    assert.equal(createdAudit.rows[0].has_message, true);
 
     const events = await pool.query(
       `SELECT event_type, payload
