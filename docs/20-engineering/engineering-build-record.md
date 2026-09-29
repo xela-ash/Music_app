@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.10.0 |
+| Version | 0.10.1 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -583,7 +583,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Affected components | `backend/src/notifications/preferences.js`, `backend/src/notifications/settings-reader.js`, `backend/src/notifications/service.js`, `backend/src/notifications/repository.js`, `backend/src/notifications/topics.js`, `backend/test/preference-evaluation.test.js`, `backend/test/notifications.http.test.js` |
 | Reversal / migration considerations | No schema change. Removing the evaluator restores matrix-default fan-out. The test reader is not an HTTP route. |
 | Related specification IDs | `REQ-NOTIFICATIONS-004`, `BR-NOTIFICATIONS-001`, `SEC-NOTIFICATIONS-004`, `INT-NOTIFICATIONS-002`, `AUD-NOTIFICATIONS-001` |
-| Related PR / commit | Branch `cursor/mvp-042-preference-evaluation-255b` |
+| Related PR / commit | [#73](https://github.com/xela-ash/music_app/pull/73), merge `7bc8b7d` |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -647,3 +647,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.8.1 | 2026-09-29 | Recorded the MVP-014 review's non-blocking improvements. No subsystem behavior changed. | Engineering |
 | 0.9.0 | 2026-09-29 | Recorded MVP-041: notification intents, in-app delivery, and read/mark-read. Sections 4.1, 4.3, 4.6, 4.18, 4.19, and 4.20, plus EDR-010. | Engineering |
 | 0.10.0 | 2026-09-29 | Recorded MVP-042: preference evaluation without a settings table. Sections 4.1, 4.18, and 4.20, plus EDR-011. | Engineering |
+| 0.10.1 | 2026-09-29 | Recorded pull request #73 on EDR-011. No subsystem behavior changed. | Engineering |

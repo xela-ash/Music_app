@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.7 |
+| Version | 0.7.8 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1220,7 +1220,7 @@ Copy this template for each new entry:
 | Recommended timing | With the first User Settings storage item |
 | Status | PROPOSED |
 | Related GitHub Issue | [#44](https://github.com/xela-ash/Music_app/issues/44) |
-| Related PR | — |
+| Related PR | [#73](https://github.com/xela-ash/music_app/pull/73) |
 | Resolution | — |
 
 ### ENG-IMP-040 Quiet hours and digest are not applied
@@ -1250,7 +1250,7 @@ Copy this template for each new entry:
 | Recommended timing | After the format is specified and a settings store exists |
 | Status | PROPOSED |
 | Related GitHub Issue | [#44](https://github.com/xela-ash/Music_app/issues/44) |
-| Related PR | — |
+| Related PR | [#73](https://github.com/xela-ash/music_app/pull/73) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
@@ -1303,3 +1303,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.5 | 2026-09-29 | Added `ENG-IMP-034` and `ENG-IMP-035` (PROPOSED) from the MVP-014 independent review. Neither is authorized. | Engineering |
 | 0.7.6 | 2026-09-29 | Added `ENG-IMP-036`, `ENG-IMP-037`, and `ENG-IMP-038` (PROPOSED) from MVP-041 and its review. Three matrix rows have no single mandatory class. Neither a topic/domain pair nor a topic/class pair is enforced. None are authorized. | Engineering |
 | 0.7.7 | 2026-09-29 | Added `ENG-IMP-039` and `ENG-IMP-040` (PROPOSED) from MVP-042. No User Settings store exists, and quiet hours and digest are not applied. Neither is authorized. | Engineering |
+| 0.7.8 | 2026-09-29 | Recorded pull request #73 on `ENG-IMP-039` and `ENG-IMP-040`. Neither is authorized. | Engineering |
