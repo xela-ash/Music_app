@@ -800,17 +800,16 @@ function AppShell({ session, onLogout }: { session: Session; onLogout: () => voi
 // =====================
 // Discover screen
 // =====================
-function profileMatchesQuery(profile: DiscoverProfile, query: string): boolean {
-  if (!query) return true;
-  const haystacks = [
-    profile.display_name,
-    profile.artist_name,
-    profile.handle,
-    profile.city,
-    profile.country,
-    ...profile.genres,
-  ];
-  return haystacks.some((value) => value.toLowerCase().includes(query));
+const DISCOVER_SEARCH_PARAMS = ["name", "handle", "genre", "city", "country"] as const;
+
+function discoverProfilesPath(query: string): string {
+  const trimmed = query.trim();
+  if (!trimmed) return "/profiles";
+  const params = new URLSearchParams();
+  for (const key of DISCOVER_SEARCH_PARAMS) {
+    params.set(key, trimmed);
+  }
+  return `/profiles?${params.toString()}`;
 }
 
 function DiscoverScreen({
@@ -824,6 +823,7 @@ function DiscoverScreen({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [resultQuery, setResultQuery] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -834,15 +834,17 @@ function DiscoverScreen({
     (async () => {
       try {
         const token = localStorage.getItem(TOKEN_KEY);
-        const data = (await apiGet("/profiles", token ?? undefined)) as {
+        const data = (await apiGet(discoverProfilesPath(searchQuery), token ?? undefined)) as {
           profiles: DiscoverProfile[];
         };
         if (cancelled) return;
         setProfiles(data.profiles.filter((p) => p.user_id !== currentUserId));
+        setResultQuery(searchQuery);
       } catch (err: unknown) {
         if (cancelled) return;
         setError(getErrorMessage(err));
         setProfiles(null);
+        setResultQuery(searchQuery);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -851,10 +853,11 @@ function DiscoverScreen({
     return () => {
       cancelled = true;
     };
-  }, [currentUserId, reloadKey]);
+  }, [currentUserId, reloadKey, searchQuery]);
 
-  const trimmedQuery = searchQuery.trim().toLowerCase();
-  const filteredProfiles = profiles ? profiles.filter((p) => profileMatchesQuery(p, trimmedQuery)) : [];
+  const trimmedQuery = searchQuery.trim();
+  const filteredProfiles = profiles ?? [];
+  const resultsPending = resultQuery !== searchQuery;
 
   return (
     <div className="discover-view">
@@ -868,22 +871,30 @@ function DiscoverScreen({
         <input
           type="search"
           className="search-input"
+          aria-label="Search by name, handle, genre or location"
           placeholder="Search by name, handle, genre or location"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </header>
 
-      {loading ? (
+      {loading || resultsPending ? (
         <p className="status-message">Finding collaborators...</p>
       ) : error ? (
         <div className="empty-state">
           <p className="error-message">{error}</p>
-          <button type="button" className="btn btn-secondary" onClick={() => setReloadKey((k) => k + 1)}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setResultQuery(null);
+              setReloadKey((k) => k + 1);
+            }}
+          >
             Try again
           </button>
         </div>
-      ) : profiles && profiles.length === 0 ? (
+      ) : !trimmedQuery && filteredProfiles.length === 0 ? (
         <div className="empty-state">
           <p className="empty-state-title">No collaborators found yet.</p>
           <p className="empty-state-copy">

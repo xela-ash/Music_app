@@ -6,8 +6,8 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.6.0 |
-| Last Reviewed | 2026-09-28 |
+| Version | 0.7.0 |
+| Last Reviewed | 2026-09-29 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
@@ -128,7 +128,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. Run `npm install` before starting. |
 | Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). |
 | Engineering decisions | [EDR-001](#edr-001-backend-module-layout). [EDR-003](#edr-003-test-runners-and-database-fixture) for the test entry point. [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) for `backend/src/infrastructure/`. Baseline choices remain in Section 5. |
-| Last materially changed | MVP-003 (2026-09-27), shared infrastructure helpers added; no route changed |
+| Last materially changed | MVP-013 (2026-09-29): `GET /profiles` accepts search and page query parameters. No new route. |
 
 ### 4.4 Frontend application
 
@@ -142,9 +142,9 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Frontend components | `App` (auth bootstrap; `AppState`), `LoginForm`, `SignupForm`, `AppShell` (navigation; `AuthenticatedView` = `home`/`discover`/`profileDetail`/`createProject`/`projects`/`projectDetail`), `DiscoverScreen`, `ProfileCard`, `ProfileDetailScreen`, `CreateProjectScreen`, `ProjectsScreen`, `ProjectCard`, `ProjectDetailScreen`, `MilestoneLockSection` |
 | How it works | View switching through `useState`, with no router. Data is fetched in `useEffect` and held in component state. All requests go through `apiGet`/`apiPost`, which prefix `API_BASE = "http://localhost:4000"`, attach `Authorization: Bearer <token>`, parse the body as text then JSON, and throw `Error(data.error)` when the response is not OK. The JWT is stored in `localStorage` under `musicapp_token`. On load, the app calls `GET /auth/me` and clears the token on failure. |
 | Security controls | React escaping. There is no `dangerouslySetInnerHTML`. |
-| Tests | Vitest 4 with jsdom 26 and Testing Library. `frontend/src/App.smoke.test.tsx` covers the logged-out screen, the signup password-mismatch message, session loading, and a rejected login. `pnpm lint` and `tsc -b` passed with that suite on 2026-09-26. |
+| Tests | Vitest 4 with jsdom 26 and Testing Library. `frontend/src/App.smoke.test.tsx` covers the logged-out screen, the signup password-mismatch message, session loading, and a rejected login. `frontend/src/App.discover.test.tsx` covers Discover loading, empty catalog, empty search, server query parameters, hiding the signed-in profile, and the search error retry. |
 | Known limitations | Single module (no plan item yet, [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle)). Untyped, unlinted API client ([ENG-IMP-002](engineering-improvements.md#eng-imp-002-frontend-api-client-is-untyped-and-outside-lint-scope)). Hardcoded API base ([ENG-IMP-003](engineering-improvements.md#eng-imp-003-frontend-api-base-url-is-hardcoded)). Token in `localStorage` (`SEC-USERS-005`). |
-| Last materially changed | Application behavior `88986c5` (2026-07-21). MVP-002 added tests only. |
+| Last materially changed | MVP-013 (2026-09-29): Discover search is a server query. |
 
 ### 4.5 Authentication
 
@@ -181,9 +181,10 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Canonical specification | [users.md](../02-users-roles-permissions/users.md), [profiles.md](../02-users-roles-permissions/profiles.md), [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace) (Marketplace) |
 | Implementation status | Partially Implemented |
 | Database tables | `users` (001: `user_status` enum `active`/`suspended`/`deleted`, `CITEXT` unique email, unique `phone_e164`, `users_email_or_phone_present`); `profiles` (002: one per user, `CITEXT` unique `handle`, `genres TEXT[]`, `profile_photo_asset_id UUID` without FK) |
-| API routes | `POST /users`, `GET /users`, `POST /profiles` (legacy direct creation), `GET /profiles` (authenticated, explicit columns excluding `dob`, newest 100) |
-| Frontend components | `DiscoverScreen` (client-side search through `profileMatchesQuery` over the fetched 100), `ProfileCard`, `ProfileDetailScreen` (shows initials when no photo is set) |
-| Known limitations | No profile edit or settings routes. `GET /profiles` has no live user-status filter and no server-side search (MVP-013). `POST /profiles` and signup return `RETURNING *`. |
+| API routes | `POST /users`, `GET /users`, `POST /profiles` (legacy direct creation), `GET /profiles` (authenticated, explicit columns excluding `dob`, server-side search, newest-first page of at most 100) |
+| Frontend components | `DiscoverScreen` (sends the search box to `GET /profiles` as `name`, `handle`, `genre`, `city`, and `country`), `ProfileCard`, `ProfileDetailScreen` (shows initials when no photo is set) |
+| Known limitations | No profile edit or settings routes. Profile visibility and lifecycle columns do not exist, so search cannot yet scope to public active Profiles (`REQ-PROFILE-005`). `POST /profiles` and signup return `RETURNING *`. Leading-wildcard search has no index (`ENG-IMP-030`). Supplied search dimensions are OR-combined (`ENG-IMP-031`). |
+| Engineering decisions | [EDR-008](#edr-008-server-side-profile-search) |
 
 ### 4.8 Identity verification
 
@@ -308,7 +309,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Implementation status | Partially Implemented. MVP-002 added the backend runner, database fixture, and frontend component runner. There is still no CI workflow. |
-| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/authorize.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, `backend/test/authorization.http.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
+| What does run | `backend`: `npm test` runs `backend/test/database-guard.test.js`, `backend/test/canonical-json.test.js` (no database), `backend/test/account-status.test.js` (no database), `backend/test/authorize.test.js` (no database), `backend/test/profile-search-query.test.js` (no database), `backend/test/routes.smoke.test.js`, `backend/test/live-status.test.js`, `backend/test/authorization.http.test.js`, `backend/test/profile-search.http.test.js`, and `backend/test/infrastructure.test.js` with Node's built-in `node:test` runner, one file at a time (`--test-concurrency=1`) because two files truncate the same database. The smoke file migrates, truncates application tables, and listens on an ephemeral port. The infrastructure file covers MVP-003's constraints, triggers, concurrency, and seeded property cases (`backend/test/random.js`). It requires `DB_NAME=musicapp_mvp001` and an explicit `DB_PORT` other than 5432. `./.cursor/test-backend.sh` provisions that database on port 5433. `frontend`: `pnpm test` (Vitest), `pnpm lint`, and `tsc -b`. |
 | Known limitations | One smoke run truncates `musicapp_mvp001`. Two overlapping runs against that database will interfere. There is no GitHub Actions workflow yet (MVP-004). |
 | Next | MVP-004 adds the CI workflow that runs these commands. |
 
@@ -496,6 +497,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Chosen approach | Actions are `project.create`, `project.list`, and `project.lock_milestones`. An unknown action or a missing actor fails closed (`403` or `401`). Create denies self-dealing with `400` before it denies an ineligible seller with `404`, and the buyer written to the row is `obligations.buyerUserId`. List with no resource allows the action and returns `whereSql` and `params` built from one participant-column list (`buyer_user_id`, `seller_user_id`). The repository rejects any other scope and runs that clause. The same column list allows or conceals a single project. Lock, inside the existing transaction after `FOR UPDATE`, returns `404`, then `409` when `milestones_locked_at` is set, then `400` when `state` is not `draft`. Milestone amount and currency checks stay in the domain service. `authorize` ignores an account-status field on the actor. |
 | Why | Existing protected responses stay the same, and a new route has one function that denies by default. The list stays a scoped query. Lock still revalidates under the row lock (`BR-AUTHZ-029`). |
 | Trade-offs | Create now loads the seller before the self-dealing denial, so a database failure on that lookup returns `500` instead of the previous `400`. A successful self-dealing request is unchanged. Seller eligibility is a boolean the service sets from `findActiveSellerWithProfile` (`ENG-IMP-029`). The decision object is not the §9.2 record. EDR-005 is reserved by the unmerged MVP-004 branch, so this record is EDR-007. |
+
+### EDR-008 Server-side profile search
+
+| Field | Value |
+|---|---|
+| ID | EDR-008 |
+| Date | 2026-09-29 |
+| Issue | MVP-013 / GitHub issue #15 |
+| Decision | `GET /profiles` filters in SQL with case-insensitive substrings on `name`, `handle`, `genre`, `city`, and `country`, ORs those dimensions, and returns a newest-first page of at most 100 rows. |
+| Context | `REQ-PROFILE-005` asks for server-side, paginated, filtered search of public active Profiles. `SEC-PROFILE-007` and `SEC-AUTHZ-006` are the fixed 100-row window. `BR-AUTHZ-023` requires the filter to run in the query. The issue forbids a schema change and says to wire the existing Discover box. That box matches one string against display name, artist name, handle, genres, city, and country (`profileMatchesQuery`). Profiles have no visibility or lifecycle columns. `SEC-AUTHZ-008` (anonymous discovery) is a separate gap. Handbook §10.5 requires a bounded page. EDR-005 remains reserved on the unmerged MVP-004 branch. |
+| Options considered | (1) Keep the 100-row fetch and filter in the client. That fails the acceptance criterion. (2) AND the five parameters. The existing one-field box would then miss a profile unless every dimension contained the same text. (3) Add a new `q` parameter. The issue names the five parameters, not a sixth. (4) Invent profile visibility and an index. The issue forbids a schema change. (5) Chosen: each supplied parameter adds its dimension to a disjunction, `name` matches `display_name` or `artist_name` only, and `limit`/`offset` stay inside 1–100 and 0–10000. |
+| Chosen approach | `parseProfileListQuery` rejects repeated values, non-integers, and filters longer than 200 characters. `buildProfileSearchWhere` escapes `\`, `%`, and `_`, and the repository is the only caller that turns that clause into SQL. The response stays `{ profiles }` so the existing smoke assertion on keys still holds. Discover sends the typed string on all five parameters and still hides the signed-in profile locally. Unfiltered Discover remains the newest 100. Ordering is `created_at DESC, id DESC`. |
+| Why | A profile older than the newest 100 is reachable by search, the page cannot grow past 100, and the current search box keeps the same match rule. Legal name stays out of the match, which is the current client behavior and avoids widening `SEC-PROFILE-001`. |
+| Trade-offs | A caller cannot require city and genre together (`ENG-IMP-031`). There is no relevance ranking. Public/active scoping waits on columns this issue does not add. `ILIKE '%term%'` is not indexed (`ENG-IMP-030`). Offset pagination can skip or repeat rows if a profile is inserted between pages. |
+| Affected components | `backend/src/profiles/search.js`, `backend/src/profiles/repository.js`, `backend/src/profiles/service.js`, `backend/src/profiles/routes.js`, `frontend/src/App.tsx`, `backend/test/profile-search-query.test.js`, `backend/test/profile-search.http.test.js`, `frontend/src/App.discover.test.tsx` |
+| Reversal / migration considerations | No schema change. Restore `LIMIT 100` without a WHERE clause and the client `profileMatchesQuery` filter. |
+| Related specification IDs | `REQ-PROFILE-005`, `REQ-AUTHZ-005`, `BR-AUTHZ-023`, `SEC-PROFILE-007`, `SEC-AUTHZ-006` |
+| Related PR / commit | Branch `cursor/mvp-013-profile-search-255b` |
+| Status | ACTIVE |
 | Affected components | `backend/src/authorization/authorize.js`, `backend/src/projects/service.js`, `backend/src/projects/repository.js`, `backend/src/milestones/service.js`, `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` |
 | Reversal / migration considerations | Move the conditionals back into the two services. No schema change. |
 | Related specification IDs | `REQ-AUTHZ-001`, `REQ-AUTHZ-004`, `BR-AUTHZ-002`, `BR-AUTHZ-003`, `BR-AUTHZ-005`, `BR-AUTHZ-023`, `BR-AUTHZ-024`, `BR-AUTHZ-029`, `SEC-AUTHZ-004`, `INT-AUTHZ-001` |
@@ -512,6 +532,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) | Shared idempotency, outbox, and inbox model | ACTIVE | 2026-09-27 |
 | [EDR-006](#edr-006-live-account-status-inside-requireauth) | Live account status inside requireAuth | ACTIVE | 2026-09-28 |
 | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) | authorize() for the existing project rules | ACTIVE | 2026-09-28 |
+| [EDR-008](#edr-008-server-side-profile-search) | Server-side profile search | ACTIVE | 2026-09-29 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -533,6 +554,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-28 | MVP-006 review / GitHub issue #8 | Recorded the review's non-blocking HTTP-coverage limit. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-028` | #62 | The review-record commit on `cursor/mvp-006-live-account-status-32e3` |
 | 2026-09-28 | MVP-007 / GitHub issue #9 | Project create, list, and lock decisions go through `authorize()`. HTTP status and error text for those routes stay the same. No schema change, no new permission, and no audit writer. | Authorization, projects, milestones, testing | None | None | None | `SEC-AUTHZ-004` for the five existing project checks. Account-status denial stays in Authentication. | `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` | EDR-007 | None | Branch `cursor/mvp-007-authorize-decision-32e3` | The MVP-007 commit on that branch |
 | 2026-09-28 | MVP-007 review / GitHub issue #9 | `GET /projects` runs the participant `whereSql` returned by `authorize`. The repository rejects any other scope. Seller-eligibility boolean left as `ENG-IMP-029`. | Authorization, projects, testing | None | None | None | None | `backend/test/authorize.test.js` | EDR-007 (updated) | `ENG-IMP-029` | #64 | The review-repair commit on `cursor/mvp-007-authorize-decision-32e3` |
+| 2026-09-29 | MVP-013 / GitHub issue #15 | `GET /profiles` searches `name`, `handle`, `genre`, `city`, and `country` in SQL and pages at most 100 rows. Discover sends the existing search box to that query. No schema change. | Profiles, discovery, frontend, testing | None | Search and `limit`/`offset` query parameters on `GET /profiles`. Body remains `{ profiles }`. | Discover refetches on search and no longer filters the fetched page in the client. | `SEC-PROFILE-007`, `SEC-AUTHZ-006`, `BR-AUTHZ-023`. Authenticated route unchanged. Legal name is not a search field. | `backend/test/profile-search-query.test.js`, `backend/test/profile-search.http.test.js`, `frontend/src/App.discover.test.tsx` | EDR-008 | `ENG-IMP-030`, `ENG-IMP-031` | Branch `cursor/mvp-013-profile-search-255b` | The MVP-013 commit on that branch |
 
 ## 8. Version history
 
@@ -547,3 +569,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.4.1 | 2026-09-28 | Recorded the MVP-003 constraint-test clock repair. No subsystem behavior changed. | Engineering |
 | 0.5.0 | 2026-09-28 | Recorded MVP-006: live account-status check inside `requireAuth`, Section 4.5, EDR-006, and a change-history row. | Engineering |
 | 0.6.0 | 2026-09-28 | Recorded MVP-007: `authorize()` for the existing project rules, Section 4.6, EDR-007, and a change-history row. | Engineering |
+| 0.7.0 | 2026-09-29 | Recorded MVP-013: server-side profile search, Sections 4.3, 4.4, 4.7, and 4.20, EDR-008, and a change-history row. | Engineering |
