@@ -12,23 +12,25 @@
 // 5. project.lock_milestones state — already locked 409, then non-draft 400
 //
 // Self-dealing on create is part of check 2's action: the actor cannot also
-// be the named seller. Invitation and acceptance (SEC-AUTHZ-007) are not
-// decided here.
+// be the named seller. A named seller_user_id is not an active Seller
+// (BR-AUTHZ-032, SEC-AUTHZ-007). Active Seller access is an accepted
+// participant, carried on the project as active_seller_user_id.
 
 const PROJECT_CREATE = "project.create";
 const PROJECT_LIST = "project.list";
 const PROJECT_LOCK_MILESTONES = "project.lock_milestones";
-
-// Columns that make an actor a project participant. The list query and the
-// single-project relationship check both use this list, so they cannot drift.
-const PARTICIPANT_COLUMNS = ["buyer_user_id", "seller_user_id"];
+const PROJECT_INVITE_SELLER = "project.invite_seller";
+const PROJECT_WITHDRAW_INVITATION = "project.withdraw_invitation";
+const PROJECT_ACCEPT_INVITATION = "project.accept_invitation";
+const PROJECT_DECLINE_INVITATION = "project.decline_invitation";
+const PROJECT_REVIEW_INVITATION = "project.review_invitation";
 
 function participantWhereSql(alias) {
-  return PARTICIPANT_COLUMNS.map((column) => `${alias}.${column} = $1`).join(" OR ");
+  return `${alias}.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = ${alias}.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')`;
 }
 
 function isProjectParticipant(actorId, project) {
-  return PARTICIPANT_COLUMNS.some((column) => project[column] === actorId);
+  return project.buyer_user_id === actorId || project.active_seller_user_id === actorId;
 }
 
 function deny(status, error) {
@@ -84,6 +86,46 @@ function authorizeLockMilestones(actor, project) {
   return allow();
 }
 
+function authorizeInviteSeller(actor, resource) {
+  if (!resource || resource.buyerUserId !== actor.id) {
+    return deny(404, "Project not found");
+  }
+  if (resource.inviteeUserId === actor.id) {
+    return deny(400, "You cannot invite yourself");
+  }
+  if (resource.inviteeEligible !== true) {
+    return deny(404, "Seller not found");
+  }
+  if (resource.hasActiveSeller === true) {
+    return deny(409, "An accepted seller already exists");
+  }
+  if (resource.state !== "draft") {
+    return deny(409, "Proposal is not ready for invitation");
+  }
+  return allow();
+}
+
+function authorizeWithdrawInvitation(actor, resource) {
+  if (!resource || resource.buyerUserId !== actor.id) {
+    return deny(404, "Invitation not found");
+  }
+  return allow();
+}
+
+function authorizeInviteeCommand(actor, resource) {
+  if (!resource || resource.inviteeUserId !== actor.id) {
+    return deny(404, "Invitation not found");
+  }
+  return allow();
+}
+
+function authorizeReviewInvitation(actor, resource) {
+  if (!resource || (resource.buyerUserId !== actor.id && resource.inviteeUserId !== actor.id)) {
+    return deny(404, "Invitation not found");
+  }
+  return allow();
+}
+
 function authorize(actor, action, resource) {
   const id = actorId(actor);
   if (!id) {
@@ -100,6 +142,18 @@ function authorize(actor, action, resource) {
   if (action === PROJECT_LOCK_MILESTONES) {
     return authorizeLockMilestones(principal, resource);
   }
+  if (action === PROJECT_INVITE_SELLER) {
+    return authorizeInviteSeller(principal, resource);
+  }
+  if (action === PROJECT_WITHDRAW_INVITATION) {
+    return authorizeWithdrawInvitation(principal, resource);
+  }
+  if (action === PROJECT_ACCEPT_INVITATION || action === PROJECT_DECLINE_INVITATION) {
+    return authorizeInviteeCommand(principal, resource);
+  }
+  if (action === PROJECT_REVIEW_INVITATION) {
+    return authorizeReviewInvitation(principal, resource);
+  }
   return deny(403, "Forbidden");
 }
 
@@ -107,6 +161,11 @@ module.exports = {
   PROJECT_CREATE,
   PROJECT_LIST,
   PROJECT_LOCK_MILESTONES,
+  PROJECT_INVITE_SELLER,
+  PROJECT_WITHDRAW_INVITATION,
+  PROJECT_ACCEPT_INVITATION,
+  PROJECT_DECLINE_INVITATION,
+  PROJECT_REVIEW_INVITATION,
   participantWhereSql,
   authorize,
 };
