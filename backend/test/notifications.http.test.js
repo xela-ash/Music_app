@@ -1,4 +1,4 @@
-const { describe, it, before, after } = require("node:test");
+const { describe, it, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const {
   ensureMigrated,
@@ -9,6 +9,10 @@ const {
 } = require("./harness");
 const pool = require("../db/db");
 const { submitVerifiedEvent } = require("../src/notifications/service");
+const {
+  resetNotificationSettingsReader,
+  setNotificationSettingsReader,
+} = require("../src/notifications/settings-reader");
 
 let baseUrl = "";
 let server;
@@ -102,6 +106,10 @@ async function counts(recipientUserId) {
   };
 }
 
+function installSettings(settings) {
+  setNotificationSettingsReader(async () => ({ ok: true, settings }));
+}
+
 describe("in-app notifications (MVP-041)", { concurrency: 1, timeout: 30000 }, () => {
   before(async () => {
     ensureMigrated();
@@ -111,7 +119,12 @@ describe("in-app notifications (MVP-041)", { concurrency: 1, timeout: 30000 }, (
     baseUrl = started.baseUrl;
   });
 
+  beforeEach(() => {
+    resetNotificationSettingsReader();
+  });
+
   after(async () => {
+    resetNotificationSettingsReader();
     try {
       if (server) {
         await closeServer(server);
@@ -323,5 +336,169 @@ describe("in-app notifications (MVP-041)", { concurrency: 1, timeout: 30000 }, (
     assert.equal(tally.intents, 1);
     assert.equal(tally.deliveries, 1);
     assert.equal(tally.intentAudits, 1);
+  });
+
+  it("suppresses a disabled configurable in-app channel and no other channel (REQ-NOTIFICATIONS-004)", async () => {
+    const recipient = await signupAndLogin(nextId("pref-off"));
+    installSettings({ in_app_enabled: false, email_enabled: true });
+    const created = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: CONFIGURABLE_TOPIC,
+      sourceDomain: "Messaging",
+      sourceEventId: "message-off",
+      preference: { in_app_enabled: true },
+    });
+    assert.equal(created.ok, true, created.error);
+    assert.equal(created.status, "SUPPRESSED");
+    const again = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: CONFIGURABLE_TOPIC,
+      sourceDomain: "Messaging",
+      sourceEventId: "message-off",
+    });
+    assert.equal(again.created, false);
+    assert.equal(again.delivery_external_id, created.delivery_external_id);
+    assert.equal(again.status, "SUPPRESSED");
+
+    const stored = await pool.query(
+      `SELECT d.status, d.channel, d.provider_reference, d.attempt_count
+       FROM notification_deliveries d
+       JOIN notification_intents i ON i.id = d.intent_id
+       WHERE i.recipient_user_id = $1`,
+      [recipient.userId]
+    );
+    assert.equal(stored.rows.length, 1);
+    assert.equal(stored.rows[0].channel, "IN_APP");
+    assert.equal(stored.rows[0].status, "SUPPRESSED");
+    assert.equal(stored.rows[0].provider_reference, null);
+    assert.equal(stored.rows[0].attempt_count, 0);
+
+    const listed = await request("GET", "/notifications", { token: recipient.token });
+    assert.equal(listed.status, 200, listed.text);
+    assert.deepEqual(listed.json, { notifications: [] });
+    const read = await request("GET", `/notifications/${created.delivery_external_id}`, {
+      token: recipient.token,
+    });
+    assert.equal(read.status, 404);
+    const mark = await request(
+      "POST",
+      `/notifications/${created.delivery_external_id}/mark-read`,
+      { token: recipient.token }
+    );
+    assert.equal(mark.status, 404);
+    const tally = await counts(recipient.userId);
+    assert.equal(tally.intents, 1);
+    assert.equal(tally.deliveries, 1);
+    assert.equal(tally.intentAudits, 1);
+  });
+
+  it("does not suppress in-app when only email is disabled (REQ-NOTIFICATIONS-004)", async () => {
+    const recipient = await signupAndLogin(nextId("email-off"));
+    installSettings({ email_enabled: false, in_app_enabled: true });
+    const created = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: CONFIGURABLE_TOPIC,
+      sourceDomain: "Messaging",
+      sourceEventId: "message-email-off",
+      preference: { in_app_enabled: false },
+    });
+    assert.equal(created.ok, true, created.error);
+    assert.equal(created.status, "SENT");
+    const stored = await pool.query(
+      `SELECT channel, status FROM notification_deliveries d
+       JOIN notification_intents i ON i.id = d.intent_id
+       WHERE i.recipient_user_id = $1`,
+      [recipient.userId]
+    );
+    assert.deepEqual(stored.rows, [{ channel: "IN_APP", status: "SENT" }]);
+  });
+
+  it("never suppresses a mandatory in-app record when settings disable it (BR-NOTIFICATIONS-001, SEC-NOTIFICATIONS-004)", async () => {
+    const recipient = await signupAndLogin(nextId("mandatory-pref"));
+    installSettings({
+      in_app_enabled: false,
+      topic_overrides: { [MANDATORY_TOPIC]: { in_app: false } },
+    });
+    const created = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: MANDATORY_TOPIC,
+      sourceDomain: "Disputes",
+      sourceEventId: "dispute-pref",
+    });
+    assert.equal(created.ok, true, created.error);
+    assert.equal(created.status, "SENT");
+    const listed = await request("GET", "/notifications", { token: recipient.token });
+    assert.equal(listed.json.notifications.length, 1);
+    assert.equal(listed.json.notifications[0].external_id, created.delivery_external_id);
+  });
+
+  it("applies a topic override without letting a global enable override a matrix default of off (REQ-NOTIFICATIONS-004)", async () => {
+    const recipient = await signupAndLogin(nextId("override"));
+    installSettings({
+      in_app_enabled: true,
+      topic_overrides: { [CONFIGURABLE_TOPIC]: { in_app: false } },
+    });
+    const message = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: CONFIGURABLE_TOPIC,
+      sourceDomain: "Messaging",
+      sourceEventId: "message-override",
+    });
+    assert.equal(message.status, "SUPPRESSED");
+
+    installSettings({ in_app_enabled: true });
+    const stillOff = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: DEFAULT_OFF_TOPIC,
+      sourceDomain: "Marketplace",
+      sourceEventId: "rec-global",
+    });
+    assert.equal(stillOff.delivery_external_id, null);
+
+    installSettings({
+      topic_overrides: { [DEFAULT_OFF_TOPIC]: { in_app: true } },
+    });
+    const enabled = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: DEFAULT_OFF_TOPIC,
+      sourceDomain: "Marketplace",
+      sourceEventId: "rec-override",
+    });
+    assert.equal(enabled.ok, true, enabled.error);
+    assert.equal(enabled.status, "SENT");
+  });
+
+  it("uses the matrix default when the preference read fails (INT-NOTIFICATIONS-002)", async () => {
+    const recipient = await signupAndLogin(nextId("read-fail"));
+    setNotificationSettingsReader(async () => {
+      throw new Error("settings down");
+    });
+    const message = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: CONFIGURABLE_TOPIC,
+      sourceDomain: "Messaging",
+      sourceEventId: "message-fail",
+      preference: { in_app_enabled: false },
+    });
+    assert.equal(message.status, "SENT");
+
+    setNotificationSettingsReader(async () => ({ ok: false, reason: "user_settings_unavailable" }));
+    const marketing = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: DEFAULT_OFF_TOPIC,
+      sourceDomain: "Marketplace",
+      sourceEventId: "rec-fail",
+      preference: { in_app_enabled: true },
+    });
+    assert.equal(marketing.delivery_external_id, null);
+
+    setNotificationSettingsReader(async () => ({ ok: true, settings: [] }));
+    const stillDefault = await submitVerifiedEvent({
+      recipientUserId: recipient.userId,
+      topic: CONFIGURABLE_TOPIC,
+      sourceDomain: "Messaging",
+      sourceEventId: "message-garbage",
+    });
+    assert.equal(stillDefault.status, "SENT");
   });
 });

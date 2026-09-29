@@ -7,13 +7,15 @@ const {
   authorize,
 } = require("../authorization/authorize");
 const { sendInApp } = require("./in-app-adapter");
+const { evaluatePreferences } = require("./preferences");
+const { readNotificationSettings } = require("./settings-reader");
 const repository = require("./repository");
 const {
   deliveryExternalIdIsValid,
   parseNotificationListQuery,
   parseVerifiedEvent,
 } = require("./rules");
-const { createsDurableInApp, topicRecord } = require("./topics");
+const { topicRecord } = require("./topics");
 
 function publicNotification(row) {
   return {
@@ -78,11 +80,66 @@ async function writeAudit(client, values) {
   ]);
 }
 
+async function loadPreferenceSettings(recipientUserId) {
+  try {
+    const read = await readNotificationSettings(recipientUserId);
+    if (!read || read.ok !== true) return null;
+    return read.settings;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
+async function fanOutInApp(client, intent, record, dedupeKey) {
+  const settings = await loadPreferenceSettings(intent.recipient_user_id);
+  const decisions = evaluatePreferences({
+    record,
+    topic: intent.topic,
+    settings,
+    eligibility: {
+      inAppEligible: true,
+      emailVerified: false,
+      pushPermitted: false,
+      smsPermitted: false,
+    },
+  });
+  if (decisions.IN_APP === "skip") return null;
+
+  const pending = await repository.insertInAppDelivery(client, [
+    repository.makeDeliveryExternalId(),
+    intent.id,
+    `in_app:${dedupeKey}`,
+  ]);
+  const pendingRow = pending.rows[0];
+  if (decisions.IN_APP === "suppress") {
+    const suppressed = await repository.markInAppSuppressed(client, pendingRow.id);
+    if (!suppressed.rows[0]) {
+      throw new Error("in-app delivery was not suppressed");
+    }
+    return suppressed.rows[0];
+  }
+
+  const sent = sendInApp({
+    recipientUserId: intent.recipient_user_id,
+    deliveryExternalId: pendingRow.external_id,
+    idempotencyKey: `in_app:${dedupeKey}`,
+  });
+  if (!sent.ok) {
+    throw new Error("in-app adapter rejected the delivery");
+  }
+  const marked = await repository.markInAppSent(
+    client,
+    pendingRow.id,
+    sent.providerReference
+  );
+  return marked.rows[0];
+}
+
 // Trusted in-process producer entry (INT-NOTIFICATIONS-001).
-// A preference object is accepted and ignored. User Settings is not read
-// here. A mandatory topic always gets an in-app record. Any other topic
-// follows the matrix default, which is the specified result when a preference
-// read is unavailable.
+// Any preference field on the event is ignored (SEC-NOTIFICATIONS-004).
+// The live preference is read here (INT-NOTIFICATIONS-002). A failed read
+// uses the matrix default and does not deliver every topic.
 async function submitVerifiedEvent(input) {
   const parsed = parseVerifiedEvent(input);
   if (!parsed.ok) {
@@ -124,26 +181,8 @@ async function submitVerifiedEvent(input) {
     const existing = await repository.findInAppDelivery(client, intent.id);
     delivery = existing.rows[0] || null;
 
-    if (created && createsDurableInApp(record)) {
-      const pending = await repository.insertInAppDelivery(client, [
-        repository.makeDeliveryExternalId(),
-        intent.id,
-        `in_app:${dedupeKey}`,
-      ]);
-      const sent = sendInApp({
-        recipientUserId: intent.recipient_user_id,
-        deliveryExternalId: pending.rows[0].external_id,
-        idempotencyKey: `in_app:${dedupeKey}`,
-      });
-      if (!sent.ok) {
-        throw new Error("in-app adapter rejected the delivery");
-      }
-      const marked = await repository.markInAppSent(
-        client,
-        pending.rows[0].id,
-        sent.providerReference
-      );
-      delivery = marked.rows[0];
+    if (created && !delivery) {
+      delivery = await fanOutInApp(client, intent, record, dedupeKey);
     }
 
     if (created) {
