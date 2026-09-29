@@ -73,8 +73,19 @@ function markInAppSent(db, deliveryId, providerReference) {
          last_attempted_at = clock_timestamp(),
          updated_at = clock_timestamp()
      WHERE id = $1 AND status = 'PENDING'
-     RETURNING id, external_id, status, read_at, channel, provider_reference`,
+     RETURNING id, external_id, status, read_at, channel, provider_reference, attempt_count`,
     [deliveryId, providerReference]
+  );
+}
+
+function markInAppSuppressed(db, deliveryId) {
+  return db.query(
+    `UPDATE notification_deliveries
+     SET status = 'SUPPRESSED',
+         updated_at = clock_timestamp()
+     WHERE id = $1 AND status = 'PENDING'
+     RETURNING id, external_id, status, read_at, channel, provider_reference, attempt_count`,
+    [deliveryId]
   );
 }
 
@@ -92,6 +103,7 @@ function listInAppForRecipient(db, recipientUserId, limit, offset) {
      JOIN notification_intents i ON i.id = d.intent_id
      WHERE i.recipient_user_id = $1
        AND d.channel = 'IN_APP'
+       AND d.status <> 'SUPPRESSED'
      ORDER BY i.created_at DESC, d.id DESC
      LIMIT $2 OFFSET $3`,
     [recipientUserId, limit, offset]
@@ -115,6 +127,7 @@ const IN_APP_FOR_RECIPIENT_SQL = `
   WHERE d.external_id = $1
     AND i.recipient_user_id = $2
     AND d.channel = 'IN_APP'
+    AND d.status <> 'SUPPRESSED'
 `;
 
 function findInAppForRecipient(db, externalId, recipientUserId) {
@@ -162,6 +175,7 @@ module.exports = {
   findInAppDelivery,
   insertInAppDelivery,
   markInAppSent,
+  markInAppSuppressed,
   listInAppForRecipient,
   findInAppForRecipient,
   lockInAppForRecipient,

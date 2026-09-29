@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.6 |
+| Version | 0.7.7 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -140,6 +140,8 @@ Copy this template for each new entry:
 | [ENG-IMP-036](#eng-imp-036-three-notification-topics-have-no-single-mandatory-class) | Three notification topics have no single mandatory class | Documentation, Architecture | Medium | PROPOSED |
 | [ENG-IMP-037](#eng-imp-037-verified-notification-events-do-not-check-the-topics-owning-domain) | Verified notification events do not check the topic's owning domain | Architecture | Low | PROPOSED |
 | [ENG-IMP-038](#eng-imp-038-notification-intent-class-is-not-tied-to-the-topic) | Notification intent class is not tied to the topic | Database | Low | PROPOSED |
+| [ENG-IMP-039](#eng-imp-039-notification-preferences-have-no-user-settings-store) | Notification preferences have no User Settings store | Architecture | Medium | PROPOSED |
+| [ENG-IMP-040](#eng-imp-040-quiet-hours-and-digest-are-not-applied) | Quiet hours and digest are not applied | Architecture | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1191,6 +1193,66 @@ Copy this template for each new entry:
 | Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
 | Resolution | — |
 
+### ENG-IMP-039 Notification preferences have no User Settings store
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-039 |
+| Title | Notification preferences have no User Settings store |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-042 implementation |
+| Category | Architecture |
+| Affected subsystem | Notifications, User Settings |
+| Current state | `readNotificationSettings` returns `{ ok: false, reason: "user_settings_unavailable" }`. Fan-out then uses the topic-matrix default. A test can replace the reader. No settings table is queried. |
+| Evidence / problem | User Settings §9 defines `notifications.in_app_enabled` and the related keys, and Notifications §15.1 requires a live read. MVP-042 forbids a schema change, and Notifications §11 says this domain does not store the preference. A live user therefore cannot disable a configurable channel. |
+| Suggested improvement | When User Settings storage exists, point the production reader at that store and remove the test-only seam from the production path. |
+| Expected benefit | A saved disable suppresses that channel for a real account. |
+| Risk of doing nothing | Configurable topics whose matrix default is in-app keep being delivered. |
+| Implementation risk | Medium. The store's shape is still an open User Settings question. |
+| Estimated scope | M |
+| Dependencies | User Settings persistence, which no current MVP item creates |
+| Product behavior impact | No. The unavailable read is the specified failure behavior. |
+| Specification impact | No |
+| Migration impact | Yes, in the User Settings item that creates the store |
+| Security impact | None beyond the specified matrix default |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the first User Settings storage item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#44](https://github.com/xela-ash/Music_app/issues/44) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-040 Quiet hours and digest are not applied
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-040 |
+| Title | Quiet hours and digest are not applied |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-042 implementation |
+| Category | Architecture |
+| Affected subsystem | Notifications |
+| Current state | `evaluatePreferences` does not read `notifications.quiet_hours` or `notifications.digest`. |
+| Evidence / problem | Notifications §8.2 includes digest and quiet-hours after the global toggles. User Settings describes quiet hours as a nullable local-time range and does not define the range format. Digest values are `off`, `daily`, and `weekly`, and Notifications EQ4 asks whether digest is in scope. No send clock is specified. |
+| Suggested improvement | Apply deferral only after the range format and the digest schedule are specified. Do not treat the current skip as the product rule. |
+| Expected benefit | Non-urgent delivery can wait without suppressing security, safety, or time-critical events. |
+| Risk of doing nothing | A stored quiet-hours value would have no effect once a settings store exists. |
+| Implementation risk | Medium. The window format and the urgent-topic set need a specification decision. |
+| Estimated scope | M |
+| Dependencies | A specified quiet-hours range and digest schedule |
+| Product behavior impact | Yes, once those values are specified |
+| Specification impact | Yes. The format and schedule are unspecified. |
+| Migration impact | None until the values are stored |
+| Security impact | A wrong deferral could delay a time-critical notice |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | After the format is specified and a settings store exists |
+| Status | PROPOSED |
+| Related GitHub Issue | [#44](https://github.com/xela-ash/Music_app/issues/44) |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1240,3 +1302,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.4 | 2026-09-29 | Added `ENG-IMP-032` and `ENG-IMP-033` (PROPOSED) from MVP-014. Neither is authorized. | Engineering |
 | 0.7.5 | 2026-09-29 | Added `ENG-IMP-034` and `ENG-IMP-035` (PROPOSED) from the MVP-014 independent review. Neither is authorized. | Engineering |
 | 0.7.6 | 2026-09-29 | Added `ENG-IMP-036`, `ENG-IMP-037`, and `ENG-IMP-038` (PROPOSED) from MVP-041 and its review. Three matrix rows have no single mandatory class. Neither a topic/domain pair nor a topic/class pair is enforced. None are authorized. | Engineering |
+| 0.7.7 | 2026-09-29 | Added `ENG-IMP-039` and `ENG-IMP-040` (PROPOSED) from MVP-042. No User Settings store exists, and quiet hours and digest are not applied. Neither is authorized. | Engineering |
