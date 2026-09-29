@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.11.0 |
+| Version | 0.11.1 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -608,7 +608,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Affected components | `backend/db/013_conversations_messages.sql`, `backend/src/messaging/`, `backend/src/authorization/authorize.js`, `backend/Index.js`, `backend/test/messages.http.test.js`, `backend/test/message-constraints.test.js`, `backend/test/messaging-rules.test.js` |
 | Reversal / migration considerations | Dropping the tables destroys message evidence. A later migration must not weaken the delete and body-update triggers. Changing the 500-character maximum is a product change to messaging.md. |
 | Related specification IDs | `REQ-MESSAGING-002`, `REQ-MESSAGING-003`, `REQ-MESSAGING-005`, `REQ-MESSAGING-006`, `REQ-MESSAGING-010`, `BR-MESSAGING-001`, `BR-MESSAGING-004`, `BR-AUTHZ-014`, `BR-AUTHZ-015`, `SEC-MESSAGING-001`, `SEC-MESSAGING-002`, `SEC-MESSAGING-003`, `SEC-MESSAGING-006`, `SEC-MESSAGING-010`, `INT-MESSAGING-001`, `INT-MESSAGING-005`, `AUD-MESSAGING-001`, `DATA-MESSAGING-001`, `DATA-MESSAGING-002` |
-| Related PR / commit | Branch `cursor/mvp-038-conversation-messages-255b` |
+| Related PR / commit | [#79](https://github.com/xela-ash/music_app/pull/79), merge `2c9bf06` |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -677,3 +677,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.10.0 | 2026-09-29 | Recorded MVP-042: preference evaluation without a settings table. Sections 4.1, 4.18, and 4.20, plus EDR-011. | Engineering |
 | 0.10.1 | 2026-09-29 | Recorded pull request #73 on EDR-011. No subsystem behavior changed. | Engineering |
 | 0.11.0 | 2026-09-29 | Recorded MVP-038: conversations, immutable messages, and tombstone. Sections 4.1, 4.3, 4.6, 4.15, 4.19, 4.20, and 4.22, plus EDR-013. | Engineering |
+| 0.11.1 | 2026-09-29 | Recorded pull request #79 on EDR-013. No subsystem behavior changed. | Engineering |
