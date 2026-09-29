@@ -19,12 +19,13 @@ function authHeaders(token) {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiPost(path, body, token) {
+export async function apiPost(path, body, token, extraHeaders) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(token),
+      ...(extraHeaders || {}),
     },
     body: JSON.stringify(body),
   });

@@ -37,7 +37,7 @@ describe("MVP-002 auth screen smoke", () => {
     await user.type(screen.getByLabelText("Password"), "password-1");
     await user.type(screen.getByLabelText("Confirm password"), "password-2");
 
-    const form = screen.getByRole("button", { name: "Create account" }).closest("form");
+    const form = screen.getByRole("button", { name: "Continue" }).closest("form");
     if (!form) {
       throw new Error("signup form was not rendered");
     }

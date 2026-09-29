@@ -137,6 +137,11 @@ Copy this template for each new entry:
 | [ENG-IMP-033](#eng-imp-033-seller-invitation-expiry-has-no-maximum-duration) | Seller invitation expiry has no maximum duration | API, Security | Low | PROPOSED |
 | [ENG-IMP-034](#eng-imp-034-terminal-invitation-rows-can-be-updated) | Terminal invitation rows can be updated | Database | Medium | PROPOSED |
 | [ENG-IMP-035](#eng-imp-035-invitation-review-returns-the-full-proposal-after-a-terminal-outcome) | Invitation review returns the full proposal after a terminal outcome | API, Security | Low | PROPOSED |
+| [ENG-IMP-036](#eng-imp-036-public-profile-api-returns-legal-first-and-last-name) | Public profile API returns legal first and last name | Security | High | PROPOSED |
+| [ENG-IMP-037](#eng-imp-037-no-way-for-a-seller-to-list-or-open-their-pending-project-invitations) | No way for a seller to list or open their pending project invitations | API | High | PROPOSED |
+| [ENG-IMP-038](#eng-imp-038-milestone-revision-allowance-and-submission-requirements-are-not-persisted) | Milestone revision allowance and submission requirements are not persisted | Database | Medium | PROPOSED |
+| [ENG-IMP-039](#eng-imp-039-frontend-state-is-not-addressable-by-url) | Frontend state is not addressable by URL | Maintainability | Medium | PROPOSED |
+| [ENG-IMP-040](#eng-imp-040-preview-data-layer-needs-replacing-endpoint-by-endpoint) | Preview data layer needs replacing endpoint by endpoint | Technical Debt | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1098,6 +1103,156 @@ Copy this template for each new entry:
 | Related PR | [#68](https://github.com/xela-ash/music_app/pull/68) |
 | Resolution | — |
 
+### ENG-IMP-036 Public profile API returns legal first and last name
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-036 |
+| Title | Public profile API returns legal first and last name |
+| Date identified | 2026-09-29 |
+| Identified by | Frontend build for the full MVP screen set (Claude, branch `claude/gallant-mccarthy-0upoxe`) |
+| Category | Security |
+| Affected subsystem | Profiles |
+| Current state | `GET /profiles` returns every profile column except `dob`, including `first_name` and `last_name` (`DiscoverProfile = Omit<Profile, "dob">`, `frontend/src/domain/types.ts`). |
+| Evidence / problem | The Profiles specification flags exposing legal name on the public creator profile as a privacy defect. The frontend no longer renders it, but the values still reach every authenticated browser. |
+| Suggested improvement | Return a public projection (display name, handle, artist name, genres, city, country, bio, photo reference) from `GET /profiles` and keep legal identity on private routes only. |
+| Expected benefit | The privacy requirement is enforced at the API instead of by UI omission. |
+| Risk of doing nothing | Any client, including a future one, can show or store legal names. |
+| Implementation risk | Frontend types and the two Discover tests consume `first_name`/`last_name`. |
+| Estimated scope | S, one query projection. |
+| Dependencies | MVP profile work item |
+| Product behavior impact | Yes |
+| Specification impact | Yes |
+| Migration impact | No |
+| Security impact | Removes a personal-data disclosure |
+| Performance impact | None |
+| Priority suggestion | High |
+| Recommended timing | Before the public profile is released |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-037 No way for a seller to list or open their pending project invitations
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-037 |
+| Title | No way for a seller to list or open their pending project invitations |
+| Date identified | 2026-09-29 |
+| Identified by | Frontend build for the full MVP screen set (Claude, branch `claude/gallant-mccarthy-0upoxe`) |
+| Category | API |
+| Affected subsystem | Projects |
+| Current state | Invitation review, accept and decline need `projectId` and `invitationId` (`backend/src/projects/routes.js`). `GET /projects` carries neither an invitation id nor the invitation status, and there is no invitations list route. |
+| Evidence / problem | The Proposal Received screen (PR05) can render a live proposal but cannot accept or decline it, because the client never learns the invitation id. It says so on screen. |
+| Suggested improvement | Add a seller-scoped invitation list (or include the pending invitation id, status, `version` and `proposal_version` on the project row for the invitee). |
+| Expected benefit | Sellers can act on real proposals from the app. |
+| Risk of doing nothing | Live proposals cannot be answered without out-of-band ids. |
+| Implementation risk | New read route needs its own authorization decision and the concealment rule used elsewhere. |
+| Estimated scope | M, new route plus authorization case. |
+| Dependencies | MVP-014 |
+| Product behavior impact | Yes |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | New read surface for the invitee only |
+| Performance impact | None |
+| Priority suggestion | High |
+| Recommended timing | With the next Projects state-machine item |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-038 Milestone revision allowance and submission requirements are not persisted
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-038 |
+| Title | Milestone revision allowance and submission requirements are not persisted |
+| Date identified | 2026-09-29 |
+| Identified by | Frontend build for the full MVP screen set (Claude, branch `claude/gallant-mccarthy-0upoxe`) |
+| Category | Database |
+| Affected subsystem | Milestones |
+| Current state | `POST /projects` accepts `revision_limit` on the project only. `project_milestones` has no revision allowance or submission-requirement columns. |
+| Evidence / problem | The Milestones specification defines per-milestone allowances and agreed submission requirements. The proposal wizard cannot capture them, so it says the project-level limit applies, and the workroom shows them only on preview data. |
+| Suggested improvement | Add the columns (or the agreed-terms table, `ENG-IMP-015`) and accept them on create and on amendment. |
+| Expected benefit | The wizard, terms view and review screen can show real values. |
+| Risk of doing nothing | Buyers and sellers cannot agree per-milestone rules in the product. |
+| Implementation risk | Depends on the agreed-terms table design. |
+| Estimated scope | M |
+| Dependencies | ENG-IMP-015 |
+| Product behavior impact | Yes |
+| Specification impact | Yes |
+| Migration impact | Yes |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the agreed-terms table |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-039 Frontend state is not addressable by URL
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-039 |
+| Title | Frontend state is not addressable by URL |
+| Date identified | 2026-09-29 |
+| Identified by | Frontend build for the full MVP screen set (Claude, branch `claude/gallant-mccarthy-0upoxe`) |
+| Category | Maintainability |
+| Affected subsystem | Frontend application |
+| Current state | Navigation is a route stack held in `useState` (`frontend/src/nav/NavProvider.tsx`). Reloading returns to Home and the browser Back button leaves the app. |
+| Evidence / problem | There are about 40 screens. Deep links (a notification, a project, a dispute) cannot be shared or bookmarked, and Back does not step through them. |
+| Suggested improvement | Adopt a router (EDR required, Handbook §17) and map `Route` to paths; resolve ids through the API on load. |
+| Expected benefit | Deep links, browser history and reload safety. |
+| Risk of doing nothing | Every reload loses context. |
+| Implementation risk | Route payloads such as `DiscoverProfile` are currently held in memory and would need to be refetched by id, which needs a `GET /profiles/:id`. |
+| Estimated scope | M |
+| Dependencies | `GET /profiles/:id` |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Once the API for fetching a profile by id exists |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-040 Preview data layer needs replacing endpoint by endpoint
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-040 |
+| Title | Preview data layer needs replacing endpoint by endpoint |
+| Date identified | 2026-09-29 |
+| Identified by | Frontend build for the full MVP screen set (Claude, branch `claude/gallant-mccarthy-0upoxe`) |
+| Category | Technical Debt |
+| Affected subsystem | Frontend application |
+| Current state | `frontend/src/demo/` serves hub, milestones, funding, messages, notifications, ratings, disputes, verification, payouts and operations screens from an in-memory store shaped like the target specifications (EDR-010). |
+| Evidence / problem | None of these have a backend. The store applies placeholder rules (sequential milestones, single release on approval, split must sum to the amount) that the real services will own. |
+| Suggested improvement | Replace one store function at a time with a client call when its endpoint ships, deleting the store function, its seed rows and its test. Do not extend the store with new product rules. |
+| Expected benefit | Screens keep their contracts while behavior moves to the authoritative services. |
+| Risk of doing nothing | Preview rules can be mistaken for product rules and drift from the specifications. |
+| Implementation risk | Low: screens already call async functions with HTTP-like errors. |
+| Estimated scope | L across many work items |
+| Dependencies | MVP-015 onward |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Preview data is never authoritative for money or permissions |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Alongside each backend work item |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1146,3 +1301,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.3 | 2026-09-29 | Added `ENG-IMP-030` and `ENG-IMP-031` (PROPOSED) from MVP-013: unindexed leading-wildcard search, and no AND across search dimensions. Neither is authorized. The cross-reference row for profile discovery now records that search is server-side. | Engineering |
 | 0.7.4 | 2026-09-29 | Added `ENG-IMP-032` and `ENG-IMP-033` (PROPOSED) from MVP-014. Neither is authorized. | Engineering |
 | 0.7.5 | 2026-09-29 | Added `ENG-IMP-034` and `ENG-IMP-035` (PROPOSED) from the MVP-014 independent review. Neither is authorized. | Engineering |
+| 0.7.6 | 2026-09-29 | Added `ENG-IMP-036` to `ENG-IMP-040` (PROPOSED) from the frontend build for the full MVP screen set. None is authorized. | Engineering |
