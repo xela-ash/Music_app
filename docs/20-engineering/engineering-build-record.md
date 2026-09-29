@@ -497,6 +497,11 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Chosen approach | Actions are `project.create`, `project.list`, and `project.lock_milestones`. An unknown action or a missing actor fails closed (`403` or `401`). Create denies self-dealing with `400` before it denies an ineligible seller with `404`, and the buyer written to the row is `obligations.buyerUserId`. List with no resource allows the action and returns `whereSql` and `params` built from one participant-column list (`buyer_user_id`, `seller_user_id`). The repository rejects any other scope and runs that clause. The same column list allows or conceals a single project. Lock, inside the existing transaction after `FOR UPDATE`, returns `404`, then `409` when `milestones_locked_at` is set, then `400` when `state` is not `draft`. Milestone amount and currency checks stay in the domain service. `authorize` ignores an account-status field on the actor. |
 | Why | Existing protected responses stay the same, and a new route has one function that denies by default. The list stays a scoped query. Lock still revalidates under the row lock (`BR-AUTHZ-029`). |
 | Trade-offs | Create now loads the seller before the self-dealing denial, so a database failure on that lookup returns `500` instead of the previous `400`. A successful self-dealing request is unchanged. Seller eligibility is a boolean the service sets from `findActiveSellerWithProfile` (`ENG-IMP-029`). The decision object is not the §9.2 record. EDR-005 is reserved by the unmerged MVP-004 branch, so this record is EDR-007. |
+| Affected components | `backend/src/authorization/authorize.js`, `backend/src/projects/service.js`, `backend/src/projects/repository.js`, `backend/src/milestones/service.js`, `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` |
+| Reversal / migration considerations | Move the conditionals back into the two services. No schema change. |
+| Related specification IDs | `REQ-AUTHZ-001`, `REQ-AUTHZ-004`, `BR-AUTHZ-002`, `BR-AUTHZ-003`, `BR-AUTHZ-005`, `BR-AUTHZ-023`, `BR-AUTHZ-024`, `BR-AUTHZ-029`, `SEC-AUTHZ-004`, `INT-AUTHZ-001` |
+| Related PR / commit | Branch `cursor/mvp-007-authorize-decision-32e3` |
+| Status | ACTIVE |
 
 ### EDR-008 Server-side profile search
 
@@ -515,11 +520,6 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Reversal / migration considerations | No schema change. Restore `LIMIT 100` without a WHERE clause and the client `profileMatchesQuery` filter. |
 | Related specification IDs | `REQ-PROFILE-005`, `REQ-AUTHZ-005`, `BR-AUTHZ-023`, `SEC-PROFILE-007`, `SEC-AUTHZ-006` |
 | Related PR / commit | Branch `cursor/mvp-013-profile-search-255b` |
-| Status | ACTIVE |
-| Affected components | `backend/src/authorization/authorize.js`, `backend/src/projects/service.js`, `backend/src/projects/repository.js`, `backend/src/milestones/service.js`, `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` |
-| Reversal / migration considerations | Move the conditionals back into the two services. No schema change. |
-| Related specification IDs | `REQ-AUTHZ-001`, `REQ-AUTHZ-004`, `BR-AUTHZ-002`, `BR-AUTHZ-003`, `BR-AUTHZ-005`, `BR-AUTHZ-023`, `BR-AUTHZ-024`, `BR-AUTHZ-029`, `SEC-AUTHZ-004`, `INT-AUTHZ-001` |
-| Related PR / commit | Branch `cursor/mvp-007-authorize-decision-32e3` |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -555,6 +555,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-28 | MVP-007 / GitHub issue #9 | Project create, list, and lock decisions go through `authorize()`. HTTP status and error text for those routes stay the same. No schema change, no new permission, and no audit writer. | Authorization, projects, milestones, testing | None | None | None | `SEC-AUTHZ-004` for the five existing project checks. Account-status denial stays in Authentication. | `backend/test/authorize.test.js`, `backend/test/authorization.http.test.js` | EDR-007 | None | Branch `cursor/mvp-007-authorize-decision-32e3` | The MVP-007 commit on that branch |
 | 2026-09-28 | MVP-007 review / GitHub issue #9 | `GET /projects` runs the participant `whereSql` returned by `authorize`. The repository rejects any other scope. Seller-eligibility boolean left as `ENG-IMP-029`. | Authorization, projects, testing | None | None | None | None | `backend/test/authorize.test.js` | EDR-007 (updated) | `ENG-IMP-029` | #64 | The review-repair commit on `cursor/mvp-007-authorize-decision-32e3` |
 | 2026-09-29 | MVP-013 / GitHub issue #15 | `GET /profiles` searches `name`, `handle`, `genre`, `city`, and `country` in SQL and pages at most 100 rows. Discover sends the existing search box to that query. No schema change. | Profiles, discovery, frontend, testing | None | Search and `limit`/`offset` query parameters on `GET /profiles`. Body remains `{ profiles }`. | Discover refetches on search and no longer filters the fetched page in the client. | `SEC-PROFILE-007`, `SEC-AUTHZ-006`, `BR-AUTHZ-023`. Authenticated route unchanged. Legal name is not a search field. | `backend/test/profile-search-query.test.js`, `backend/test/profile-search.http.test.js`, `frontend/src/App.discover.test.tsx` | EDR-008 | `ENG-IMP-030`, `ENG-IMP-031` | Branch `cursor/mvp-013-profile-search-255b` | The MVP-013 commit on that branch |
+| 2026-09-29 | MVP-013 review / GitHub issue #15 | Restored EDR-007's closing rows after EDR-008 was inserted inside that table. No application behavior changed. | Documentation only | None | None | None | None | None | EDR-007, EDR-008 | None | #66 | The review-repair commit on `cursor/mvp-013-profile-search-255b` |
 
 ## 8. Version history
 
