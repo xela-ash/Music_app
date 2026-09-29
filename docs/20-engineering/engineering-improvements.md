@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.5 |
+| Version | 0.7.6 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -137,6 +137,9 @@ Copy this template for each new entry:
 | [ENG-IMP-033](#eng-imp-033-seller-invitation-expiry-has-no-maximum-duration) | Seller invitation expiry has no maximum duration | API, Security | Low | PROPOSED |
 | [ENG-IMP-034](#eng-imp-034-terminal-invitation-rows-can-be-updated) | Terminal invitation rows can be updated | Database | Medium | PROPOSED |
 | [ENG-IMP-035](#eng-imp-035-invitation-review-returns-the-full-proposal-after-a-terminal-outcome) | Invitation review returns the full proposal after a terminal outcome | API, Security | Low | PROPOSED |
+| [ENG-IMP-036](#eng-imp-036-three-notification-topics-have-no-single-mandatory-class) | Three notification topics have no single mandatory class | Documentation, Architecture | Medium | PROPOSED |
+| [ENG-IMP-037](#eng-imp-037-verified-notification-events-do-not-check-the-topics-owning-domain) | Verified notification events do not check the topic's owning domain | Architecture | Low | PROPOSED |
+| [ENG-IMP-038](#eng-imp-038-notification-intent-class-is-not-tied-to-the-topic) | Notification intent class is not tied to the topic | Database | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1098,6 +1101,96 @@ Copy this template for each new entry:
 | Related PR | [#68](https://github.com/xela-ash/music_app/pull/68) |
 | Resolution | — |
 
+### ENG-IMP-036 Three notification topics have no single mandatory class
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-036 |
+| Title | Three notification topics have no single mandatory class |
+| Date identified | 2026-09-29 |
+| Identified by | Cursor agent, MVP-041 / GitHub issue #43 |
+| Category | Documentation, Architecture |
+| Affected subsystem | Notifications |
+| Current state | `backend/src/notifications/topics.js` classifies a topic only when the Section 8.1 "User May Disable?" cell says whether the durable in-app record remains. It rejects `Security-critical account event` ("Not all channels simultaneously"), `Authentication informational alert` ("Policy constrained"), and `Rating available/requested, rating hidden/removed` (one row covers an optional notice and a mandatory removal notice). |
+| Evidence / problem | `BR-NOTIFICATIONS-001` requires every topic to be `MANDATORY` or `CONFIGURABLE`. Those three cells do not say the durable in-app record cannot be removed, and they are not a plain "Yes". An In-App cell of "Required" does not by itself choose the class. User Settings §11.2 keeps at least one security channel, which can be a channel other than in-app. |
+| Suggested improvement | Architecture assigns one class to the security-critical and authentication-informational rows, and splits or classifies the rating row so availability and removal do not share one class. |
+| Expected benefit | Those topics can create intents without a guessed suppression rule. |
+| Risk of doing nothing | Producers of those three topics cannot notify. A later guess in code would suppress or force the wrong record. |
+| Implementation risk | Low once the class is written into the specification. |
+| Estimated scope | S |
+| Dependencies | A specification update. Not authorized by this entry. |
+| Product behavior impact | Yes |
+| Specification impact | Yes |
+| Migration impact | No, until the allowlist gains the topics |
+| Security impact | The security-critical and authentication-informational rows are policy constrained, so leaving them unclassified avoids a wrong suppression |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before any producer emits one of these topics. MVP-042 should not guess the class. |
+| Status | PROPOSED |
+| Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
+| Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
+| Resolution | — |
+
+### ENG-IMP-037 Verified notification events do not check the topic's owning domain
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-037 |
+| Title | Verified notification events do not check the topic's owning domain |
+| Date identified | 2026-09-29 |
+| Identified by | Independent review of MVP-041 |
+| Category | Architecture |
+| Affected subsystem | Notifications |
+| Current state | `parseVerifiedEvent` in `backend/src/notifications/rules.js` accepts any source domain from the global allowlist with any classified topic. |
+| Evidence / problem | Notifications §8.1 names the owning domain on each topic row. §15.1 says to hold malformed input. A Projects event can currently be stored under a Disputes topic. The independent review classified this as non-blocking. |
+| Suggested improvement | Reject a source domain that the topic row does not name. |
+| Expected benefit | Intent rows keep the matrix's source-domain binding. |
+| Risk of doing nothing | A mistaken producer can file a notice under the wrong domain. Deduping still prevents duplicates for the same tuple. |
+| Implementation risk | Low. Some rows name two domains, so the check is a set, not one string. |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | Yes, for a mismatched producer |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Low. Ingestion is still in-process only. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the first domain that calls `submitVerifiedEvent` |
+| Status | PROPOSED |
+| Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
+| Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
+| Resolution | — |
+
+### ENG-IMP-038 Notification intent class is not tied to the topic
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-038 |
+| Title | Notification intent class is not tied to the topic |
+| Date identified | 2026-09-29 |
+| Identified by | Independent review of MVP-041 |
+| Category | Database |
+| Affected subsystem | Notifications |
+| Current state | `notification_intents.topic` and `mandatory_class` are separate columns. The topic allowlist does not constrain the class. |
+| Evidence / problem | A direct insert can snapshot `New message` as `MANDATORY` or a dispute topic as `CONFIGURABLE`. The append-only trigger and the mandatory-in-app suppression trigger then enforce that snapshot. The service path writes the class from `topics.js`. The independent review classified this as non-blocking. |
+| Suggested improvement | Add a check or trigger that pairs each allowed topic with its classified snapshot. |
+| Expected benefit | A bypassed insert cannot freeze the wrong class. |
+| Risk of doing nothing | Only a database session that skips the service can write the wrong pair. Application callers cannot. |
+| Implementation risk | Low. The pair list must change when ENG-IMP-036 topics are classified. |
+| Estimated scope | S |
+| Dependencies | ENG-IMP-036 if those topics are added later |
+| Product behavior impact | No, for the service path |
+| Specification impact | No |
+| Migration impact | Yes, a new check constraint |
+| Security impact | Closes a direct-SQL misclassification |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before any non-service writer exists |
+| Status | PROPOSED |
+| Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
+| Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1146,3 +1239,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.3 | 2026-09-29 | Added `ENG-IMP-030` and `ENG-IMP-031` (PROPOSED) from MVP-013: unindexed leading-wildcard search, and no AND across search dimensions. Neither is authorized. The cross-reference row for profile discovery now records that search is server-side. | Engineering |
 | 0.7.4 | 2026-09-29 | Added `ENG-IMP-032` and `ENG-IMP-033` (PROPOSED) from MVP-014. Neither is authorized. | Engineering |
 | 0.7.5 | 2026-09-29 | Added `ENG-IMP-034` and `ENG-IMP-035` (PROPOSED) from the MVP-014 independent review. Neither is authorized. | Engineering |
+| 0.7.6 | 2026-09-29 | Added `ENG-IMP-036`, `ENG-IMP-037`, and `ENG-IMP-038` (PROPOSED) from MVP-041 and its review. Three matrix rows have no single mandatory class. Neither a topic/domain pair nor a topic/class pair is enforced. None are authorized. | Engineering |

@@ -24,6 +24,9 @@ const PROJECT_WITHDRAW_INVITATION = "project.withdraw_invitation";
 const PROJECT_ACCEPT_INVITATION = "project.accept_invitation";
 const PROJECT_DECLINE_INVITATION = "project.decline_invitation";
 const PROJECT_REVIEW_INVITATION = "project.review_invitation";
+const NOTIFICATION_LIST = "notification.list";
+const NOTIFICATION_READ = "notification.read";
+const NOTIFICATION_MARK_READ = "notification.mark_read";
 
 function participantWhereSql(alias) {
   return `${alias}.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = ${alias}.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')`;
@@ -126,6 +129,17 @@ function authorizeReviewInvitation(actor, resource) {
   return allow();
 }
 
+function authorizeNotificationList(actor) {
+  return allow({ recipientUserId: actor.id });
+}
+
+function authorizeOwnNotification(actor, resource) {
+  if (!resource || resource.recipientUserId !== actor.id) {
+    return deny(404, "Notification not found");
+  }
+  return allow();
+}
+
 function authorize(actor, action, resource) {
   const id = actorId(actor);
   if (!id) {
@@ -154,6 +168,12 @@ function authorize(actor, action, resource) {
   if (action === PROJECT_REVIEW_INVITATION) {
     return authorizeReviewInvitation(principal, resource);
   }
+  if (action === NOTIFICATION_LIST) {
+    return authorizeNotificationList(principal);
+  }
+  if (action === NOTIFICATION_READ || action === NOTIFICATION_MARK_READ) {
+    return authorizeOwnNotification(principal, resource);
+  }
   return deny(403, "Forbidden");
 }
 
@@ -166,6 +186,9 @@ module.exports = {
   PROJECT_ACCEPT_INVITATION,
   PROJECT_DECLINE_INVITATION,
   PROJECT_REVIEW_INVITATION,
+  NOTIFICATION_LIST,
+  NOTIFICATION_READ,
+  NOTIFICATION_MARK_READ,
   participantWhereSql,
   authorize,
 };
