@@ -1128,7 +1128,7 @@ Copy this template for each new entry:
 | Recommended timing | Before any producer emits one of these topics. MVP-042 should not guess the class. |
 | Status | PROPOSED |
 | Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
-| Related PR | — |
+| Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
 | Resolution | — |
 
 ### ENG-IMP-037 Verified notification events do not check the topic's owning domain
@@ -1158,7 +1158,7 @@ Copy this template for each new entry:
 | Recommended timing | With the first domain that calls `submitVerifiedEvent` |
 | Status | PROPOSED |
 | Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
-| Related PR | — |
+| Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
 | Resolution | — |
 
 ### ENG-IMP-038 Notification intent class is not tied to the topic
@@ -1188,7 +1188,7 @@ Copy this template for each new entry:
 | Recommended timing | Before any non-service writer exists |
 | Status | PROPOSED |
 | Related GitHub Issue | [#43](https://github.com/xela-ash/Music_app/issues/43) |
-| Related PR | — |
+| Related PR | [#70](https://github.com/xela-ash/music_app/pull/70) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
