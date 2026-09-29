@@ -131,15 +131,20 @@ describe("notification database constraints", { concurrency: 1, timeout: 30000 }
 
   it("rejects an unclassified topic and a non-in-app read timestamp (BR-NOTIFICATIONS-002)", async () => {
     const recipientUserId = await signup(nextId("shape"));
-    const unknown = await pgError(
-      `INSERT INTO notification_intents (
-         external_id, recipient_user_id, topic, mandatory_class,
-         source_domain, source_event_id, dedupe_key, template_reference
-       )
-       VALUES ($1, $2, 'Authentication informational alert', 'CONFIGURABLE', 'Authentication', 'evt', $3, 'topic:x')`,
-      [hexId("ntf"), recipientUserId, dedupe()]
-    );
-    assert.equal(unknown && unknown.code, "23514");
+    for (const topic of [
+      "Authentication informational alert",
+      "Security-critical account event",
+    ]) {
+      const unknown = await pgError(
+        `INSERT INTO notification_intents (
+           external_id, recipient_user_id, topic, mandatory_class,
+           source_domain, source_event_id, dedupe_key, template_reference
+         )
+         VALUES ($1, $2, $3, 'CONFIGURABLE', 'Authentication', 'evt', $4, 'topic:x')`,
+        [hexId("ntf"), recipientUserId, topic, dedupe()]
+      );
+      assert.equal(unknown && unknown.code, "23514", topic);
+    }
 
     const intent = await insertIntent(
       recipientUserId,

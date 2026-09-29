@@ -1,16 +1,12 @@
 // Classification snapshot for Notifications §8.1.
-// A topic is MANDATORY when the matrix says the durable in-app record cannot
-// be removed, including an "except actionable in-app record" exception and an
-// In-App cell of "Required". CONFIGURABLE topics are the rows whose "User May
-// Disable?" cell is "Yes" with no in-app exception. inAppDefault is the
-// matrix Default column's in-app part. Two rows are omitted because one cell
-// does not choose a single class (ENG-IMP-036).
+// A topic is MANDATORY only when the matrix "User May Disable?" cell says the
+// durable in-app record cannot be removed, including an "except actionable
+// in-app record" exception. CONFIGURABLE topics are the rows whose cell is
+// "Yes" with no in-app exception. inAppDefault is the matrix Default column's
+// in-app part. Rows whose cell does not choose a single class are omitted
+// (ENG-IMP-036). "In-App: Required" alone is not that choice.
 
 const TOPICS = {
-  "Security-critical account event": {
-    mandatoryClass: "MANDATORY",
-    inAppDefault: true,
-  },
   "Project invitation/status": {
     mandatoryClass: "MANDATORY",
     inAppDefault: true,
@@ -62,6 +58,7 @@ const TOPICS = {
 };
 
 const UNCLASSIFIED_TOPICS = [
+  "Security-critical account event",
   "Authentication informational alert",
   "Rating available/requested, rating hidden/removed",
 ];
