@@ -1,6 +1,9 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  CONVERSATION_READ,
+  CONVERSATION_SEND,
+  MESSAGE_TOMBSTONE,
   NOTIFICATION_LIST,
   NOTIFICATION_MARK_READ,
   NOTIFICATION_READ,
@@ -194,6 +197,45 @@ describe("authorize notification read (REQ-NOTIFICATIONS-006, BR-NOTIFICATIONS-0
       status: 404,
       error: "Notification not found",
     });
+  });
+});
+
+describe("authorize conversation access (BR-AUTHZ-014, BR-AUTHZ-015)", () => {
+  const live = { buyerUserId: BUYER, activeSellerUserId: SELLER };
+
+  it("allows the live buyer and the active accepted seller to read and send", () => {
+    assert.equal(authorize(actor(BUYER), CONVERSATION_READ, live).allowed, true);
+    assert.equal(authorize(actor(SELLER), CONVERSATION_SEND, live).allowed, true);
+  });
+
+  it("conceals an outsider, a named seller who is not an active participant, and a stale seller", () => {
+    const outsider = authorize(actor(OUTSIDER), CONVERSATION_READ, live);
+    const namedOnly = authorize(actor(SELLER), CONVERSATION_SEND, {
+      buyerUserId: BUYER,
+      activeSellerUserId: null,
+    });
+    const stale = authorize(actor(SELLER), CONVERSATION_READ, {
+      buyerUserId: BUYER,
+      activeSellerUserId: null,
+    });
+    assert.deepEqual(outsider, { allowed: false, status: 404, error: "Project not found" });
+    assert.deepEqual(namedOnly, outsider);
+    assert.deepEqual(stale, outsider);
+  });
+
+  it("allows only the original sender to tombstone", () => {
+    assert.equal(
+      authorize(actor(SELLER), MESSAGE_TOMBSTONE, { ...live, senderUserId: SELLER }).allowed,
+      true
+    );
+    assert.deepEqual(
+      authorize(actor(BUYER), MESSAGE_TOMBSTONE, { ...live, senderUserId: SELLER }),
+      { allowed: false, status: 403, error: "Forbidden" }
+    );
+    assert.deepEqual(
+      authorize(actor(OUTSIDER), MESSAGE_TOMBSTONE, { ...live, senderUserId: SELLER }),
+      { allowed: false, status: 404, error: "Project not found" }
+    );
   });
 });
 

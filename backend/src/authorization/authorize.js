@@ -11,6 +11,12 @@
 // 4. project.lock_milestones buyer relationship — concealing 404
 // 5. project.lock_milestones state — already locked 409, then non-draft 400
 //
+// Messaging (BR-AUTHZ-014, BR-AUTHZ-015, Messaging §7 and §11):
+// conversation.read and conversation.send allow the live Buyer or the active
+// accepted Seller. message.tombstone additionally requires the original sender.
+// A stale or unrelated actor receives the same concealing 404. Account status
+// stays in requireAuth.
+//
 // Self-dealing on create is part of check 2's action: the actor cannot also
 // be the named seller. A named seller_user_id is not an active Seller
 // (BR-AUTHZ-032, SEC-AUTHZ-007). Active Seller access is an accepted
@@ -27,6 +33,9 @@ const PROJECT_REVIEW_INVITATION = "project.review_invitation";
 const NOTIFICATION_LIST = "notification.list";
 const NOTIFICATION_READ = "notification.read";
 const NOTIFICATION_MARK_READ = "notification.mark_read";
+const CONVERSATION_READ = "conversation.read";
+const CONVERSATION_SEND = "conversation.send";
+const MESSAGE_TOMBSTONE = "message.tombstone";
 
 function participantWhereSql(alias) {
   return `${alias}.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = ${alias}.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')`;
@@ -140,6 +149,30 @@ function authorizeOwnNotification(actor, resource) {
   return allow();
 }
 
+function isLiveMessagingParticipant(actorId, resource) {
+  if (!resource) {
+    return false;
+  }
+  return resource.buyerUserId === actorId || resource.activeSellerUserId === actorId;
+}
+
+function authorizeConversation(actor, resource) {
+  if (!isLiveMessagingParticipant(actor.id, resource)) {
+    return deny(404, "Project not found");
+  }
+  return allow();
+}
+
+function authorizeTombstone(actor, resource) {
+  if (!isLiveMessagingParticipant(actor.id, resource)) {
+    return deny(404, "Project not found");
+  }
+  if (!resource || resource.senderUserId !== actor.id) {
+    return deny(403, "Forbidden");
+  }
+  return allow();
+}
+
 function authorize(actor, action, resource) {
   const id = actorId(actor);
   if (!id) {
@@ -174,6 +207,12 @@ function authorize(actor, action, resource) {
   if (action === NOTIFICATION_READ || action === NOTIFICATION_MARK_READ) {
     return authorizeOwnNotification(principal, resource);
   }
+  if (action === CONVERSATION_READ || action === CONVERSATION_SEND) {
+    return authorizeConversation(principal, resource);
+  }
+  if (action === MESSAGE_TOMBSTONE) {
+    return authorizeTombstone(principal, resource);
+  }
   return deny(403, "Forbidden");
 }
 
@@ -189,6 +228,9 @@ module.exports = {
   NOTIFICATION_LIST,
   NOTIFICATION_READ,
   NOTIFICATION_MARK_READ,
+  CONVERSATION_READ,
+  CONVERSATION_SEND,
+  MESSAGE_TOMBSTONE,
   participantWhereSql,
   authorize,
 };
