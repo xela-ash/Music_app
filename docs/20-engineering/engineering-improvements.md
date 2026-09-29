@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.2 |
-| Last Reviewed | 2026-09-28 |
+| Version | 0.7.3 |
+| Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -131,6 +131,8 @@ Copy this template for each new entry:
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
 | [ENG-IMP-028](#eng-imp-028-future-authenticatable-statuses-are-not-covered-by-an-http-test) | Future authenticatable statuses are not covered by an HTTP test | Testing | Low | PROPOSED |
 | [ENG-IMP-029](#eng-imp-029-projectcreate-seller-eligibility-is-a-boolean-the-caller-supplies) | project.create seller eligibility is a boolean the caller supplies | Authorization | Low | PROPOSED |
+| [ENG-IMP-030](#eng-imp-030-profile-search-uses-an-unindexed-leading-wildcard) | Profile search uses an unindexed leading wildcard | Database, Performance | Low | PROPOSED |
+| [ENG-IMP-031](#eng-imp-031-profile-search-dimensions-cannot-be-combined-with-and) | Profile search dimensions cannot be combined with AND | API, Discovery | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -912,6 +914,66 @@ Copy this template for each new entry:
 | Related PR | [#64](https://github.com/xela-ash/Music_app/pull/64) |
 | Resolution | — |
 
+### ENG-IMP-030 Profile search uses an unindexed leading wildcard
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-030 |
+| Title | Profile search uses an unindexed leading wildcard |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-013 implementation |
+| Category | Database, Performance |
+| Affected subsystem | Profiles, discovery |
+| Current state | `GET /profiles` matches with `ILIKE '%term%'`. Handbook §9 asks for an index that matches the list filter. A btree index does not serve a leading wildcard. |
+| Evidence / problem | MVP-013 forbids a schema change, so this issue does not add `pg_trgm` or another index. The query is correct at the current table size and is not measured as slow. |
+| Suggested improvement | Add a trigram or equivalent index when profile search has a measured latency problem, in an issue that allows a migration. |
+| Expected benefit | Search stays fast after the catalog grows. |
+| Risk of doing nothing | Low until the `profiles` table is large. |
+| Implementation risk | Low if the index is additive. |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | Additive index only |
+| Security impact | None |
+| Performance impact | Positive once the table is large enough to need it |
+| Priority suggestion | Low |
+| Recommended timing | After a measured search latency problem, not before |
+| Status | PROPOSED |
+| Related GitHub Issue | [#15](https://github.com/xela-ash/Music_app/issues/15) |
+| Related PR | Branch `cursor/mvp-013-profile-search-255b` |
+| Resolution | — |
+
+### ENG-IMP-031 Profile search dimensions cannot be combined with AND
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-031 |
+| Title | Profile search dimensions cannot be combined with AND |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-013 implementation |
+| Category | API, Discovery |
+| Affected subsystem | Profiles, discovery |
+| Current state | Supplied `name`, `handle`, `genre`, `city`, and `country` parameters are OR-combined. That matches the existing one-field Discover box (EDR-008). |
+| Evidence / problem | `GET /profiles?city=Chennai&genre=jazz` returns a profile that matches either dimension. The specifications do not define conjunction. Adding it inside MVP-013 would change the search box unless a separate control existed. |
+| Suggested improvement | When Discover grows separate filters, add an explicit conjunction mode without changing the single-box disjunction. |
+| Expected benefit | A caller can require city and genre together. |
+| Risk of doing nothing | Low. The shipped search box does not offer separate filters. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | Yes, once a conjunction mode exists. Do not invent that mode without a specification or a later issue. |
+| Specification impact | The profiles specification does not define AND versus OR. A conjunction control needs a product statement before it becomes target behavior. |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later discovery issue that adds separate filters |
+| Status | PROPOSED |
+| Related GitHub Issue | [#15](https://github.com/xela-ash/Music_app/issues/15) |
+| Related PR | Branch `cursor/mvp-013-profile-search-255b` |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -929,7 +991,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 | Money in 32-bit `INT`, unrestricted `currency TEXT` | `REQ-ESCROW-003` ([Escrow §7](../06-payments-escrow/escrow.md#7-currency-and-money-representation)); MVP-024 |
 | `escrow_ledger` not append-only; financial `ON DELETE CASCADE` | [Escrow §13](../06-payments-escrow/escrow.md#13-ledger-architecture), [§24](../06-payments-escrow/escrow.md#24-target-data-model); MVP-026 |
 | No `updated_at` maintenance trigger | [Milestones §26](../05-projects-milestones/milestones.md#26-target-data-model), [Projects §26](../05-projects-milestones/projects.md#26-target-data-model) |
-| `GET /profiles` fixed at 100 rows with client-side search | [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace); MVP-013 |
+| `GET /profiles` search is server-side and still paged at 100 rows. Public/active scoping is not applied because those columns do not exist. | [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace); MVP-013; `REQ-PROFILE-005` |
 | Only `console.*` logging, no structured observability | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps); target practice in [Handbook §15](engineering-handbook.md#15-observability) |
 
 ## 7. Change record
@@ -957,3 +1019,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.0 | 2026-09-27 | Added `ENG-IMP-023` (PROPOSED), found during MVP-003: nothing runs the outbox dispatcher yet, there is no transport, and dead letters raise no alert. Added `ENG-IMP-024` (PROPOSED): non-blocking helper edge cases from the MVP-003 independent review. | Engineering |
 | 0.7.1 | 2026-09-28 | Added `ENG-IMP-028` (PROPOSED) from the MVP-006 review: `restricted` and `email_verification_pending` have no HTTP allow-case until the enum contains them. | Engineering |
 | 0.7.2 | 2026-09-28 | Added `ENG-IMP-029` (PROPOSED) from the MVP-007 review: `project.create` seller eligibility is a boolean the caller supplies. Not implemented. | Engineering |
+| 0.7.3 | 2026-09-29 | Added `ENG-IMP-030` and `ENG-IMP-031` (PROPOSED) from MVP-013: unindexed leading-wildcard search, and no AND across search dimensions. Neither is authorized. The cross-reference row for profile discovery now records that search is server-side. | Engineering |
