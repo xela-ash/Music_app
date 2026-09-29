@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.8.0 |
+| Version | 0.8.1 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -577,6 +577,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-29 | MVP-013 / GitHub issue #15 | `GET /profiles` searches `name`, `handle`, `genre`, `city`, and `country` in SQL and pages at most 100 rows. Discover sends the existing search box to that query. No schema change. | Profiles, discovery, frontend, testing | None | Search and `limit`/`offset` query parameters on `GET /profiles`. Body remains `{ profiles }`. | Discover refetches on search and no longer filters the fetched page in the client. | `SEC-PROFILE-007`, `SEC-AUTHZ-006`, `BR-AUTHZ-023`. Authenticated route unchanged. Legal name is not a search field. | `backend/test/profile-search-query.test.js`, `backend/test/profile-search.http.test.js`, `frontend/src/App.discover.test.tsx` | EDR-008 | `ENG-IMP-030`, `ENG-IMP-031` | Branch `cursor/mvp-013-profile-search-255b` | The MVP-013 commit on that branch |
 | 2026-09-29 | MVP-013 review / GitHub issue #15 | Restored EDR-007's closing rows after EDR-008 was inserted inside that table. No application behavior changed. | Documentation only | None | None | None | None | None | EDR-007, EDR-008 | None | #66 | The review-repair commit on `cursor/mvp-013-profile-search-255b` |
 | 2026-09-29 | MVP-014 / GitHub issue #16 | Seller invitations reach Accepted, Declined, Withdrawn, or Expired. Acceptance adds the only active Seller participant. `projects.state` is unchanged. `GET /projects` no longer treats a named seller as a party. | Projects, authorization, database, testing | 010 | Invitation invite, review, accept, decline, and withdraw. `GET /projects` seller scope. Project responses include `version`. | None | `SEC-PROJECTS-001`, `SEC-PROJECTS-016`, `SEC-AUTHZ-007`, `AUD-PROJECTS-002` | `backend/test/invitations.http.test.js`, `backend/test/invitation-constraints.test.js`, `backend/test/invitation-rules.test.js`; smoke and authorize expectations updated | EDR-009 | `ENG-IMP-032`, `ENG-IMP-033` | Branch `cursor/mvp-014-project-invitations-255b` | The MVP-014 commit on that branch |
+| 2026-09-29 | MVP-014 review / GitHub issue #16 | Recorded the independent review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-034`, `ENG-IMP-035` | #68 | The review-record commit on `cursor/mvp-014-project-invitations-255b` |
 
 ## 8. Version history
 
@@ -593,3 +594,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.6.0 | 2026-09-28 | Recorded MVP-007: `authorize()` for the existing project rules, Section 4.6, EDR-007, and a change-history row. | Engineering |
 | 0.7.0 | 2026-09-29 | Recorded MVP-013: server-side profile search, Sections 4.3, 4.4, 4.7, and 4.20, EDR-008, and a change-history row. | Engineering |
 | 0.8.0 | 2026-09-29 | Recorded MVP-014: seller invitations, Sections 4.3, 4.6, 4.10, 4.19, 4.20, and 4.22, EDR-009, and a change-history row. | Engineering |
+| 0.8.1 | 2026-09-29 | Recorded the MVP-014 review's non-blocking improvements. No subsystem behavior changed. | Engineering |
