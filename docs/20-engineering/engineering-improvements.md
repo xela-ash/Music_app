@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.3 |
+| Version | 0.7.5 |
 | Last Reviewed | 2026-09-29 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -133,6 +133,10 @@ Copy this template for each new entry:
 | [ENG-IMP-029](#eng-imp-029-projectcreate-seller-eligibility-is-a-boolean-the-caller-supplies) | project.create seller eligibility is a boolean the caller supplies | Authorization | Low | PROPOSED |
 | [ENG-IMP-030](#eng-imp-030-profile-search-uses-an-unindexed-leading-wildcard) | Profile search uses an unindexed leading wildcard | Database, Performance | Low | PROPOSED |
 | [ENG-IMP-031](#eng-imp-031-profile-search-dimensions-cannot-be-combined-with-and) | Profile search dimensions cannot be combined with AND | API, Discovery | Low | PROPOSED |
+| [ENG-IMP-032](#eng-imp-032-project-creation-still-writes-seller_user_id-before-acceptance) | Project creation still writes seller_user_id before acceptance | Database, Authorization | Medium | PROPOSED |
+| [ENG-IMP-033](#eng-imp-033-seller-invitation-expiry-has-no-maximum-duration) | Seller invitation expiry has no maximum duration | API, Security | Low | PROPOSED |
+| [ENG-IMP-034](#eng-imp-034-terminal-invitation-rows-can-be-updated) | Terminal invitation rows can be updated | Database | Medium | PROPOSED |
+| [ENG-IMP-035](#eng-imp-035-invitation-review-returns-the-full-proposal-after-a-terminal-outcome) | Invitation review returns the full proposal after a terminal outcome | API, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -974,6 +978,126 @@ Copy this template for each new entry:
 | Related PR | Branch `cursor/mvp-013-profile-search-255b` |
 | Resolution | — |
 
+### ENG-IMP-032 Project creation still writes seller_user_id before acceptance
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-032 |
+| Title | Project creation still writes seller_user_id before acceptance |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-014 implementation |
+| Category | Database, Authorization |
+| Affected subsystem | Projects |
+| Current state | `POST /projects` still requires and stores `seller_user_id`. Migration 010 makes the column nullable and writes it again on acceptance when it is null or already the invitee. Active Seller capability is the participant row, not the column. |
+| Evidence / problem | `BR-PROJECTS-011` says a retained `seller_user_id` is populated only from the active accepted Seller participant. The existing create contract and the buyer project list's inner join on that column still depend on the value being present at creation. Nulling it in this item would hide the buyer's project and change the create response the current client reads. |
+| Suggested improvement | Stop writing `seller_user_id` on create, use a left join for the named candidate, and set the column only from the accepted participant. |
+| Expected benefit | The compatibility column matches `BR-PROJECTS-011` exactly. |
+| Risk of doing nothing | A reader that treats `seller_user_id` as consent would repeat `SEC-AUTHZ-007`. List and lock no longer do that. |
+| Implementation risk | The current frontend and smoke snapshot expect the named seller on the create response. |
+| Estimated scope | S |
+| Dependencies | A create-contract change, likely with the project read projection in a later projects item |
+| Product behavior impact | Yes |
+| Specification impact | No |
+| Migration impact | No, if new rows simply leave the column null |
+| Security impact | Removes the remaining pre-consent write of the compatibility column |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the next project-creation or project-read item, not inside MVP-014 |
+| Status | PROPOSED |
+| Related GitHub Issue | [#16](https://github.com/xela-ash/Music_app/issues/16) |
+| Related PR | Branch `cursor/mvp-014-project-invitations-255b` |
+| Resolution | — |
+
+### ENG-IMP-033 Seller invitation expiry has no maximum duration
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-033 |
+| Title | Seller invitation expiry has no maximum duration |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-014 implementation |
+| Category | API, Security |
+| Affected subsystem | Projects |
+| Current state | Invite requires `expires_at` later than the database clock and later than `created_at`. No upper bound is stored or enforced. |
+| Evidence / problem | Projects §36 asks whether expiry is a fixed duration, a buyer-selected bounded duration, or a risk-based duration. MVP-014 stores the caller-supplied instant and does not choose that policy (`EDR-009`). |
+| Suggested improvement | After Product chooses the duration policy, enforce it on invite. |
+| Expected benefit | A pending invitation cannot be given an unbounded consent window by the client. |
+| Risk of doing nothing | A caller can send an expiry far in the future. The invitation still expires at that instant, and acceptance after it is rejected. |
+| Implementation risk | Low once the bound exists. Choosing the bound now would invent the open policy. |
+| Estimated scope | S |
+| Dependencies | Projects §36 duration decision |
+| Product behavior impact | Yes |
+| Specification impact | Yes. The owning specification has to record the duration policy first. |
+| Migration impact | No |
+| Security impact | Bounds how long a pending invitation can remain acceptable |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | When the open duration question is decided |
+| Status | PROPOSED |
+| Related GitHub Issue | [#16](https://github.com/xela-ash/Music_app/issues/16) |
+| Related PR | Branch `cursor/mvp-014-project-invitations-255b` |
+| Resolution | — |
+
+### ENG-IMP-034 Terminal invitation rows can be updated
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-034 |
+| Title | Terminal invitation rows can be updated |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-014 independent review |
+| Category | Database |
+| Affected subsystem | Projects |
+| Current state | `project_audit_events` rejects update and delete. `project_invitations` does not. `markInvitation` updates a row by id. |
+| Evidence / problem | `DATA-PROJECTS-002` says terminal invitation outcomes are append-retained and never reopened. Application commands do not reopen a terminal row. A direct `UPDATE` can. |
+| Suggested improvement | Add a trigger that rejects a status change once the row has left `pending`, and reject changes to the proposal hash and parties. |
+| Expected benefit | The terminal-outcome rule holds when application checks are bypassed. |
+| Risk of doing nothing | A later bug or manual write can reopen an accepted invitation. |
+| Implementation risk | Low if the trigger allows the single pending-to-terminal update. |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | Additive trigger |
+| Security impact | Closes a direct-SQL path around consent |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | A later projects hardening item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#16](https://github.com/xela-ash/Music_app/issues/16) |
+| Related PR | [#68](https://github.com/xela-ash/music_app/pull/68) |
+| Resolution | — |
+
+### ENG-IMP-035 Invitation review returns the full proposal after a terminal outcome
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-035 |
+| Title | Invitation review returns the full proposal after a terminal outcome |
+| Date identified | 2026-09-29 |
+| Identified by | MVP-014 independent review |
+| Category | API, Security |
+| Affected subsystem | Projects |
+| Current state | `GET /projects/:projectId/invitations/:invitationId` returns the commercial proposal for pending and terminal invitations. It does not write an audit row. `SellerAccepted` outbox payload does not include the participant external id. Accept re-checks account status only in `requireAuth`, before the row lock. |
+| Evidence / problem | Projects §§6.2 and 8.2 describe a minimal receipt after decline, withdrawal, or expiry. `AUD-PROJECTS-002` includes a sensitive invitation view. `EVT-PROJECTS-003` names a participant reference. Section 8.1 names a live-status check inside the locked acceptance transaction. The independent review classified these as non-blocking. |
+| Suggested improvement | Return a minimal receipt after a terminal outcome, audit that review when it exposes commercial fields, include the participant reference on `SellerAccepted`, and re-read `users.status` inside the acceptance transaction. |
+| Expected benefit | Review matches the invitation visibility matrix and the audit and event rows match the cited identifiers. |
+| Risk of doing nothing | A declined or expired invitee can still read the full brief. A suspension that lands after `requireAuth` and before commit can still accept. |
+| Implementation risk | The current expiry test expects `proposal.title` on an expired review. |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | Yes, for the review payload |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Narrows post-terminal disclosure and the suspension race |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A follow-up on the invitation read projection, not a change to the terminal-state commands |
+| Status | PROPOSED |
+| Related GitHub Issue | [#16](https://github.com/xela-ash/Music_app/issues/16) |
+| Related PR | [#68](https://github.com/xela-ash/music_app/pull/68) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1020,3 +1144,5 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.1 | 2026-09-28 | Added `ENG-IMP-028` (PROPOSED) from the MVP-006 review: `restricted` and `email_verification_pending` have no HTTP allow-case until the enum contains them. | Engineering |
 | 0.7.2 | 2026-09-28 | Added `ENG-IMP-029` (PROPOSED) from the MVP-007 review: `project.create` seller eligibility is a boolean the caller supplies. Not implemented. | Engineering |
 | 0.7.3 | 2026-09-29 | Added `ENG-IMP-030` and `ENG-IMP-031` (PROPOSED) from MVP-013: unindexed leading-wildcard search, and no AND across search dimensions. Neither is authorized. The cross-reference row for profile discovery now records that search is server-side. | Engineering |
+| 0.7.4 | 2026-09-29 | Added `ENG-IMP-032` and `ENG-IMP-033` (PROPOSED) from MVP-014. Neither is authorized. | Engineering |
+| 0.7.5 | 2026-09-29 | Added `ENG-IMP-034` and `ENG-IMP-035` (PROPOSED) from the MVP-014 independent review. Neither is authorized. | Engineering |

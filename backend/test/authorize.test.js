@@ -61,14 +61,18 @@ describe("authorize project.list (BR-AUTHZ-023)", () => {
     assert.equal(decision.obligations.scope, "participant");
     assert.equal(
       decision.obligations.whereSql,
-      "pr.buyer_user_id = $1 OR pr.seller_user_id = $1"
+      "pr.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = pr.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')"
     );
     assert.deepEqual(decision.obligations.params, [BUYER]);
   });
 
-  it("allows the buyer and the seller to read the project", () => {
+  it("allows the buyer and an accepted seller, and denies a named seller without acceptance", () => {
     assert.equal(authorize(actor(BUYER), PROJECT_LIST, project).allowed, true);
-    assert.equal(authorize(actor(SELLER), PROJECT_LIST, project).allowed, true);
+    assert.equal(authorize(actor(SELLER), PROJECT_LIST, project).allowed, false);
+    assert.equal(
+      authorize(actor(SELLER), PROJECT_LIST, { ...project, active_seller_user_id: SELLER }).allowed,
+      true
+    );
   });
 
   it("runs that obligation SQL and rejects a different scope", async () => {
@@ -81,7 +85,8 @@ describe("authorize project.list (BR-AUTHZ-023)", () => {
       },
     };
     await projectsRepository.listProjectsForParticipant(db, decision.obligations);
-    assert.match(captured.sql, /WHERE pr\.buyer_user_id = \$1 OR pr\.seller_user_id = \$1/);
+    assert.match(captured.sql, /project_participants pp/);
+    assert.match(captured.sql, /pp\.category = 'seller'/);
     assert.deepEqual(captured.params, [BUYER]);
     assert.throws(
       () =>

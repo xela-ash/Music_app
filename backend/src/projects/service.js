@@ -112,6 +112,11 @@ async function createProject(body, actorUserId) {
     ]);
 
     const project = projectResult.rows[0];
+    await repository.insertBuyerParticipant(client, [
+      repository.makeParticipantExternalId(),
+      project.id,
+      project.buyer_user_id,
+    ]);
     const insertedMilestones = [];
 
     for (let i = 0; i < normalizedMilestones.length; i++) {
@@ -182,6 +187,7 @@ async function listProjects(actorUserId) {
       delivery_days: row.delivery_days,
       revision_limit: row.revision_limit,
       state: row.state,
+      version: row.version,
       accepted_at: row.accepted_at,
       delivered_at: row.delivered_at,
       completed_at: row.completed_at,

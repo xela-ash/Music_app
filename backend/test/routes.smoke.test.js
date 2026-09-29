@@ -527,6 +527,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         delivery_days: 14,
         revision_limit: 0,
         state: "draft",
+        version: 1,
         accepted_at: null,
         delivered_at: null,
         completed_at: null,
@@ -585,6 +586,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
       delivery_days: 14,
       revision_limit: 0,
       state: "draft",
+      version: 1,
       accepted_at: null,
       delivered_at: null,
       completed_at: null,
@@ -609,8 +611,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
       token: `Bearer ${sellerSession.token}`,
     });
     assert.equal(sellerList.status, 200);
-    assert.equal(sellerList.json.projects.length, 1);
-    assert.equal(sellerList.json.projects[0].id, created.json.project.id);
+    assert.deepEqual(sellerList.json, { projects: [] });
 
     const outsiderList = await request("GET", "/projects", {
       token: `Bearer ${outsiderSession.token}`,
