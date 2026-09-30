@@ -111,9 +111,6 @@ function authorizeInviteSeller(actor, resource) {
   if (resource.hasActiveSeller === true) {
     return deny(409, "An accepted seller already exists");
   }
-  if (resource.state !== "draft") {
-    return deny(409, "Proposal is not ready for invitation");
-  }
   return allow();
 }
 
