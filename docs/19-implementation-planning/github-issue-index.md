@@ -105,13 +105,13 @@ At generation no work item had merged, so READY meant "no dependencies". After p
 
 ## 5. First autonomous queue
 
-Recalculated on 2026-09-30 after pull request #84 merged `MVP-016` (`5b41d52`). The plan's *Depends on* column names `MVP-016` only as that item's own dependency on `MVP-015`. No successor becomes READY. `MVP-017` stays stopped: Milestones Q14, Q15, and Section 33.2 leave the amount unit, `deliverable_definition`, and `revision_allowance` without a value this item may invent.
+Recalculated on 2026-09-30 after pull request #84 merged `MVP-016` (`5b41d52`). No other plan row lists `MVP-016` in *Depends on*. The `MVP-016` row itself depends on `MVP-015`. No successor becomes READY. `MVP-004` remains the only other dependency-ready AUTONOMOUS-READY item, and it stays unmerged until ruleset `24033491` requires the four CI checks. `MVP-017` stays stopped: Milestones Q14, Q15, and Section 33.2 leave the amount unit, `deliverable_definition`, and `revision_allowance` without a value this item may invent.
 
 - MVP-004 — [#6](https://github.com/xela-ash/Music_app/issues/6) — CI pipeline. The workflow is in pull request #61, which conflicts with `main`. Merge is waiting on required status checks that this token cannot add to ruleset `24033491` (HTTP 403).
 - MVP-016 — [#18](https://github.com/xela-ash/Music_app/issues/18) — MERGED (pull request #84, merge `5b41d52`). Issue #18 is closed.
 - MVP-017 — [#19](https://github.com/xela-ash/Music_app/issues/19) — STOPPED. Dependency is merged. Do not invent the values named in Milestones Q14, Q15, and Section 33.2.
 
-**Do not invent a class for the three rows in `ENG-IMP-036`.** `MVP-043` mock adapter is pull request #76, ready for a human merge. Do not select an email provider, and do not merge #76 from the orchestrator. **Do not start `MVP-010`.** Asset byte, pixel, duration, and quota ceilings remain intentionally UNDECIDED pending research. Do not invent them. `MVP-004` stays open until the ruleset requires `lint`, `frontend-test`, `backend-test`, and `migration-dry-run`. `MVP-039` waits on `MVP-011`, which waits on `MVP-010`.
+**Do not invent a class for the three rows in `ENG-IMP-036`.** `MVP-043` mock adapter is pull request #76. It is open and conflicts with `main`. Do not select an email provider, and do not merge #76 from the orchestrator. **Do not start `MVP-010`.** Asset byte, pixel, duration, and quota ceilings remain intentionally UNDECIDED pending research. Do not invent them. `MVP-004` stays open until the ruleset requires `lint`, `frontend-test`, `backend-test`, and `migration-dry-run`. `MVP-039` waits on `MVP-011`, which waits on `MVP-010`.
 
 The plan's recommended first ten issues, in order, with their current status:
 
@@ -146,7 +146,7 @@ The plan's recommended first ten issues, in order, with their current status:
 | MVP-009 | [#11](https://github.com/xela-ash/Music_app/issues/11) | An email provider (Notifications Question EQ1). End-to-end reset and verification need real delivery; also waits on `MVP-043`. | BLOCKED-EXTERNAL |
 | MVP-010 | [#12](https://github.com/xela-ash/Music_app/issues/12) | A storage provider (Assets Section 30.1). The mock adapter needs no provider. Byte, pixel, duration, and quota ceilings remain intentionally UNDECIDED pending research. Do not invent them. Do not start the item. A human merges any PR. | BLOCKED-EXTERNAL |
 | MVP-025 | [#27](https://github.com/xela-ash/Music_app/issues/27) | A payment provider (Escrow Question EQ13, Payments Question PQ1). Acceptance is met with the mock provider. | WAITING-DEPENDENCY |
-| MVP-043 | [#45](https://github.com/xela-ash/Music_app/issues/45) | An email provider (Notifications Question EQ1). Acceptance is met with a mock provider. Pull request #76 is ready. A human merges it. | READY |
+| MVP-043 | [#45](https://github.com/xela-ash/Music_app/issues/45) | An email provider (Notifications Question EQ1). Acceptance is met with a mock provider. Pull request #76 is open and conflicts with `main`. A human merges it. | READY |
 
 No provider has been selected, no provider account created, and no credential added.
 
@@ -229,4 +229,4 @@ Issue generation found the following. Each is flagged in the named issue for the
 | 0.1.15 | 2026-09-29 | Execution status only: `MVP-038` (pull request #79, merge `2c9bf06`) is MERGED and issue #40 is closed. No further AUTONOMOUS-READY item can proceed. | Engineering |
 | 0.1.16 | 2026-09-30 | Execution status only: `MVP-015` (pull request #81, merge `3b5574a`) is MERGED. `MVP-016` and `MVP-017` are READY. `ENG-IMP-015` is IMPLEMENTED. | Engineering |
 | 0.1.17 | 2026-09-30 | Execution status only: `MVP-017` is STOPPED on Milestones Q14, Q15, and the Section 33.2 revision-allowance rule. `MVP-016` remains READY. | Engineering |
-| 0.1.18 | 2026-09-30 | Execution status only: `MVP-016` (pull request #84, merge `5b41d52`) is MERGED and issue #18 is closed. No successor depends on it. No further AUTONOMOUS-READY item can proceed. | Engineering |
+| 0.1.18 | 2026-09-30 | Execution status only: `MVP-016` (pull request #84, merge `5b41d52`) is MERGED and issue #18 is closed. No successor depends on it. `MVP-004` remains the only other dependency-ready AUTONOMOUS-READY item and stays unmerged on the ruleset hold. | Engineering |
