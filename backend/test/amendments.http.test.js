@@ -322,6 +322,16 @@ describe("MVP-016 project amendments", { concurrency: 1, timeout: 30000 }, () =>
 
     const silent = await pgError("UPDATE projects SET title = 'Silent' WHERE id = $1", [project.id]);
     assert.equal(silent.code, "23514");
+    const retarget = await pgError(
+      "UPDATE projects SET agreed_term_version = proposal_version WHERE id = $1",
+      [project.id]
+    );
+    assert.equal(retarget.code, "23514");
+    const missingVersion = await pgError(
+      "UPDATE projects SET agreed_term_version = 99 WHERE id = $1",
+      [project.id]
+    );
+    assert.equal(missingVersion.code, "23514");
     const rewritten = await pgError(
       "UPDATE project_term_versions SET title = 'Silent' WHERE project_id = $1",
       [project.id]
@@ -354,8 +364,16 @@ describe("MVP-016 project amendments", { concurrency: 1, timeout: 30000 }, () =>
     assert.equal(after.version, row.version);
     assert.equal(after.agreed_term_version, row.agreed_term_version);
     assert.equal(after.title, row.title);
+    assert.equal(after.requirements, row.requirements);
+    assert.equal(after.revision_limit, row.revision_limit);
+    assert.equal(after.price_amount, row.price_amount);
+    assert.equal(after.currency, row.currency);
+    assert.equal(after.delivery_days, row.delivery_days);
     assert.equal(after.state, row.state);
     assert.equal(await termCount(project.id), beforeTerms);
+    const milestones = await milestoneRow(project.id);
+    assert.equal(milestones.length, 1);
+    assert.equal(milestones[0].amount, 100);
     const events = await pool.query(
       `SELECT COUNT(*)::int AS count FROM outbox_messages
        WHERE aggregate_id = $1 AND event_type = 'ProjectTermsChanged'`,
@@ -558,6 +576,8 @@ describe("MVP-016 project amendments", { concurrency: 1, timeout: 30000 }, () =>
     const buyer = await signupAndLogin(nextId("buyer-hold"));
     const seller = await signupAndLogin(nextId("seller-hold"));
     const { project, row } = await acceptedProject(buyer, seller);
+    const pending = await propose(buyer, project, row, { title: "Before the hold" }, "hold-pending");
+    assert.equal(pending.status, 201, pending.text);
     await pool.query("UPDATE projects SET state = 'in_progress'::project_state WHERE id = $1", [project.id]);
     await pool.query(
       "UPDATE projects SET state = 'disputed'::project_state, resume_state = 'in_progress'::project_state WHERE id = $1",
@@ -566,6 +586,21 @@ describe("MVP-016 project amendments", { concurrency: 1, timeout: 30000 }, () =>
     const disputed = await propose(buyer, project, row, { title: "During dispute" }, "hold-1");
     assert.equal(disputed.status, 409);
     assert.equal(disputed.json.error, "Project is held");
+    const heldAccept = await request(
+      "POST",
+      `/projects/${project.id}/amendments/${pending.json.amendment.external_id}/accept`,
+      {
+        token: seller.token,
+        idempotencyKey: "hold-accept",
+        body: {
+          expected_version: row.version,
+          expected_hash: pending.json.amendment.new_snapshot_hash,
+        },
+      }
+    );
+    assert.equal(heldAccept.status, 409);
+    assert.equal(heldAccept.json.error, "Project is held");
+    assert.equal((await projectRow(project.id)).agreed_term_version, row.agreed_term_version);
     await pool.query(
       "UPDATE projects SET state = 'suspended'::project_state, resume_state = 'in_progress'::project_state WHERE id = $1",
       [project.id]

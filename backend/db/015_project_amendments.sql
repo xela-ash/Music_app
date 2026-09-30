@@ -185,38 +185,50 @@ CREATE TRIGGER project_amendments_guard
   FOR EACH ROW
   EXECUTE FUNCTION project_amendments_guard();
 
--- BR-PROJECTS-017. Once a project has an agreed term version, live commercial
--- columns change only in the same update that points at a new agreed version
--- whose snapshot matches those columns. delivery_days is not a snapshot field
--- and does not move with the pointer.
+-- BR-PROJECTS-017. Once a project has an agreed term version, the pointer
+-- moves only forward to an existing agreed snapshot that matches the live
+-- commercial columns. delivery_days is not a snapshot field and does not move
+-- with the pointer. A pointer-only update cannot retarget proposal, missing,
+-- or older versions.
 CREATE OR REPLACE FUNCTION projects_protect_agreed_terms()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF OLD.agreed_term_version IS NULL THEN
-    RETURN NEW;
-  END IF;
-  IF NEW.delivery_days IS DISTINCT FROM OLD.delivery_days THEN
+  IF OLD.agreed_term_version IS NOT NULL
+     AND NEW.delivery_days IS DISTINCT FROM OLD.delivery_days THEN
     RAISE EXCEPTION 'accepted project delivery_days cannot change'
       USING ERRCODE = '23514';
   END IF;
-  IF NEW.title IS NOT DISTINCT FROM OLD.title
-     AND NEW.requirements IS NOT DISTINCT FROM OLD.requirements
-     AND NEW.revision_limit IS NOT DISTINCT FROM OLD.revision_limit
-     AND NEW.service_snapshot IS NOT DISTINCT FROM OLD.service_snapshot
-     AND NEW.price_amount IS NOT DISTINCT FROM OLD.price_amount
-     AND NEW.currency IS NOT DISTINCT FROM OLD.currency
-     AND NEW.currency_exponent IS NOT DISTINCT FROM OLD.currency_exponent
-  THEN
+
+  IF NEW.agreed_term_version IS NOT DISTINCT FROM OLD.agreed_term_version THEN
+    IF OLD.agreed_term_version IS NOT NULL
+       AND (
+         NEW.title IS DISTINCT FROM OLD.title
+         OR NEW.requirements IS DISTINCT FROM OLD.requirements
+         OR NEW.revision_limit IS DISTINCT FROM OLD.revision_limit
+         OR NEW.service_snapshot IS DISTINCT FROM OLD.service_snapshot
+         OR NEW.price_amount IS DISTINCT FROM OLD.price_amount
+         OR NEW.currency IS DISTINCT FROM OLD.currency
+         OR NEW.currency_exponent IS DISTINCT FROM OLD.currency_exponent
+       )
+    THEN
+      RAISE EXCEPTION 'accepted project terms change only with a new agreed term version'
+        USING ERRCODE = '23514';
+    END IF;
     RETURN NEW;
   END IF;
-  IF NEW.agreed_term_version IS NOT DISTINCT FROM OLD.agreed_term_version
-     OR NEW.agreed_term_version IS NULL
+
+  IF OLD.agreed_term_version IS NOT NULL
+     AND (
+       NEW.agreed_term_version IS NULL
+       OR NEW.agreed_term_version <= OLD.agreed_term_version
+     )
   THEN
-    RAISE EXCEPTION 'accepted project terms change only with a new agreed term version'
+    RAISE EXCEPTION 'agreed term version can only move forward'
       USING ERRCODE = '23514';
   END IF;
+
   PERFORM 1
   FROM project_term_versions
   WHERE project_id = NEW.id
