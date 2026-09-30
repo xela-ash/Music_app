@@ -21,8 +21,8 @@ function stale() {
   return { status: 409, body: { error: "Project version is stale" } };
 }
 
-function notReady() {
-  return { status: 409, body: { error: "Proposal is not ready" } };
+function notReady(status) {
+  return { status, body: { error: "Proposal is not ready" } };
 }
 
 function publicProject(project, termVersion) {
@@ -108,7 +108,7 @@ async function preconditionFailure(client, project, edge, actor) {
         || project.delivery_days <= 0
         || !aligned
       ) {
-        return notReady();
+        return notReady(edge.actions.includes("project.propose") ? 422 : 409);
       }
     }
     if (requirement === "no_pending_or_accepted_seller") {
@@ -172,7 +172,7 @@ async function preconditionFailure(client, project, edge, actor) {
         return invalidTransition();
       }
     }
-    if (requirement === "no_refund_due" && !(hasFactId(facts) && facts.refundDue === 0)) {
+    if (requirement === "no_refund_due" && !(hasFactId(facts) && facts.refundDue === 0 && facts.hold !== true)) {
       return invalidTransition();
     }
     if (requirement === "mutual_consent") {
@@ -221,7 +221,7 @@ async function commitTransition(client, { project, action, targetState, actorTyp
   if (edge.effect === "freeze_proposal") {
     const inserted = await repository.insertProposalVersion(client, project.id, repository.makeTermExternalId());
     if (inserted.rows.length !== 1) {
-      return notReady();
+      return notReady(409);
     }
     termVersion = inserted.rows[0];
     proposalVersion = termVersion.version_number;

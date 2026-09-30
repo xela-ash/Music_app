@@ -297,6 +297,30 @@ describe("MVP-015 project term versions and state machine", { concurrency: 1, ti
     assert.equal(created.status, 201, created.text);
     const project = created.json.project;
 
+    const unreadied = await request("POST", "/projects", {
+      token: buyer.token,
+      body: projectBody(seller.userId),
+    });
+    assert.equal(unreadied.status, 201, unreadied.text);
+    await pool.query("UPDATE projects SET requirements = '' WHERE id = $1", [unreadied.json.project.id]);
+    const unready = await request("POST", `/projects/${unreadied.json.project.id}/propose`, {
+      token: buyer.token,
+      idempotencyKey: "propose-unready",
+      body: { expected_version: unreadied.json.project.version },
+    });
+    assert.equal(unready.status, 422);
+    assert.equal(unready.json.error, "Proposal is not ready");
+    const stillDraft = await pool.query(
+      "SELECT state FROM projects WHERE id = $1",
+      [unreadied.json.project.id]
+    );
+    assert.equal(stillDraft.rows[0].state, "draft");
+    const unreadyVersions = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM project_term_versions WHERE project_id = $1",
+      [unreadied.json.project.id]
+    );
+    assert.equal(unreadyVersions.rows[0].count, 0);
+
     const missing = await request("POST", `/projects/${project.id}/propose`, {
       token: buyer.token,
       body: { expected_version: project.version },
@@ -312,6 +336,16 @@ describe("MVP-015 project term versions and state machine", { concurrency: 1, ti
     assert.equal(proposed.json.project.state, "proposed");
     assert.equal(proposed.json.term_version.represented_state, "proposed");
     assert.equal(proposed.json.term_version.version_number, 1);
+    const audits = await pool.query(
+      "SELECT event_type FROM project_audit_events WHERE project_id = $1",
+      [project.id]
+    );
+    assert.deepEqual(audits.rows.map((row) => row.event_type).sort(), ["AUD-PROJECTS-001", "AUD-PROJECTS-003"]);
+    const outbox = await pool.query(
+      "SELECT event_type FROM outbox_messages WHERE aggregate_id = $1 AND event_type = 'ProjectStateChanged'",
+      [project.external_id]
+    );
+    assert.equal(outbox.rows.length, 1);
 
     const replay = await request("POST", `/projects/${project.id}/propose`, {
       token: buyer.token,
@@ -334,6 +368,11 @@ describe("MVP-015 project term versions and state machine", { concurrency: 1, ti
     );
     assert.equal(unchanged.rows[0].state, "proposed");
     assert.equal(unchanged.rows[0].proposal_version, 1);
+    const transitions = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM project_state_transitions WHERE project_id = $1",
+      [project.id]
+    );
+    assert.equal(transitions.rows[0].count, 1);
 
     const hidden = await request("POST", `/projects/${project.id}/propose`, {
       token: outsider.token,
@@ -505,6 +544,30 @@ describe("MVP-015 project term versions and state machine", { concurrency: 1, ti
       assert.equal(stored.rows[0].state, "draft");
     } finally {
       client.release();
+    }
+
+    const cancelEdge = findTransition("funded", "cancelled", "project.cancel_settled");
+    const heldId = await seedProject(buyer.userId, seller.userId, "funded", "cancelled", cancelEdge);
+    const heldClient = await pool.connect();
+    try {
+      await heldClient.query("BEGIN");
+      const current = await repository.lockProjectById(heldClient, heldId);
+      const held = await commitTransition(heldClient, {
+        project: current.rows[0],
+        action: "project.cancel_settled",
+        targetState: "cancelled",
+        actorType: "system",
+        actorId: "system",
+        expectedVersion: current.rows[0].version,
+        facts: { eventId: "held-cancel", refundDue: 0, hold: true },
+        sourceFactId: "held-cancel",
+      });
+      assert.equal(held.status, 409);
+      await heldClient.query("COMMIT");
+      const stored = await pool.query("SELECT state FROM projects WHERE id = $1", [heldId]);
+      assert.equal(stored.rows[0].state, "funded");
+    } finally {
+      heldClient.release();
     }
   });
 });
