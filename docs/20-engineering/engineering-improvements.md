@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.13 |
+| Version | 0.7.14 |
 | Last Reviewed | 2026-09-30 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -149,6 +149,7 @@ Copy this template for each new entry:
 | [ENG-IMP-046](#eng-imp-046-amendment-expiry-has-no-maximum-duration) | Amendment expiry has no maximum duration | API, Security | Low | PROPOSED |
 | [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
 | [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
+| [ENG-IMP-049](#eng-imp-049-a-matching-later-snapshot-can-move-the-agreed-pointer-without-an-amendment) | A matching later snapshot can move the agreed pointer without an amendment | Database | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1470,6 +1471,36 @@ Copy this template for each new entry:
 | Related PR | [#84](https://github.com/xela-ash/music_app/pull/84) |
 | Resolution | — |
 
+### ENG-IMP-049 A matching later snapshot can move the agreed pointer without an amendment
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-049 |
+| Title | A matching later snapshot can move the agreed pointer without an amendment |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-016 independent review |
+| Category | Database |
+| Affected subsystem | Projects |
+| Current state | After agreement, `agreed_term_version` can move only forward to an existing `agreed` row whose live commercial columns match. `start_at` and `due_at` are not live project columns. |
+| Evidence / problem | A direct insert of a later `agreed` row that copies the live title, brief, service snapshot, currency, exponent, total, and revision limit, but changes `start_at` or `due_at`, can then be selected by `UPDATE projects SET agreed_term_version`. No amendment row is required. The application accept path does not do this. |
+| Suggested improvement | When a later item can do it without blocking seller acceptance, require a forward pointer move to reference an accepted amendment, or compare the date fields through a stored live column. |
+| Expected benefit | A SQL session could not retarget dates while leaving the visible commercial columns unchanged. |
+| Risk of doing nothing | The HTTP commands still append a version only through acceptance. The bypass needs direct table access. |
+| Implementation risk | Medium if the check also rejects the seller-acceptance pointer, which is not an amendment |
+| Estimated scope | S |
+| Dependencies | A way to tell seller acceptance from a later pointer move |
+| Product behavior impact | None for the amendment routes |
+| Specification impact | No |
+| Migration impact | None until the check exists |
+| Security impact | Direct SQL can still move dates |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later amendment or term-version hardening item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#18](https://github.com/xela-ash/Music_app/issues/18) |
+| Related PR | [#84](https://github.com/xela-ash/music_app/pull/84) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1527,3 +1558,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.11 | 2026-09-30 | Added `ENG-IMP-043`, `ENG-IMP-044`, and `ENG-IMP-045` (PROPOSED) from the MVP-015 review. None are authorized. | Engineering |
 | 0.7.12 | 2026-09-30 | Added `ENG-IMP-046` (PROPOSED): amendment expiry has no specified maximum. Not authorized. | Engineering |
 | 0.7.13 | 2026-09-30 | Added `ENG-IMP-047` and `ENG-IMP-048` (PROPOSED) from the MVP-016 review. Neither is authorized. | Engineering |
+| 0.7.14 | 2026-09-30 | Added `ENG-IMP-049` (PROPOSED): a later matching snapshot can move the agreed pointer without an amendment. Not authorized. | Engineering |
