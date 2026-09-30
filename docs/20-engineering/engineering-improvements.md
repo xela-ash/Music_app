@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.9 |
-| Last Reviewed | 2026-09-29 |
+| Version | 0.7.10 |
+| Last Reviewed | 2026-09-30 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -119,7 +119,7 @@ Copy this template for each new entry:
 | [ENG-IMP-012](#eng-imp-012-mvp-plan-is-ambiguous-about-the-single-classification-of-mixed-scope-items) | MVP plan is ambiguous about the single classification of mixed-scope items | Documentation | Medium | IMPLEMENTED |
 | [ENG-IMP-013](#eng-imp-013-release-and-financial-commands-are-not-wired-to-verification-and-idempotency-foundations) | Release and financial commands are not wired to verification and idempotency foundations | Documentation, Architecture | Medium | PROPOSED |
 | [ENG-IMP-014](#eng-imp-014-mvp-009-cites-the-login-section-instead-of-the-email-verification-and-password-reset-sections) | MVP-009 cites the login section instead of the email-verification and password-reset sections | Documentation | Medium | IMPLEMENTED |
-| [ENG-IMP-015](#eng-imp-015-project-term-version-record-required-by-mvp-015-is-not-defined-by-the-projects-specification) | Project term-version record required by MVP-015 is not defined by the Projects specification | Documentation, Architecture, Database | High | PROPOSED |
+| [ENG-IMP-015](#eng-imp-015-project-term-version-record-required-by-mvp-015-is-not-defined-by-the-projects-specification) | Project term-version record required by MVP-015 is not defined by the Projects specification | Documentation, Architecture, Database | High | IMPLEMENTED |
 | [ENG-IMP-016](#eng-imp-016-password-reset-requires-session-revocation-that-no-mvp-work-item-builds) | Password reset requires session revocation that no MVP work item builds | Documentation, Architecture, Security | Medium | PROPOSED |
 | [ENG-IMP-017](#eng-imp-017-characterization-suite-binds-a-fixed-port-4000) | Characterization suite binds a fixed port 4000 | Testing, Reliability | Medium | IMPLEMENTED |
 | [ENG-IMP-018](#eng-imp-018-characterization-db_port-guard-misses-an-omitted-port) | Characterization `DB_PORT` guard misses an omitted port | Testing, Reliability | Medium | IMPLEMENTED |
@@ -589,10 +589,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | High |
 | Recommended timing | Before `MVP-015` begins; ideally while `MVP-001`–`MVP-014` are in progress |
-| Status | PROPOSED. Requires Architecture clarification. |
+| Status | IMPLEMENTED (2026-09-30). The product owner defined the model and authorized recording it before MVP-015. |
 | Related GitHub Issue | [#17](https://github.com/xela-ash/Music_app/issues/17) (`MVP-015`), whose pre-implementation warning cites this entry |
-| Related PR | — |
-| Resolution | — |
+| Related PR | The MVP-015 pull request |
+| Resolution | [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and [`projects.md`](../05-projects-milestones/projects.md) 1.1.0 define `DATA-PROJECTS-018` `project_term_versions`: Projects-owned, one immutable sequence per Project, proposal and agreed snapshots in that sequence, project-level commercial fields only, no engagement-model field, and no shared multi-project sequence. The plan's Schema name already matched. |
 
 ### ENG-IMP-016 Password reset requires session revocation that no MVP work item builds
 
@@ -1314,6 +1314,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `8b2ec0e` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
 | 2026-09-26 | ENG-IMP-014 | The commit titled `docs: record implementation planning findings` on `docs/specification-foundation` | The plan 0.2.1 citation correction, committed together with this register's 0.4.0 entries |
 | 2026-09-26 | ENG-IMP-017, ENG-IMP-018 | Pull request #57 | Ephemeral test port and omitted-`DB_PORT` refusal, implemented by the MVP-002 harness |
+| 2026-09-30 | ENG-IMP-015 | The MVP-015 specification commit on `cursor/mvp-015-project-term-versions-255b` | [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `projects.md` 1.1.0 define `DATA-PROJECTS-018` |
 
 ## 8. Version history
 
@@ -1336,3 +1337,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.7 | 2026-09-29 | Added `ENG-IMP-039` and `ENG-IMP-040` (PROPOSED) from MVP-042. No User Settings store exists, and quiet hours and digest are not applied. Neither is authorized. | Engineering |
 | 0.7.8 | 2026-09-29 | Recorded pull request #73 on `ENG-IMP-039` and `ENG-IMP-040`. Neither is authorized. | Engineering |
 | 0.7.9 | 2026-09-29 | Added `ENG-IMP-042` (PROPOSED) from the MVP-038 review: completed send idempotency payloads keep the pre-tombstone body. Not authorized. | Engineering |
+| 0.7.10 | 2026-09-30 | Set `ENG-IMP-015` to IMPLEMENTED. The product owner defined `project_term_versions` and authorized [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `projects.md` 1.1.0 before MVP-015. | Engineering |

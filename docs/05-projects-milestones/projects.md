@@ -6,9 +6,9 @@
 | Type | Specification (SPEC) |
 | Domain | Projects |
 | Status | Approved |
-| Version | 1.0.1 |
+| Version | 1.1.1 |
 | Owner | Product and Architecture |
-| Last Reviewed | 2026-09-25 |
+| Last Reviewed | 2026-09-30 |
 | Applies To | Target Projects product architecture and verified current repository comparison |
 | Governed token | `PROJECTS` |
 | Canonical path | `docs/05-projects-milestones/projects.md` |
@@ -276,34 +276,34 @@ sequenceDiagram
 | `requirements` | Legacy text mapped into the target brief/term migration | Current Projects schema | Required at create today; no general update or versioning | Participant projection | Partially Implemented |
 | `service_id` | Nullable Marketplace listing reference | Projects references future Marketplace | Draft-selectable; retained with accepted snapshot | Participant/invitation projection | Schema Implemented |
 | `service_snapshot` | Immutable structured listing snapshot | Projects contractual evidence | Versioned with proposal/agreed terms; current object is always empty through API | Participant projection | Schema Implemented |
-| `genre_ids` | Ordered set of governed catalog references in term snapshot | Future catalog owner/Projects reference | Draft-editable; accepted changes by amendment | Invitation/participant projection | Not Implemented |
-| `skill_ids` | Ordered set of governed catalog references in term snapshot | Future catalog owner/Projects reference | Draft-editable; accepted changes by amendment | Invitation/participant projection | Not Implemented |
-| `proposal_version` | Monotonic positive integer | Projects | Increments for every offered proposal snapshot | Invitee/participants/audit | Not Implemented |
-| `agreed_term_version` | Nullable positive integer reference | Projects | Set at acceptance; changes only through accepted amendment | Participants/financial services | Not Implemented |
+| `genre_ids` | Ordered set of governed catalog references in term snapshot | Future catalog owner/Projects reference | Draft-editable; accepted changes by amendment | Invitation/participant projection | Partially Implemented |
+| `skill_ids` | Ordered set of governed catalog references in term snapshot | Future catalog owner/Projects reference | Draft-editable; accepted changes by amendment | Invitation/participant projection | Partially Implemented |
+| `proposal_version` | Monotonic positive integer pointer into the Project's one `DATA-PROJECTS-018` sequence | Projects | Increments for every offered proposal snapshot | Invitee/participants/audit | Implemented |
+| `agreed_term_version` | Nullable positive integer pointer into the same `DATA-PROJECTS-018` sequence | Projects | Set at acceptance; changes only through accepted amendment | Participants/financial services | Implemented |
 | `state` | Governed target Project state | Projects | Transition service only | Projection-specific | Partially Implemented |
 | `visibility` | Governed visibility class | Projects | Policy-constrained | Drives projection, never authorization alone | Not Implemented |
 | `currency` | ISO 4217 code | Agreed Project terms | Immutable at funding; bilateral before funding | Participants; sanitized portfolio may omit | Partially Implemented |
-| `currency_exponent` | Small integer snapshot | Currency registry | Immutable with term version | Restricted/financial | Not Implemented |
+| `currency_exponent` | Small integer snapshot | Currency registry | Immutable with term version | Restricted/financial | Partially Implemented |
 | `proposed_total` | Signed 64-bit integer minor units; current `price_amount` is `INTEGER` | Proposal snapshot | Versioned before acceptance | Invitee/participants | Partially Implemented |
 | `agreed_total` | Signed 64-bit integer minor units | Accepted terms | Immutable except accepted amendment | Participants/financial services | Not Implemented |
 | `funded_total` | Integer minor-unit projection | Escrow | Derived; optional rebuildable cache; no Project field | Participants/financial services | Not Implemented |
 | `released_total` | Integer minor-unit projection | Escrow | Derived; optional rebuildable cache; no Project field | Participants/financial services | Not Implemented |
 | `refunded_total` | Integer minor-unit projection | Escrow | Derived; optional rebuildable cache; no Project field | Participants/financial services | Not Implemented |
-| `start_at` | Nullable timestamptz | Agreed terms | Proposed/amended before start | Participants | Not Implemented |
-| `due_at` | Nullable timestamptz | Agreed terms/Milestone roll-up | Versioned; bilateral amendment | Participants | Not Implemented |
+| `start_at` | Nullable timestamptz | Agreed terms | Proposed/amended before start | Participants | Partially Implemented |
+| `due_at` | Nullable timestamptz | Agreed terms/Milestone roll-up | Versioned; bilateral amendment | Participants | Partially Implemented |
 | `delivery_days` | Legacy positive integer mapped to an accepted due-date calculation | Current Projects schema | Fixed at create today; target superseded by versioned dates | Participant projection | Schema Implemented |
 | `revision_limit` | Nonnegative agreed allowance or policy reference | Projects terms/Deliverables | Draft-set today; accepted change requires amendment | Participants | Schema Implemented |
 | `milestones_locked_at` | Legacy lock timestamp; target funding-readiness barrier projection | Projects/Milestones | Currently nullable and clearable; target irreversible for a term version | Participants/financial services | Partially Implemented |
 | `accepted_at` | Nullable timestamptz | Projects transition | Set once on acceptance | Participants/audit | Schema Implemented |
-| `funded_at` | Nullable timestamptz | Escrow fact projection | Set from verified Escrow event | Participants/audit | Not Implemented |
-| `started_at` | Nullable timestamptz | Projects transition | Set once on commencement | Participants | Not Implemented |
+| `funded_at` | Nullable timestamptz | Escrow fact projection | Set from verified Escrow event | Participants/audit | Partially Implemented |
+| `started_at` | Nullable timestamptz | Projects transition | Set once on commencement | Participants | Partially Implemented |
 | `delivered_at` | Nullable timestamptz | Deliverable/Milestone aggregate | Derived latest aggregate fact; currently unwritten | Participants | Schema Implemented |
 | `completed_at` | Nullable timestamptz | Projects transition | Set once on completion convergence; currently unwritten | Participants/audit | Schema Implemented |
-| `cancelled_at` | Nullable timestamptz | Projects transition | Set on cancellation | Participants/audit | Not Implemented |
-| `archived_at` | Nullable timestamptz | Projects record lifecycle | Set/cleared by authorized archive/restore | Owner/admin | Not Implemented |
+| `cancelled_at` | Nullable timestamptz | Projects transition | Set on cancellation | Participants/audit | Partially Implemented |
+| `archived_at` | Nullable timestamptz | Projects record lifecycle | Set/cleared by authorized archive/restore | Owner/admin | Partially Implemented |
 | `cancellation_reason` | Code plus restricted detail; current `cancel_reason` is nullable text | Projects and current Foundation-owned dispute policy | Append-only outcome evidence | Purpose restricted | Schema Implemented |
 | `dispute_reason` | Legacy nullable text migrated to current Foundation Escrow dispute evidence | Current schema/current Escrow dispute boundary | Never authoritative in target Projects; retain for migration | Case-purpose restricted | Schema Implemented |
-| `resume_state` | Nullable Project state | Projects | Captured on dispute/suspension | Internal/participants where useful | Not Implemented |
+| `resume_state` | Nullable Project state | Projects | Captured on dispute/suspension | Internal/participants where useful | Partially Implemented |
 | `deleted_at` | Nullable soft-deletion timestamp for eligible Draft records | Projects retention | Never sufficient to destroy dependent records | Owner/admin/retention | Not Implemented |
 | `retention_status` | Retain, eligible, held, or anonymized projection with policy version | Retention/legal owners and Projects | Derived/updated only by governed retention decisions | Purpose restricted | Not Implemented |
 | `version` | Monotonic bigint | Projects | Increment every aggregate mutation | Returned as ETag/version | Not Implemented |
@@ -340,7 +340,7 @@ Invitation states remain in `project_invitations`; Milestone and Escrow states r
 | Refunded | Escrow confirms required refund outcome | Verified Escrow refund fact | Archived | Yes | Not Implemented |
 | Archived | Record hidden from active views over a terminal state | Archive action/retention job | Restore record visibility to prior terminal state | Record-terminal | Not Implemented |
 
-The current database enum is exactly `draft`, `funded`, `accepted`, `in_progress`, `delivered`, `buyer_rated`, `seller_rated`, `completed`, `cancelled`, and `disputed`. Enum membership is enforced, but enum order is not a transition graph. Only `draft` is currently reachable through verified routes. Target `Ratings Pending` replaces sequential `buyer_rated`/`seller_rated` Project states; Ratings continues to own each party's record.
+The current database enum includes the original values `draft`, `funded`, `accepted`, `in_progress`, `delivered`, `buyer_rated`, `seller_rated`, `completed`, `cancelled`, and `disputed`, plus the target values `proposed`, `seller_invited`, `seller_declined`, `awaiting_seller`, `awaiting_funding`, `delivery_pending`, `buyer_approved`, `ratings_pending`, `suspended`, `refunded`, and `archived`. Enum membership is enforced, but enum order is not a transition graph. `buyer_rated` and `seller_rated` remain only so existing rows stay valid; target `Ratings Pending` replaces them. The transition service rejects every edge that Section 11.3 does not list.
 
 `REQ-PROJECTS-004`: Projects MUST expose a server-owned deterministic state machine and reject every transition not explicitly allowed from the locked current state.
 
@@ -582,6 +582,8 @@ Project terms have three layers:
 - an immutable numbered proposal snapshot presented to an invitee;
 - an immutable agreed snapshot created at acceptance and superseded only by an accepted bilateral amendment.
 
+Those two immutable snapshots are versions in one per-Project sequence, not two version streams. [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `BR-PROJECTS-081` define that sequence.
+
 ### 14.1 Commercial terms matrix
 
 | Concern | Canonical representation and owner | Lock/change rule | Reconciliation | Repository status |
@@ -602,6 +604,20 @@ All money MUST use integer minor units or an equally precise governed representa
 MVP remains `INR`, preserving current behavior and [Foundation `BR-PROJECTS-003`](../01-foundation/product-overview.md#11-core-business-rules), but the API and schema MUST validate rather than silently stamp a payload-dependent currency. Currency freezes no later than the first funding attempt. An accepted but unfunded currency change requires bilateral amendment and complete revalidation. A funded currency change is prohibited; it requires cancellation/refund and a new Project unless a future financial specification explicitly defines safe migration.
 
 `REQ-PROJECTS-008`: The system MUST store and exchange Project money as currency-bound integer minor units and MUST reconcile active Milestones and Escrow facts without floating-point arithmetic.
+
+### 14.2 Project term versions
+
+[ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) is the accepted product decision. `BR-PROJECTS-081` is the normative rule.
+
+`project_term_versions` (`DATA-PROJECTS-018`) belongs to the Projects domain. It is not shared infrastructure. Idempotency, inbox, and outbox records remain the shared infrastructure described in Section 26.1.
+
+Each Project has its own immutable version sequence. `proposal_version` and `agreed_term_version` are pointers into that sequence. Draft → Proposed creates the next version with represented state `proposed`. Seller acceptance creates the next version with represented state `agreed`, copying that proposal version's project-level commercial terms, and points `agreed_term_version` at the new version. An accepted amendment creates or references the next appropriate version in the same sequence. A stored version remains immutable if the live Project later changes.
+
+Each version stores only the project-level commercial terms: title, brief, service snapshot, genre IDs, skill IDs, currency, currency exponent, one total amount, start date, due date, and the project-level revision limit. The total is the proposed total when the represented state is `proposed` and the agreed total when it is `agreed`. Milestone line items, amounts, dates, revision allowances, and other milestone-specific terms remain on `DATA-PROJECTS-009`. Storing the project-level revision limit does not replace the per-Milestone revision allowance ([Milestones `REQ-PROJECTS-060`](milestones.md)).
+
+The table has no `engagement_model` field. A Project may be a one-shot engagement. A Project may use a milestone commercial structure. A commercial contract covering multiple Projects is a separate parent relationship that points at those Projects and does not own their term-version sequences. Changing one Project must not change another Project's sequence. Retainer or ongoing engagement is future scope and is not required by MVP-015.
+
+`DATA-PROJECTS-009` indexes Milestone snapshots by a version number in the owning Project's sequence. `DATA-ESCROW-001.agreed_term_version` references the Project's agreed version in that same sequence.
 
 ## 15. Scope changes and amendments
 
@@ -877,11 +893,12 @@ All primary keys are internal UUIDs. Every externally addressable record has a u
 | `DATA-PROJECTS-002` `project_invitations` | Invitee/inviter, Project, proposal version/hash, status, expiry, decided/withdrawn times, reason code, version | PK/unique external ID; FKs RESTRICT; one active pending invite per MVP Project; invitee ≠ Buyer; expiry > creation; indexes invitee/status/expiry and Project/status | Append-retained terminal outcomes; never reopen | Not Implemented |
 | `DATA-PROJECTS-003` `project_participants` | Project, user, category, status, source invitation/grant, accepted/effective/ended times, visibility scope | PK/unique external ID; unique active category/user; exactly one Buyer and at most one Seller enforced transactionally/partial indexes; Project/user RESTRICT | End capability without deleting history; pseudonymize by owner policy | Not Implemented |
 | `DATA-PROJECTS-004` `project_amendments` | Project, proposer/counterparty, base/current term versions, typed patch, snapshot hashes, status, expiry/decision, version | PK/unique external ID; expected base version; one active overlapping scope; immutable decision; indexes Project/status and counterparty/status | Append-retained; terminal records immutable | Not Implemented |
-| `DATA-PROJECTS-005` `project_state_transitions` | Project, source/target state, trigger/actor/source fact, precondition version, outcome, reason, time | PK/event unique; Project FK RESTRICT; target/source enum/check; unique successful source fact; indexes Project/time and target/time | Append-only, retention-aligned | Not Implemented |
+| `DATA-PROJECTS-005` `project_state_transitions` | Project, source/target state, trigger/actor/source fact, precondition version, outcome, reason, time | PK/event unique; Project FK RESTRICT; target/source enum/check; unique successful source fact; indexes Project/time and target/time | Append-only, retention-aligned | Implemented |
 | `DATA-PROJECTS-006` `project_audit_events` | Redacted immutable audit envelope, actor/capability, action/outcome, correlation, hashes, classification | PK/unique external event ID; Project reference; append-only database control; indexes Project/time, actor/time, correlation | No ordinary update/delete; legal retention and partition policy | Not Implemented |
 | `DATA-PROJECTS-007` `project_asset_bindings` | Purpose-bound link to Assets version and Project/optional subject, uploader, term version, status, hold hints | PK/unique external ID; explicit Asset/version reference; unique active purpose/subject/version where applicable; indexes Project/purpose and Asset version | Unbind without deleting Asset; retain evidence/hold references | Not Implemented |
+| `DATA-PROJECTS-018` `project_term_versions` | Projects-owned immutable project-level commercial snapshot. One sequence per Project. Fields: version number, represented state (`proposed` or `agreed`), title, brief, service snapshot, genre IDs, skill IDs, currency, currency exponent, one total amount, start date, due date, project-level revision limit. No milestone line items and no engagement-model discriminator ([ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md)) | PK/unique external ID; FK Project `RESTRICT`; unique `(project_id, version_number)`; version number positive and contiguous per Project; represented state enum; positive total; supported currency; nonnegative revision limit; no update or delete | Append-only contractual history. Deleting or changing a Project MUST NOT rewrite another Project's sequence. A multi-project parent, if later specified, references Projects and does not own this table | Implemented |
 
-Additional target supporting records include immutable Project term versions, idempotency/inbox/outbox records, and optional rebuildable financial projections. They may be shared infrastructure models, but their ownership and constraints MUST be explicit before implementation.
+`DATA-PROJECTS-008` through `DATA-PROJECTS-017` are defined by Milestones and Deliverables. This specification does not reuse them. Additional target supporting records that remain shared infrastructure are idempotency, inbox, and outbox records, plus optional rebuildable financial projections. Their ownership and constraints MUST stay explicit. Project term versions are not in that shared set; they are `DATA-PROJECTS-018`.
 
 The target recommendation is to make `project_participants` authoritative. Retain `projects.buyer_user_id` as the immutable aggregate owner/reference and compatibility projection. Make `projects.seller_user_id` nullable during migration, populate it only after acceptance, validate it against the active Seller participant, then consider removing it after all queries use participants. Existing nonconsensual Seller assignments require migration classification; they MUST NOT be automatically converted into consent.
 
@@ -1363,6 +1380,7 @@ Questions owned by future domains remain open here; Projects specifies boundary 
 | `BR-PROJECTS-028` | Operational logs and metrics MUST NOT contain briefs, credentials, raw URLs, messages, or unnecessary personal/payment data. | Observability must not become a secondary data leak. | Not yet enforced by a structured logging policy; target allowlist logging, redaction, and review. | Not Implemented | 25, 29 | Log-capture and sensitive-token scans |
 | `BR-PROJECTS-029` | Migration MUST NOT fabricate consent or Rating facts from current `seller_user_id` or Project enum values. | Existing fields cannot prove human decisions. | Not yet enforced; planned evidence-based reconciliation disposition and held exceptions. | Planned | 26, 33 | Legacy fixtures, counts, and human-review sampling |
 | `BR-PROJECTS-030` | Future multi-seller support MUST extend participants/work allocations and MUST NOT create a global Seller role or reinterpret MVP consent. | Preserves relationship semantics and migration safety. | Not yet enforced; planned ADR/schema review while MVP uniqueness remains active. | Planned | 6, 31 | Architecture review and migration compatibility tests |
+| `BR-PROJECTS-081` | Each Project MUST own exactly one immutable `project_term_versions` sequence (`DATA-PROJECTS-018`). Proposal and agreed snapshots MUST be versions in that sequence, and `proposal_version` and `agreed_term_version` MUST reference it. A version MUST freeze only title, brief, service snapshot, genre IDs, skill IDs, currency, currency exponent, one total amount, start date, due date, and the project-level revision limit, and MUST NOT store milestone line items or an engagement-model discriminator. Another Project, and any future multi-project parent, MUST NOT share or rewrite that sequence. | Commercial history has to stay attributable to one Project and immutable after it is written. | Database trigger rejects update and delete; the next version number is enforced on insert; the transition service writes proposal and agreed versions into that sequence. | Implemented | 14.2, 26.1 | Snapshot immutability, one-sequence, and cross-project isolation tests |
 
 Inherited `BR-PROJECTS-001`–`005` are reconciled in Section 33.1 and are not newly defined here.
 
@@ -1371,7 +1389,7 @@ Inherited `BR-PROJECTS-001`–`005` are reconciled in Section 33.1 and are not n
 | Family | Complete range in this specification | Definition location | Verification/ownership |
 | --- | --- | --- | --- |
 | Security | `SEC-PROJECTS-001`–`020` | Section 29.1 | Security review plus negative, concurrency, money, retention, and test-gate evidence |
-| Data | `DATA-PROJECTS-001`–`007` | Section 26.1 | Migration/schema review, constraints, indexes, retention tests |
+| Data | `DATA-PROJECTS-001`–`007`, `DATA-PROJECTS-018` | Section 26.1 | Migration/schema review, constraints, indexes, retention tests |
 | Interface | `INT-PROJECTS-001`–`015` | Section 27.2 | API/event contract and failure tests |
 | Audit | `AUD-PROJECTS-001`–`006` | Section 25.1 | Required-action coverage and append/redaction tests |
 | Events, provisional | `EVT-PROJECTS-001`–`007` | Section 25.2 | Governance decision, schema registry, producer/consumer tests |
@@ -1401,6 +1419,7 @@ The authoring validation for version 1.0.0 covers:
 | No trailing whitespace; Git diff check clean | Passed |
 | Only this new specification selected for commit; `.vscode/` excluded | Passed |
 | PATCH-level correction (1.0.1): one Open Questions row reclassified Resolved with a pointer to `ratings.md`, once written; no described target behavior altered; no ADR required (Governance Section 24) | Passed |
+| MINOR clarification (1.1.0): [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) makes the Section 26.1 term-version ownership gap explicit. It does not reverse Section 14's proposal and agreed snapshots, Section 18's Milestone boundary, or `REQ-PROJECTS-060` | Passed |
 
 Validation scripts and Git checks are execution evidence for the repository change; this table records the specification review criteria and known governed-ID exception.
 
@@ -1410,3 +1429,5 @@ Validation scripts and Git checks are execution evidence for the repository chan
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-07-23 | Initial approved consent-first Projects aggregate, lifecycle, boundaries, target data/interfaces, repository comparison, security findings, traceability, and staged plan. | Product and Architecture |
 | 1.0.1 | 2026-09-25 | PATCH correction: reclassified the Open Questions row on the Ratings timeout/waiver policy as Resolved, pointing to the newly canonical [`ratings.md` Section 11](../08-ratings-reputation/ratings.md#11-ratings-pending-and-project-completion), which supplies exactly the "future Ratings policy" this document's Section 11.1 already named. No described target behavior, business rule, or identifier changed. | Product and Architecture |
+| 1.1.0 | 2026-09-30 | MINOR: recorded [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md). Added `DATA-PROJECTS-018` `project_term_versions` and `BR-PROJECTS-081`. One immutable sequence per Project holds both proposal and agreed snapshots. Milestone terms stay on Milestones. No engagement-model field and no shared multi-project sequence. | Product and Architecture |
+| 1.1.1 | 2026-09-30 | Repository status for `DATA-PROJECTS-005`, `DATA-PROJECTS-018`, `BR-PROJECTS-081`, and the Section 9.1 fields the transition service now writes. No target rule changed. | Product and Architecture |
