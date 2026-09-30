@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.12 |
+| Version | 0.7.13 |
 | Last Reviewed | 2026-09-30 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -147,6 +147,8 @@ Copy this template for each new entry:
 | [ENG-IMP-044](#eng-imp-044-invite-checks-an-accepted-seller-before-the-idempotency-store) | Invite checks an accepted seller before the idempotency store | API, Idempotency | Low | PROPOSED |
 | [ENG-IMP-045](#eng-imp-045-project-transition-audit-and-outbox-omit-named-fact-fields) | Project transition audit and outbox omit named fact fields | Audit | Low | PROPOSED |
 | [ENG-IMP-046](#eng-imp-046-amendment-expiry-has-no-maximum-duration) | Amendment expiry has no maximum duration | API, Security | Low | PROPOSED |
+| [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
+| [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1408,6 +1410,66 @@ Copy this template for each new entry:
 | Related PR | — |
 | Resolution | — |
 
+### ENG-IMP-047 Amendment relationship checks are not in authorize()
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-047 |
+| Title | Amendment relationship checks are not in authorize() |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-016 independent review |
+| Category | Authorization |
+| Affected subsystem | Projects |
+| Current state | Propose, accept, reject, and withdraw decide the buyer, active seller, proposer, and counterparty inside `amendment-service.js`. |
+| Evidence / problem | Other project commands call `authorize()` for the relationship check. Amendments do not, because §13 does not define a new permission key beyond the relationship the service already checks. |
+| Suggested improvement | If a later authorization item adds amendment actions to the permission catalog, route these checks through `authorize()` without changing the 404 and 409 outcomes. |
+| Expected benefit | One place would list the project relationship checks. |
+| Risk of doing nothing | A future route can copy the inline check incorrectly. The current routes still conceal outsiders and the wrong role. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A permission catalog entry the specification does not define today |
+| Product behavior impact | None if the statuses stay the same |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None while the service checks remain |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The authorization item that catalogs amendment actions |
+| Status | PROPOSED |
+| Related GitHub Issue | [#18](https://github.com/xela-ash/Music_app/issues/18) |
+| Related PR | [#84](https://github.com/xela-ash/music_app/pull/84) |
+| Resolution | — |
+
+### ENG-IMP-048 Amendment transition table is not called by the service
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-048 |
+| Title | Amendment transition table is not called by the service |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-016 independent review |
+| Category | Maintainability |
+| Affected subsystem | Projects |
+| Current state | `amendmentTransition` lists the four legal edges. `amendment-service.js` repeats those actor and status checks instead of calling the function. |
+| Evidence / problem | The unit matrix can stay green if the service allows a different edge. |
+| Suggested improvement | Have the service call `amendmentTransition` before it writes a terminal status. |
+| Expected benefit | An unlisted edge would have one definition. |
+| Risk of doing nothing | The HTTP tests still cover the legal edges and the wrong-role denials. A later edit could diverge the two copies. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | None if the outcomes stay the same |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next amendment change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#18](https://github.com/xela-ash/Music_app/issues/18) |
+| Related PR | [#84](https://github.com/xela-ash/music_app/pull/84) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1464,3 +1526,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.10 | 2026-09-30 | Set `ENG-IMP-015` to IMPLEMENTED. The product owner defined `project_term_versions` and authorized [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `projects.md` 1.1.0 before MVP-015. | Engineering |
 | 0.7.11 | 2026-09-30 | Added `ENG-IMP-043`, `ENG-IMP-044`, and `ENG-IMP-045` (PROPOSED) from the MVP-015 review. None are authorized. | Engineering |
 | 0.7.12 | 2026-09-30 | Added `ENG-IMP-046` (PROPOSED): amendment expiry has no specified maximum. Not authorized. | Engineering |
+| 0.7.13 | 2026-09-30 | Added `ENG-IMP-047` and `ENG-IMP-048` (PROPOSED) from the MVP-016 review. Neither is authorized. | Engineering |
