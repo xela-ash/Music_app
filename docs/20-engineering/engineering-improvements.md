@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.11 |
+| Version | 0.7.12 |
 | Last Reviewed | 2026-09-30 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -146,6 +146,7 @@ Copy this template for each new entry:
 | [ENG-IMP-043](#eng-imp-043-an-active-seller-receives-409-on-a-buyer-only-project-command) | An active seller receives 409 on a buyer-only project command | Authorization | Low | PROPOSED |
 | [ENG-IMP-044](#eng-imp-044-invite-checks-an-accepted-seller-before-the-idempotency-store) | Invite checks an accepted seller before the idempotency store | API, Idempotency | Low | PROPOSED |
 | [ENG-IMP-045](#eng-imp-045-project-transition-audit-and-outbox-omit-named-fact-fields) | Project transition audit and outbox omit named fact fields | Audit | Low | PROPOSED |
+| [ENG-IMP-046](#eng-imp-046-amendment-expiry-has-no-maximum-duration) | Amendment expiry has no maximum duration | API, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -1377,6 +1378,36 @@ Copy this template for each new entry:
 | Related PR | [#81](https://github.com/xela-ash/music_app/pull/81) |
 | Resolution | — |
 
+### ENG-IMP-046 Amendment expiry has no maximum duration
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-046 |
+| Title | Amendment expiry has no maximum duration |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-016 implementation |
+| Category | API, Security |
+| Affected subsystem | Projects |
+| Current state | `POST /projects/:projectId/amendments` requires `expires_at` to be a future UTC timestamp. The database requires `expires_at > created_at`. No maximum duration is stored or checked. |
+| Evidence / problem | Projects §15 says an amendment has a fixed expiry and does not state a duration or a maximum. The same gap is recorded for invitations as `ENG-IMP-033`. |
+| Suggested improvement | When a specification states a maximum, reject a later `expires_at`. Do not invent that maximum in application code. |
+| Expected benefit | A pending amendment could not remain open indefinitely by caller choice. |
+| Risk of doing nothing | A party can propose an amendment that expires only at a distant caller-chosen time. The counterparty can still reject or ignore it, and silence is not consent. |
+| Implementation risk | Low once a duration is specified |
+| Estimated scope | S |
+| Dependencies | A product decision naming the maximum |
+| Product behavior impact | Would reject currently accepted far-future expiry values |
+| Specification impact | Requires an approved duration before the check exists |
+| Migration impact | None |
+| Security impact | Bounds how long a pending commercial proposal can sit |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The product decision that sets invitation or amendment duration |
+| Status | PROPOSED |
+| Related GitHub Issue | [#18](https://github.com/xela-ash/Music_app/issues/18) |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1432,3 +1463,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.9 | 2026-09-29 | Added `ENG-IMP-042` (PROPOSED) from the MVP-038 review: completed send idempotency payloads keep the pre-tombstone body. Not authorized. | Engineering |
 | 0.7.10 | 2026-09-30 | Set `ENG-IMP-015` to IMPLEMENTED. The product owner defined `project_term_versions` and authorized [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `projects.md` 1.1.0 before MVP-015. | Engineering |
 | 0.7.11 | 2026-09-30 | Added `ENG-IMP-043`, `ENG-IMP-044`, and `ENG-IMP-045` (PROPOSED) from the MVP-015 review. None are authorized. | Engineering |
+| 0.7.12 | 2026-09-30 | Added `ENG-IMP-046` (PROPOSED): amendment expiry has no specified maximum. Not authorized. | Engineering |
