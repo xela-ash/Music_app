@@ -98,13 +98,19 @@ async function createProject(buyer, seller) {
 }
 
 async function acceptSeller(buyer, seller, project) {
+  const proposed = await request("POST", `/projects/${project.id}/propose`, {
+    token: buyer.token,
+    idempotencyKey: nextId("propose"),
+    body: { expected_version: project.version },
+  });
+  assert.equal(proposed.status, 200, proposed.text);
   const invited = await request("POST", `/projects/${project.id}/invitations`, {
     token: buyer.token,
     idempotencyKey: nextId("invite"),
     body: {
       invitee_user_id: seller.userId,
       expires_at: STABLE_EXPIRY,
-      expected_version: project.version,
+      expected_version: proposed.json.project.version,
     },
   });
   assert.equal(invited.status, 201, invited.text);

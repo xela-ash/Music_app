@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.9 |
-| Last Reviewed | 2026-09-29 |
+| Version | 0.7.11 |
+| Last Reviewed | 2026-09-30 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -119,7 +119,7 @@ Copy this template for each new entry:
 | [ENG-IMP-012](#eng-imp-012-mvp-plan-is-ambiguous-about-the-single-classification-of-mixed-scope-items) | MVP plan is ambiguous about the single classification of mixed-scope items | Documentation | Medium | IMPLEMENTED |
 | [ENG-IMP-013](#eng-imp-013-release-and-financial-commands-are-not-wired-to-verification-and-idempotency-foundations) | Release and financial commands are not wired to verification and idempotency foundations | Documentation, Architecture | Medium | PROPOSED |
 | [ENG-IMP-014](#eng-imp-014-mvp-009-cites-the-login-section-instead-of-the-email-verification-and-password-reset-sections) | MVP-009 cites the login section instead of the email-verification and password-reset sections | Documentation | Medium | IMPLEMENTED |
-| [ENG-IMP-015](#eng-imp-015-project-term-version-record-required-by-mvp-015-is-not-defined-by-the-projects-specification) | Project term-version record required by MVP-015 is not defined by the Projects specification | Documentation, Architecture, Database | High | PROPOSED |
+| [ENG-IMP-015](#eng-imp-015-project-term-version-record-required-by-mvp-015-is-not-defined-by-the-projects-specification) | Project term-version record required by MVP-015 is not defined by the Projects specification | Documentation, Architecture, Database | High | IMPLEMENTED |
 | [ENG-IMP-016](#eng-imp-016-password-reset-requires-session-revocation-that-no-mvp-work-item-builds) | Password reset requires session revocation that no MVP work item builds | Documentation, Architecture, Security | Medium | PROPOSED |
 | [ENG-IMP-017](#eng-imp-017-characterization-suite-binds-a-fixed-port-4000) | Characterization suite binds a fixed port 4000 | Testing, Reliability | Medium | IMPLEMENTED |
 | [ENG-IMP-018](#eng-imp-018-characterization-db_port-guard-misses-an-omitted-port) | Characterization `DB_PORT` guard misses an omitted port | Testing, Reliability | Medium | IMPLEMENTED |
@@ -143,6 +143,9 @@ Copy this template for each new entry:
 | [ENG-IMP-039](#eng-imp-039-notification-preferences-have-no-user-settings-store) | Notification preferences have no User Settings store | Architecture | Medium | PROPOSED |
 | [ENG-IMP-040](#eng-imp-040-quiet-hours-and-digest-are-not-applied) | Quiet hours and digest are not applied | Architecture | Low | PROPOSED |
 | [ENG-IMP-042](#eng-imp-042-completed-send-idempotency-payloads-keep-the-pre-tombstone-body) | Completed send idempotency payloads keep the pre-tombstone body | Security, Database | Low | PROPOSED |
+| [ENG-IMP-043](#eng-imp-043-an-active-seller-receives-409-on-a-buyer-only-project-command) | An active seller receives 409 on a buyer-only project command | Authorization | Low | PROPOSED |
+| [ENG-IMP-044](#eng-imp-044-invite-checks-an-accepted-seller-before-the-idempotency-store) | Invite checks an accepted seller before the idempotency store | API, Idempotency | Low | PROPOSED |
+| [ENG-IMP-045](#eng-imp-045-project-transition-audit-and-outbox-omit-named-fact-fields) | Project transition audit and outbox omit named fact fields | Audit | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -589,10 +592,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | High |
 | Recommended timing | Before `MVP-015` begins; ideally while `MVP-001`–`MVP-014` are in progress |
-| Status | PROPOSED. Requires Architecture clarification. |
+| Status | IMPLEMENTED (2026-09-30). The product owner defined the model and authorized recording it before MVP-015. |
 | Related GitHub Issue | [#17](https://github.com/xela-ash/Music_app/issues/17) (`MVP-015`), whose pre-implementation warning cites this entry |
-| Related PR | — |
-| Resolution | — |
+| Related PR | The MVP-015 pull request |
+| Resolution | [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and [`projects.md`](../05-projects-milestones/projects.md) 1.1.0 define `DATA-PROJECTS-018` `project_term_versions`: Projects-owned, one immutable sequence per Project, proposal and agreed snapshots in that sequence, project-level commercial fields only, no engagement-model field, and no shared multi-project sequence. The plan's Schema name already matched. |
 
 ### ENG-IMP-016 Password reset requires session revocation that no MVP work item builds
 
@@ -1284,6 +1287,96 @@ Copy this template for each new entry:
 | Related PR | [#79](https://github.com/xela-ash/music_app/pull/79) |
 | Resolution | — |
 
+### ENG-IMP-043 An active seller receives 409 on a buyer-only project command
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-043 |
+| Title | An active seller receives 409 on a buyer-only project command |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-015 independent review |
+| Category | Authorization |
+| Affected subsystem | Projects |
+| Current state | `withProjectCommand` returns 404 when the caller is neither the buyer nor the active seller. `commitTransition` then returns 409 `Invalid project transition` when an active seller calls a buyer-only edge such as archive or buyer cancel. |
+| Evidence / problem | Issue #17 allows deny or a concealing 404 for the wrong role. The active seller is a participant, so 409 names the project. An outsider still receives 404. |
+| Suggested improvement | Decide whether a participant who lacks the edge's actor should receive the same concealing 404 as an outsider. |
+| Expected benefit | Wrong-role participants would not learn that the project exists in a state that rejects their command. |
+| Risk of doing nothing | A participant sees a transition error instead of a concealed miss. The issue accepts either denial. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | Only the status shown to a participant who cannot take that edge |
+| Specification impact | No. Section 11.3 names the initiator. It does not require 404 for a participant. |
+| Migration impact | None |
+| Security impact | Low. The caller is already a project participant. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later authorization pass |
+| Status | PROPOSED |
+| Related GitHub Issue | [#17](https://github.com/xela-ash/Music_app/issues/17) |
+| Related PR | [#81](https://github.com/xela-ash/music_app/pull/81) |
+| Resolution | — |
+
+### ENG-IMP-044 Invite checks an accepted seller before the idempotency store
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-044 |
+| Title | Invite checks an accepted seller before the idempotency store |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-015 independent review |
+| Category | API, Idempotency |
+| Affected subsystem | Projects, invitations |
+| Current state | `authorizeInviteSeller` no longer rejects project state before `executeIdempotent`. It still returns 409 when `hasActiveSeller` is true, and that check runs before the idempotency claim. |
+| Evidence / problem | A replay of a successful invite key returns the stored 201 while the project is still `seller_invited`. The same key after acceptance returns 409 `An accepted seller already exists` and does not read the stored response. |
+| Suggested improvement | Claim the idempotency key before the accepted-seller check, so an identical replay returns the stored invitation after acceptance. |
+| Expected benefit | The invite key would stay stable for its original request after the seller accepts. |
+| Risk of doing nothing | A client that retries the original invite after acceptance sees a conflict instead of the original invitation. |
+| Implementation risk | Low. The state check already moved inside the handler for this reason. |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | Replay status after acceptance only |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next invitation change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#17](https://github.com/xela-ash/Music_app/issues/17) |
+| Related PR | [#81](https://github.com/xela-ash/music_app/pull/81) |
+| Resolution | — |
+
+### ENG-IMP-045 Project transition audit and outbox omit named fact fields
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-045 |
+| Title | Project transition audit and outbox omit named fact fields |
+| Date identified | 2026-09-30 |
+| Identified by | MVP-015 independent review |
+| Category | Audit |
+| Affected subsystem | Projects |
+| Current state | A completed transition writes `AUD-PROJECTS-003` with actor, source, target, outcome, and the source fact in `idempotency_key`. `project_audit_events` has no preconditions column. `ProjectStateChanged` carries action, project, source, and target. Aggregate version is the outbox column. |
+| Evidence / problem | `AUD-PROJECTS-003` names preconditions. `EVT-PROJECTS-005` names the source fact id on `ProjectStateChanged`. Neither is a separate stored field today. |
+| Suggested improvement | When a later audit or event item defines the column and payload, store the precondition set and put the source fact id in the outbox payload. Do not invent that shape in MVP-015. |
+| Expected benefit | A consumer could read the fact the matrix says the event carries. |
+| Risk of doing nothing | The source fact is only in the audit row's idempotency key. The outbox payload does not repeat it. |
+| Implementation risk | Low once the payload shape is specified |
+| Estimated scope | S |
+| Dependencies | No new audit column without a specification for it |
+| Product behavior impact | No user-visible behavior |
+| Specification impact | No |
+| Migration impact | None until a column is specified |
+| Security impact | The fact id is already in the audit row |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The notification or audit consumer that reads `ProjectStateChanged` |
+| Status | PROPOSED |
+| Related GitHub Issue | [#17](https://github.com/xela-ash/Music_app/issues/17) |
+| Related PR | [#81](https://github.com/xela-ash/music_app/pull/81) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1314,6 +1407,7 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 2026-09-25 | ENG-IMP-011, ENG-IMP-012 | `8b2ec0e` | `docs: add seller payout implementation stage`, the plan 0.2.0 decisions |
 | 2026-09-26 | ENG-IMP-014 | The commit titled `docs: record implementation planning findings` on `docs/specification-foundation` | The plan 0.2.1 citation correction, committed together with this register's 0.4.0 entries |
 | 2026-09-26 | ENG-IMP-017, ENG-IMP-018 | Pull request #57 | Ephemeral test port and omitted-`DB_PORT` refusal, implemented by the MVP-002 harness |
+| 2026-09-30 | ENG-IMP-015 | The MVP-015 specification commit on `cursor/mvp-015-project-term-versions-255b` | [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `projects.md` 1.1.0 define `DATA-PROJECTS-018` |
 
 ## 8. Version history
 
@@ -1336,3 +1430,5 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.7 | 2026-09-29 | Added `ENG-IMP-039` and `ENG-IMP-040` (PROPOSED) from MVP-042. No User Settings store exists, and quiet hours and digest are not applied. Neither is authorized. | Engineering |
 | 0.7.8 | 2026-09-29 | Recorded pull request #73 on `ENG-IMP-039` and `ENG-IMP-040`. Neither is authorized. | Engineering |
 | 0.7.9 | 2026-09-29 | Added `ENG-IMP-042` (PROPOSED) from the MVP-038 review: completed send idempotency payloads keep the pre-tombstone body. Not authorized. | Engineering |
+| 0.7.10 | 2026-09-30 | Set `ENG-IMP-015` to IMPLEMENTED. The product owner defined `project_term_versions` and authorized [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md) and `projects.md` 1.1.0 before MVP-015. | Engineering |
+| 0.7.11 | 2026-09-30 | Added `ENG-IMP-043`, `ENG-IMP-044`, and `ENG-IMP-045` (PROPOSED) from the MVP-015 review. None are authorized. | Engineering |

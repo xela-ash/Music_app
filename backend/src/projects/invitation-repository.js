@@ -26,8 +26,10 @@ function makeAuditExternalId() {
 function lockProjectById(db, projectId) {
   return db.query(
     `SELECT id, external_id, buyer_user_id, seller_user_id, title, requirements,
-            price_amount, currency, delivery_days, revision_limit, state, version,
-            accepted_at
+            service_snapshot, price_amount, currency, currency_exponent, delivery_days,
+            revision_limit, state, version, proposal_version, agreed_term_version,
+            resume_state, accepted_at, funded_at, started_at, delivered_at,
+            completed_at, cancelled_at, archived_at
      FROM projects
      WHERE id = $1
      FOR UPDATE`,

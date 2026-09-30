@@ -11,6 +11,7 @@ const {
   parseWithdrawBody,
   proposalHash,
 } = require("./invitation-rules");
+const { commitTransition } = require("./transition-service");
 const {
   PROJECT_INVITE_SELLER,
   PROJECT_WITHDRAW_INVITATION,
@@ -157,10 +158,6 @@ async function expireIfDue(client, project, invitation, idempotencyKey) {
   if (!due.rows[0].due) {
     return { project, invitation, expiredNow: false };
   }
-  const bumped = await invitations.bumpProjectVersion(client, project.id, project.version);
-  if (bumped.rows.length !== 1) {
-    return { conflict: { status: 409, body: { error: "Project version is stale" } } };
-  }
   const marked = await invitations.markInvitation(client, {
     id: invitation.id,
     status: "expired",
@@ -168,7 +165,23 @@ async function expireIfDue(client, project, invitation, idempotencyKey) {
     withdrawnAt: null,
     nextVersion: invitation.version + 1,
   });
-  const nextProject = { ...project, version: bumped.rows[0].version };
+  const moved = await commitTransition(client, {
+    project,
+    action: "project.expire_invitation",
+    targetState: "awaiting_seller",
+    actorType: "system",
+    actorId: "system",
+    expectedVersion: project.version,
+    facts: {},
+    sourceFactId: `expire:${invitation.external_id}`,
+  });
+  if (moved.status !== 200) {
+    const error = new Error("transition rejected");
+    error.status = moved.status;
+    error.body = moved.body;
+    throw error;
+  }
+  const nextProject = moved.project;
   const nextInvitation = marked.rows[0];
   await writeAudit(client, {
     project: nextProject,
@@ -274,7 +287,8 @@ async function inviteSeller(projectId, body, actorUserId, idempotencyKeyHeader) 
         const ready = await invitations.proposalIsReady(client, project.id);
         const readiness = ready.rows[0];
         if (
-          project.state !== "draft" ||
+          (project.state !== "proposed" && project.state !== "awaiting_seller") ||
+          !project.proposal_version ||
           !project.title ||
           !project.requirements ||
           project.currency !== "INR" ||
@@ -291,15 +305,27 @@ async function inviteSeller(projectId, body, actorUserId, idempotencyKeyHeader) 
           project.id,
           actorUserId,
           command.inviteeUserId,
-          project.version,
+          project.proposal_version,
           hash,
           command.expiresAt,
         ]);
-        const bumped = await invitations.bumpProjectVersion(client, project.id, project.version);
-        if (bumped.rows.length !== 1) {
-          return { status: 409, body: { error: "Project version is stale" } };
+        const moved = await commitTransition(client, {
+          project,
+          action: "project.invite_seller",
+          targetState: "seller_invited",
+          actorType: "user",
+          actorId: actorUserId,
+          expectedVersion: project.version,
+          facts: {},
+          sourceFactId: key.key,
+        });
+        if (moved.status !== 200) {
+          const error = new Error("transition rejected");
+          error.status = moved.status;
+          error.body = moved.body;
+          throw error;
         }
-        const nextProject = { ...project, version: bumped.rows[0].version };
+        const nextProject = moved.project;
         const invitation = inserted.rows[0];
         await writeAudit(client, {
           project: nextProject,
@@ -543,11 +569,6 @@ async function applyResponse(client, { project, invitation, command, commandName
     }
   }
 
-  const bumped = await invitations.bumpProjectVersion(client, project.id, project.version);
-  if (bumped.rows.length !== 1) {
-    return { status: 409, body: { error: "Project version is stale" } };
-  }
-  const nextVersion = bumped.rows[0].version;
   let participant = null;
   if (commandName === "accept") {
     const recorded = await invitations.recordAcceptanceOnProject(client, project.id, invitation.invitee_user_id);
@@ -571,7 +592,34 @@ async function applyResponse(client, { project, invitation, command, commandName
     withdrawnAt: commandName === "withdraw" ? new Date() : null,
     nextVersion: invitation.version + 1,
   });
-  const nextProject = { ...project, version: nextVersion };
+  const targetState = commandName === "accept"
+    ? "accepted"
+    : commandName === "decline"
+      ? "seller_declined"
+      : "awaiting_seller";
+  const action = commandName === "accept"
+    ? "project.accept_invitation"
+    : commandName === "decline"
+      ? "project.decline_invitation"
+      : "project.withdraw_invitation";
+  const moved = await commitTransition(client, {
+    project,
+    action,
+    targetState,
+    actorType: "user",
+    actorId: actorUserId,
+    expectedVersion: project.version,
+    facts: { inviteeUserId: invitation.invitee_user_id },
+    sourceFactId: idempotencyKey,
+  });
+  if (moved.status !== 200) {
+    const error = new Error("transition rejected");
+    error.status = moved.status;
+    error.body = moved.body;
+    throw error;
+  }
+  const nextProject = moved.project;
+  const nextVersion = nextProject.version;
   const nextInvitation = marked.rows[0];
   await writeAudit(client, {
     project: nextProject,

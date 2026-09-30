@@ -101,13 +101,35 @@ async function createProject(buyer, seller) {
 }
 
 async function invite(buyer, project, seller, key, extra) {
+  let version = extra && extra.expected_version;
+  if (version === undefined) {
+    const current = await pool.query(
+      "SELECT state, version FROM projects WHERE id = $1",
+      [project.id]
+    );
+    if (current.rows[0].state === "draft") {
+      const proposed = await request("POST", `/projects/${project.id}/propose`, {
+        token: buyer.token,
+        idempotencyKey: `propose-${project.id}`,
+        body: { expected_version: current.rows[0].version },
+      });
+      if (proposed.status !== 200) {
+        return proposed;
+      }
+      version = proposed.json.project.version;
+    } else if (current.rows[0].state === "seller_invited") {
+      version = current.rows[0].version - 1;
+    } else {
+      version = current.rows[0].version;
+    }
+  }
   return request("POST", `/projects/${project.id}/invitations`, {
     token: buyer.token,
     idempotencyKey: key,
     body: {
       invitee_user_id: seller.userId,
       expires_at: STABLE_EXPIRY,
-      expected_version: project.version,
+      expected_version: version,
       ...extra,
     },
   });
@@ -208,13 +230,16 @@ describe("MVP-014 seller invitations", { concurrency: 1, timeout: 30000 }, () =>
     assert.equal(await auditCount(project.id, "accept", "accepted"), 1);
 
     const stored = await pool.query(
-      `SELECT state, seller_user_id, accepted_at IS NOT NULL AS accepted
+      `SELECT state, seller_user_id, accepted_at IS NOT NULL AS accepted,
+              proposal_version, agreed_term_version
        FROM projects WHERE id = $1`,
       [project.id]
     );
-    assert.equal(stored.rows[0].state, "draft");
+    assert.equal(stored.rows[0].state, "accepted");
     assert.equal(stored.rows[0].seller_user_id, seller.userId);
     assert.equal(stored.rows[0].accepted, true);
+    assert.ok(stored.rows[0].proposal_version > 0);
+    assert.ok(stored.rows[0].agreed_term_version > stored.rows[0].proposal_version);
 
     const sellerListAfter = await request("GET", "/projects", { token: seller.token });
     assert.equal(sellerListAfter.json.projects.length, 1);
