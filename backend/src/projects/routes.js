@@ -3,6 +3,7 @@ const { requireAuth } = require("../auth/routes");
 const service = require("./service");
 const invitations = require("./invitation-service");
 const transitions = require("./transition-service");
+const amendments = require("./amendment-service");
 
 const router = express.Router();
 
@@ -121,6 +122,49 @@ router.post("/projects/:projectId/invitations/:invitationId/withdraw", requireAu
   const result = await invitations.withdrawInvitation(
     req.params.projectId,
     req.params.invitationId,
+    req.body,
+    req.auth.sub,
+    req.get("Idempotency-Key")
+  );
+  res.status(result.status).json(result.body);
+});
+
+router.post("/projects/:projectId/amendments", requireAuth, async (req, res) => {
+  const result = await amendments.proposeAmendment(
+    req.params.projectId,
+    req.body,
+    req.auth.sub,
+    req.get("Idempotency-Key")
+  );
+  res.status(result.status).json(result.body);
+});
+
+router.post("/projects/:projectId/amendments/:amendmentId/accept", requireAuth, async (req, res) => {
+  const result = await amendments.acceptAmendment(
+    req.params.projectId,
+    req.params.amendmentId,
+    req.body,
+    req.auth.sub,
+    req.get("Idempotency-Key")
+  );
+  res.status(result.status).json(result.body);
+});
+
+router.post("/projects/:projectId/amendments/:amendmentId/reject", requireAuth, async (req, res) => {
+  const result = await amendments.rejectAmendment(
+    req.params.projectId,
+    req.params.amendmentId,
+    req.body,
+    req.auth.sub,
+    req.get("Idempotency-Key")
+  );
+  res.status(result.status).json(result.body);
+});
+
+router.post("/projects/:projectId/amendments/:amendmentId/withdraw", requireAuth, async (req, res) => {
+  const result = await amendments.withdrawAmendment(
+    req.params.projectId,
+    req.params.amendmentId,
     req.body,
     req.auth.sub,
     req.get("Idempotency-Key")
