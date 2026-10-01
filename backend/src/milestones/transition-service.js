@@ -68,13 +68,7 @@ async function writeAudit(client, { project, milestone, actorType, actorId, acti
     milestone.version,
     null,
     action.sourceFactId || null,
-    hashRequest({
-      action: action.action,
-      milestone_id: milestone.external_id,
-      source,
-      target,
-      submission_ref: action.submissionRef || null,
-    }),
+    hashRequest(auditChangeSet(action, milestone, source, target)),
   ]);
 }
 
@@ -138,6 +132,10 @@ async function preconditionFailure(client, { project, milestone, edge, actorType
   if (edge.actor === "seller") {
     const seller = await repository.activeSeller(client, project.id);
     if (!seller.rows[0] || seller.rows[0].user_id !== actorId) {
+      return rejected("Invalid milestone transition");
+    }
+    const account = await repository.actorAccountStatus(client, actorId);
+    if (!account.rows[0] || account.rows[0].status !== "active") {
       return rejected("Invalid milestone transition");
     }
   }
@@ -274,6 +272,25 @@ function interruptionFor(edge, milestone, facts) {
   return null;
 }
 
+function auditChangeSet(action, milestone, source, target) {
+  const changeSet = {
+    action: action.action,
+    milestone_id: milestone.external_id,
+    source,
+    target,
+    submission_ref: action.submissionRef || null,
+  };
+  if (action.predecessorSet) {
+    changeSet.predecessor_set = action.predecessorSet.map((row) => ({
+      external_id: row.external_id,
+      milestone_no: Number(row.milestone_no),
+      state: row.state,
+    }));
+    changeSet.term_version = Number(milestone.current_term_version);
+  }
+  return changeSet;
+}
+
 function auditReason(edge, facts, target) {
   if (edge.id === "M06") {
     return text(facts.reason_code);
@@ -293,6 +310,11 @@ function auditReason(edge, facts, target) {
 async function commitEdge(client, { project, milestone, edge, actorType, actorId, facts, sourceFactId }) {
   const target = targetFor(edge, milestone, facts);
   const sourceFact = sourceFactId || null;
+  let predecessorSet;
+  if (edge.id === "M04") {
+    const predecessors = await repository.predecessorStates(client, project.id, milestone.milestone_no);
+    predecessorSet = predecessors.rows;
+  }
   // M05's unique transition key is the submission reference. The inbox still
   // deduplicates the event id, so a later revision or approval can name the
   // submission without knowing that event id.
@@ -366,6 +388,7 @@ async function commitEdge(client, { project, milestone, edge, actorType, actorId
       edgeId: edge.id,
       sourceFactId: sourceFact,
       submissionRef: text(facts.submission_ref, 255),
+      predecessorSet,
     },
     outcome: "succeeded",
     source: milestone.state,
