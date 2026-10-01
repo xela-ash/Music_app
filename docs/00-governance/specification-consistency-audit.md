@@ -6,7 +6,7 @@
 | Type | Reference (REF) |
 | Domain | Cross-cutting; audits the complete `docs/` specification tree |
 | Status | Proposed |
-| Version | 0.2.1 |
+| Version | 0.2.2 |
 | Owner | Documentation Working Group |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Every document under `docs/` at the time of this audit |
@@ -20,7 +20,7 @@ Governance's Document Types table ([Governance Section 5](README.md#5-document-t
 
 This revision (0.2.0) re-runs the complete audit after a second batch of work: the single remaining **BLOCKER** from version 0.1.0 — Disputes had no governed owner — is resolved by a minimal Governance amendment (a new `DISPUTES` token sharing the existing, still-empty `09-moderation-trust-safety/` directory) and a new canonical [Disputes specification](../09-moderation-trust-safety/disputes.md). Five existing documents received small, targeted corrections to remove stale forward-references to "a future Disputes specification" now that one exists (Section 6). No document's normative behavior was rewritten, and no prior finding from version 0.1.0 was silently dropped.
 
-**Headline result:** zero duplicate identifier definitions (including the entire new `DISPUTES` family, verified against the complete tree before assignment), zero unresolved broken links or anchors, and zero contradictions between this batch's new or edited content and any existing Approved or Proposed document. `BLOCKER-1` is now **Resolved**. Every P0/P1/P2 item version 0.1.0 recorded remains open exactly as before, except where this batch's own Disputes work supplied additional detail (Section 8); this audit does not silently close a Product/Legal/Finance decision this batch had no authority to make.
+**Headline result:** zero duplicate identifier definitions (including the entire new `DISPUTES` family, verified against the complete tree before assignment), zero unresolved broken links or anchors, and zero contradictions between this batch's new or edited content and any existing Approved or Proposed document. `BLOCKER-1` is **Resolved**. The 2026-10-01 decisions close the rating scale, collection window, email provider, push/SMS, retry bound, fee schedule, funded-cancellation compensation, and first-Administrator bootstrap. Items those decisions do not name stay open.
 
 The specification baseline **passes the MVP implementation-planning readiness gate** (Section 15): no remaining BLOCKER prevents decomposing the MVP into a build sequence. Product decisions on 2026-10-01 resolved the fee rate, funded-cancellation compensation, the rating scale, the email provider, and provider selection for Cashfree, Cloudflare R2, and Resend. Post-payout recovery beyond the affected transaction stays open. Sections 8, 14, and 15 record the current classification.
 
@@ -215,7 +215,7 @@ Every new or reconciled document's repository claims were checked directly again
 | Disputes | **Ready to plan.** `BLOCKER-1` is resolved. Funded-cancellation compensation is the mutual award. Broader post-payout recovery stays open and gates only that recovery path. |
 | Moderation | Not written this batch; Ratings', Messaging's, and Disputes' moderation contracts are forward-compatible stubs, not blockers to those domains' own MVP paths. |
 
-**Overall:** with `BLOCKER-1` resolved, the specification baseline is implementation-ready piecemeal for every domain, with the P0 items in Section 8 as the next gating decisions for Ratings, Notifications, and specific Escrow/Disputes feature work. Section 15 makes the explicit, task-required readiness-gate determination for planning as a whole.
+**Overall:** with `BLOCKER-1` resolved, the specification baseline is implementation-ready piecemeal for every domain. The rating scale and the email provider are decided. Milestones Q18 and broader post-payout recovery remain open. Section 15 makes the explicit readiness-gate determination for planning as a whole.
 
 ## 15. Readiness gate determination
 
@@ -233,8 +233,10 @@ Every new or reconciled document's repository claims were checked directly again
 | P0-2 (Notifications email provider) | Resolved 2026-10-01 | Resend. Live delivery waits on credentials |
 | P0-3 (Milestones review-period/intervention durations) | **B** — does not block planning | Blocks tuning the non-response scheduled job's exact timing; the state machine, transitions, and every other domain's planning proceed unaffected |
 | P0-4 (Disputes/Escrow: post-payout liability, funded-cancellation compensation) | Compensation resolved 2026-10-01. Broader recovery stays open | Mutual award is decided. Recovery beyond the affected transaction is not |
-| P1-1–P1-9 (collection windows, channel adoption, retry schedule, real-time-vs-poll, read receipts, change-order mechanism, Moderation unwritten, Disputes durations, Disputes assignment mechanism) | **B** — do not block planning; each affects the implementation of the specific feature it names, once reached | Every P1 item is a configuration value, an engineering choice already flagged as such, or a dependency on an explicitly future, unblocking domain (Moderation) |
-| P2-1–P2-7 (glossary, milestones.md version-vs-status, "review" terminology, `roles.md` TBD, provisional `SPEC`/`EVT`/`OPS` families, Disputes decision-correction/follow-up/instruction-schema questions, Disputes-Ratings interaction) | **D** — implementation detail / documentation debt | None of these seven items changes target product behavior; each is either editorial, a future governance-identifier decision, or a narrow architectural refinement reachable during implementation of the specific feature it touches |
+| P1-1, P1-2, P1-3 | Resolved 2026-10-01 | 14-day window, push and SMS out of MVP, maximum 3 delivery attempts |
+| P1-4–P1-9 (real-time-vs-poll, read receipts, change-order mechanism, Moderation unwritten, Disputes durations, Disputes assignment mechanism) | **B** — do not block planning | These items were not decided on 2026-10-01 |
+| P2-4 | Resolved 2026-10-01 | The first-Administrator bootstrap is recorded. The `roles.md` TBD text is gone |
+| P2-1–P2-3 and P2-5–P2-7 (glossary, milestones.md version-vs-status, "review" terminology, provisional `SPEC`/`EVT`/`OPS` families, Disputes decision-correction/follow-up/instruction-schema questions, Disputes-Ratings interaction) | **D** — implementation detail / documentation debt | These items were not decided on 2026-10-01 |
 | Moderation itself (unwritten) | **C** — future / post-MVP | No MVP transaction step (Section 26 of the implementation plan, if this gate passes) requires Moderation; Ratings, Messaging, and Disputes each degrade gracefully with Moderation absent, exactly as their own specifications already state |
 | Payment provider selection (Escrow/Payments Question EQ13) | Resolved 2026-10-01 | Cashfree. The adapter stays provider-neutral. Production activation waits for Cashfree approval |
 | Fee rates and kinds (Escrow Question EQ1) | Resolved 2026-10-01 | Seller commission 10%. Buyer fee 0%. Activation fee 0% |
@@ -246,5 +248,6 @@ No item is classified **A** (blocks implementation planning). The 2026-10-01 dec
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial cross-document specification-consistency audit following the specification-foundation batch (Phase 1 reconciliation; Disputes ownership blocker recorded; Ratings, Messaging, and Notifications created). Zero duplicate identifiers found; two pre-existing structural defects found and fixed (a broken-link set in `users.md`, a heading-level skip in `authorization.md`); one architectural BLOCKER recorded (Disputes ownership); open-question consolidation completed. | Documentation Working Group |
+| 0.2.2 | 2026-10-01 | The headline, readiness summary, and Section 15 rows no longer list the decided P0/P1/P2 items as open. | Product |
 | 0.2.1 | 2026-10-01 | Marked the 2026-10-01 Product decisions resolved in Sections 8–11, 14, and 15. Broader post-payout recovery and Milestones Q18 stay open. The readiness gate stays PASS. | Product |
 | 0.2.0 | 2026-09-25 | Re-run following governed Disputes ownership resolution and the creation of `disputes.md`. `BLOCKER-1` marked Resolved (Section 7); baseline inventory updated for six modified documents and one new document (Section 2); identifier audit extended to the new `DISPUTES` family with zero collisions found (Section 3); ownership audit updated for the resolved "Dispute Evidence" purpose (Section 4); terminology audit extended for Disputes-introduced terms (Section 5); this batch's five targeted cross-document fixes recorded (Section 6.6); two inherited P0 items and eight new P1/P2 items added from Disputes' own Open Questions (Sections 8–10); repository-status audit extended to `disputes.md` (Section 13); MVP readiness assessment updated, Disputes reclassified Ready to plan (Section 14); added Section 15, the explicit readiness-gate determination required before implementation planning may begin — **PASS**, with every remaining item classified A/B/C/D and none classified A. | Documentation Working Group |
