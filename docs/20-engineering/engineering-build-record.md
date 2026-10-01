@@ -780,7 +780,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Affected components | `backend/src/users/routes.js`, `backend/src/users/service.js`, `backend/src/profiles/routes.js`, `backend/src/profiles/service.js`, `backend/test/routes.smoke.test.js` |
 | Reversal / migration considerations | No migration. Restoring either POST handler would reopen `SEC-001`. |
 | Related specification IDs | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` |
-| Related PR / commit | The MVP-005 commit on `cursor/mvp-005-remove-legacy-routes-255b` |
+| Related PR / commit | [#104](https://github.com/xela-ash/music_app/pull/104) on `cursor/mvp-005-remove-legacy-routes-255b` |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -854,7 +854,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-026 review / GitHub issue #28 | Recorded two non-blocking review notes. The poster does not write allocation projections. The created-escrow guard watches funded, released, and refunded only. Neither change is implemented. | Documentation | None | None | None | None | None | EDR-020 | `ENG-IMP-063`, `ENG-IMP-064` | #94 | The review-note commit on `cursor/mvp-026-ledger-posting-255b` |
 | 2026-10-01 | MVP-029 / GitHub issue #31 | An internal refund instruction posts `refunded_to_buyer` and rejects any amount that would make cumulative refunds exceed captured funding. No payment, no `refund_paid`, and no product `funded` transition. | Escrow, testing | None | None | None | `REQ-ESCROW-010`, `BR-ESCROW-011`, `BR-ESCROW-017`, `BR-ESCROW-018`, `INT-ESCROW-008`, `AUD-ESCROW-004` | `backend/test/refund-rules.test.js`, `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-065`, `ENG-IMP-066` | The MVP-029 pull request | The MVP-029 commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
-| 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | The MVP-005 pull request | The MVP-005 commit on `cursor/mvp-005-remove-legacy-routes-255b` |
+| 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 
 ## 8. Version history
 
