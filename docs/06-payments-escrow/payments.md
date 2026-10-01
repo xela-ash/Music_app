@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Payments: provider adapter, Payment records, webhooks, payouts, refund execution, chargeback intake (governed `ESCROW` token) |
 | Status | Proposed |
-| Version | 0.1.2 |
+| Version | 0.1.3 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Payments product architecture and verified current repository comparison |
@@ -92,7 +92,7 @@ Payments follows every principle in [escrow.md Section 5](escrow.md#5-canonical-
 1. Payments never decides an amount, a beneficiary, or a state transition for Escrow; it executes instructions and reports verified facts.
 2. A provider callback is untrusted input until its signature, timestamp, and event identity are verified.
 3. A Payment's internal state is independent of Escrow, allocation, Milestone, and Project state; Escrow reads Payment facts and never writes them.
-4. No specific provider is named as canonical by this document. The adapter contract, not a vendor SDK, is the governed interface.
+4. Cashfree is the selected target provider (PQ1, 2026-10-01). The adapter contract, not a vendor SDK, is the governed interface. Production activation waits for Cashfree approval.
 5. A duplicate webhook, a duplicate Payment, or a retried request never causes a second money movement.
 6. Secrets (API keys, webhook signing secrets) are never logged, embedded in audit records, or returned in any response.
 
@@ -895,5 +895,6 @@ Every question in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questi
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial Proposed Payments capability: Payment model and state machine, provider adapter architecture, funding execution, refunds, payouts, chargeback intake, webhook security, idempotency, secret handling, target data model, verified repository comparison, security findings, and traceability, companion to `escrow.md`. | Product and Architecture |
+| 0.1.3 | 2026-10-01 | Principle 4 names Cashfree as the selected provider and keeps the adapter contract provider-neutral. | Product |
 | 0.1.2 | 2026-10-01 | Aligned the scope, adapter section, implementation step, and assumptions with resolved PQ1 so they no longer say no provider is selected. | Product |
 | 0.1.1 | 2026-10-01 | Recorded Cashfree as the target provider (PQ1) and automatic immediate payout initiation (PQ3). PQ2 and PQ4 stay open. | Product |

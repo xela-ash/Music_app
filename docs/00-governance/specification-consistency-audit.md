@@ -6,7 +6,7 @@
 | Type | Reference (REF) |
 | Domain | Cross-cutting; audits the complete `docs/` specification tree |
 | Status | Proposed |
-| Version | 0.2.0 |
+| Version | 0.2.1 |
 | Owner | Documentation Working Group |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Every document under `docs/` at the time of this audit |
@@ -22,7 +22,7 @@ This revision (0.2.0) re-runs the complete audit after a second batch of work: t
 
 **Headline result:** zero duplicate identifier definitions (including the entire new `DISPUTES` family, verified against the complete tree before assignment), zero unresolved broken links or anchors, and zero contradictions between this batch's new or edited content and any existing Approved or Proposed document. `BLOCKER-1` is now **Resolved**. Every P0/P1/P2 item version 0.1.0 recorded remains open exactly as before, except where this batch's own Disputes work supplied additional detail (Section 8); this audit does not silently close a Product/Legal/Finance decision this batch had no authority to make.
 
-The specification baseline **passes the MVP implementation-planning readiness gate** (Section 16): no remaining BLOCKER or P0 item prevents decomposing the MVP into a build sequence, though several P0/P1 items still gate specific *features* (fee rates, funded-cancellation compensation, post-payout chargeback liability, provider selection) rather than planning as a whole. Sections 14 and 16 give the complete classification.
+The specification baseline **passes the MVP implementation-planning readiness gate** (Section 15): no remaining BLOCKER prevents decomposing the MVP into a build sequence. Product decisions on 2026-10-01 resolved the fee rate, funded-cancellation compensation, the rating scale, the email provider, and provider selection for Cashfree, Cloudflare R2, and Resend. Post-payout recovery beyond the affected transaction stays open. Sections 8, 14, and 15 record the current classification.
 
 ## 2. Baseline inventory
 
@@ -151,24 +151,24 @@ No other document required a change: `projects.md`, `milestones.md` (beyond the 
 | --- | --- | --- | --- |
 | BLOCKER-1 | ~~Disputes has no governed owner.~~ | **RESOLVED, 2026-09-25** | Governance Section 11 now includes `DISPUTES` as a permitted domain token (version 1.2.0); Governance Section 4's `09-moderation-trust-safety/` directory-map row now names Disputes alongside the still-unwritten Moderation domain, without renaming, renumbering, or displacing Moderation's own future assignment ([Governance Section 6.6](#66-this-batchs-changes-disputes-governance-and-specification)). The canonical [Disputes specification](../09-moderation-trust-safety/disputes.md) now exists, Proposed, 0.1.0, with its own governed identifier families, a complete lifecycle, eligibility, evidence, adjudication, and financial-resolution model, and explicit cross-domain contracts with Projects, Milestones, Escrow, Assets, Messaging, Ratings, and Notifications. |
 
-`BLOCKER-1` is marked Resolved only because governed Disputes ownership and its canonical specification now exist *consistently* with every domain that already referred to "a future Disputes specification" — verified section by section in [Disputes Section 3.3](../09-moderation-trust-safety/disputes.md#33-reconciliation-items) (items `DIR1`–`DIR9`) and cross-checked independently by this audit (Sections 4, 6.6 above). Resolving `BLOCKER-1` does **not** resolve the pre-existing Product/Legal/Finance decisions that Escrow's own Questions EQ3 and EQ5 already left open (funded-cancellation compensation; post-payout chargeback liability) — `disputes.md` inherits both without inventing an answer (Section 8, P0-4 below) and Milestones' Question Q11 and Escrow's Question EQ6, which depended on `BLOCKER-1`, are now substantively answered by `disputes.md` (Sections 8, 15, 17) rather than merely unblocked.
+`BLOCKER-1` is marked Resolved only because governed Disputes ownership and its canonical specification now exist *consistently* with every domain that already referred to "a future Disputes specification" — verified section by section in [Disputes Section 3.3](../09-moderation-trust-safety/disputes.md#33-reconciliation-items) (items `DIR1`–`DIR9`) and cross-checked independently by this audit (Sections 4, 6.6 above). Funded-cancellation compensation (Escrow EQ3, Disputes EQ2) was decided on 2026-10-01. Broader post-payout recovery (Escrow EQ5, Disputes EQ1) stays open. Milestones' Question Q11 and Escrow's Question EQ6 are answered by `disputes.md` (Sections 8, 15, 17).
 
 ## 8. P0 (requires a decision before implementation planning can proceed for the affected domain)
 
 | ID | Finding | Classification | Decision required from |
 | --- | --- | --- | --- |
-| P0-1 | Ratings' exact score scale (for example, 1–5) is not established anywhere and is not invented by `ratings.md` (Open Question EQ1). | Requires Product Decision | Product |
-| P0-2 | Notifications' first email provider is not selected (Open Question EQ1); the email channel adapter cannot be finalized without it. | Requires Product/Engineering Decision | Product, Engineering |
+| P0-1 | Resolved 2026-10-01. The rating scale is whole integers from 1 through 5 (Ratings EQ1). | Resolved | Product decision |
+| P0-2 | Resolved 2026-10-01. Resend is the email provider (Notifications EQ1). Live delivery waits on credentials. | Resolved | Product decision |
 | P0-3 | The exact review-period and platform-intervention operational values (duration, contact-attempt count, channels) for Milestones' Buyer non-response process are deliberately left as configuration, not invented (Milestones Question Q18). | Requires Product/Operations Decision | Product, Operations |
-| P0-4 | Every pre-existing Projects/Milestones/Escrow P0 this batch did not substantively touch remains open exactly as before. Escrow's Question EQ6 (adjudicator, evidence, timeline, timeout) is now substantively answered by `disputes.md` and is reclassified Resolved (its Section 8 does not invent a timeout, matching Escrow's own "no timeout outcome is invented" stance). Two P0 items remain genuinely open and are inherited unchanged into `disputes.md` itself as its own EQ1/EQ2: who bears liability when a Dispute award cannot execute because funds already left platform custody (restates Escrow EQ5), and what compensation, if any, is owed for partial performance on a funded-but-cancelled, disputed Project (restates Escrow EQ3). | Requires Product/Legal/Finance Decision | [Disputes Section 33.3](../09-moderation-trust-safety/disputes.md#333-prioritized-open-questions), EQ1–EQ2; see each other document's own Section 36/31.3 for every remaining unrelated item |
+| P0-4 | Escrow EQ6 is answered by `disputes.md`. Funded-cancellation compensation is resolved 2026-10-01 (Escrow EQ3, Disputes EQ2): a mutual award, no automatic percentage. Broader post-payout recovery stays open (Escrow EQ5, Disputes EQ1). | Recovery beyond the affected transaction remains a Product/Legal/Finance decision | [Disputes Section 33.3](../09-moderation-trust-safety/disputes.md#333-prioritized-open-questions), EQ1 |
 
 ## 9. P1
 
 | ID | Finding | Classification |
 | --- | --- | --- |
-| P1-1 | Ratings' collection-window duration (Ratings Question EQ2) before a direction resolves to `WAIVED_TIMEOUT`. | Requires Product Decision |
-| P1-2 | Whether push and/or SMS are adopted for MVP notification channels (Notifications Question EQ2). | Requires Product Decision |
-| P1-3 | Notifications' exact retry schedule (attempt count, backoff) (Notifications Question EQ3). | Requires Product/Operations Decision |
+| P1-1 | Resolved 2026-10-01. The collection window is 14 calendar days (Ratings EQ2). | Resolved |
+| P1-2 | Resolved 2026-10-01. Push and SMS are out of MVP (Notifications EQ2). | Resolved |
+| P1-3 | Resolved 2026-10-01. Maximum external delivery attempts are 3 (Notifications EQ3). | Resolved |
 | P1-4 | Messaging's real-time-vs-poll delivery choice (Messaging Question EQ1). | Requires Engineering Decision (not a documentation blocker) |
 | P1-5 | Whether Messaging read state is ever shown to the counterparty as a receipt (Messaging Question EQ2). | Requires Product Decision |
 | P1-6 | A future governed change/add-on mechanism for voluntary work beyond a locked per-Milestone revision allowance (Milestones Question Q19). | Requires Product/Architecture Decision |
@@ -183,14 +183,14 @@ No other document required a change: `projects.md`, `milestones.md` (beyond the 
 | P2-1 | The required glossary at `docs/99-appendices/glossary.md` still does not exist; every domain document's local Terminology section remains provisional pending it (tracked previously in Milestones Q16, Projects P2, Deliverables EQ9; this batch's three new documents now disclose the same gap, Section 6.3 above). | Requires Governance/future documentation work |
 | P2-2 | `milestones.md` carries version `1.1.1` while Status remains `Proposed`; Governance Section 10.2 explicitly permits `0.x.y` for Draft but is silent on whether a `1.x` version is appropriate for Proposed. Not a defect this batch introduced (the document was already at `1.0.0` Proposed before the prior batch); flagged for a future Governance clarification. | Requires Governance Decision |
 | P2-3 | "Review" is used as an ordinary word in Deliverables (the inspection act) and as part of a Ratings-owned term ("Review Evidence," "review text") without a glossary to disambiguate (Section 5 above). | Editorial, deferred to the future glossary |
-| P2-4 | `roles.md` line 201 contains a literal "TBD" ("bootstrap process TBD (§30)"), pointing to its own further-detail section. Pre-existing, low severity, not touched by this batch. | Editorial, Requires Product/Engineering follow-up in a future `roles.md` revision |
+| P2-4 | Resolved 2026-10-01. `roles.md` 1.0.2 records the non-public first-Administrator bootstrap. The earlier "bootstrap process TBD" text is gone. | Resolved |
 | P2-5 | Which governed families should replace the provisional `SPEC-*`/`EVT-*`/`OPS-*` identifiers used by nine documents across the tree (repeated in every affected document's own Open Questions, including Disputes Question EQ10). | Requires Governance Decision |
 | P2-6 | Whether a decision may ever be corrected after issuance under documented exceptional policy, whether a follow-up Dispute needs its own narrower eligibility review, and whether a `PROJECT`-scope resolution instruction carries a per-allocation breakdown or is issued per-allocation (Disputes Questions EQ6, EQ7, EQ8). | Requires Product/Legal/Architecture Decision |
 | P2-7 | Whether a Dispute finding should be able to request Ratings moderation review, and whether dispute history should ever feed a reputation projection (Disputes Question EQ9). | Requires Product Decision |
 
 ## 11. Requires Legal/Risk decision
 
-No genuinely new Legal/Risk-classified finding was produced by this batch. `disputes.md` restates, rather than newly discovers, two pre-existing Escrow Legal/Risk items in its own terms — post-payout chargeback liability (Escrow EQ5, restated as Disputes EQ1) and funded-cancellation compensation for partial performance (Escrow EQ3, restated as Disputes EQ2) — and explicitly declines to invent an answer to either (P0-4). Every other pre-existing Legal/Risk item (fee/tax policy, retention periods, jurisdiction-specific rules) remains exactly where Escrow, Payments, and Assets already recorded it, untouched and not duplicated here.
+Funded-cancellation compensation and the MVP fee schedule were decided on 2026-10-01. Broader post-payout chargeback recovery (Escrow EQ5, Disputes EQ1) stays open. MusicApp does not calculate tax withholding. Retention periods stay open.
 
 ## 12. Implementation-only gaps (no decision needed, only engineering work)
 
@@ -209,10 +209,10 @@ Every new or reconciled document's repository claims were checked directly again
 | Domain | Readiness for implementation planning |
 | --- | --- |
 | Projects, Milestones, Deliverables, Escrow, Payments | Ready to plan, subject to their own pre-existing P0/P1 items |
-| Ratings and Reputation | Ready to plan **except** the rating scale (P0-1); everything else is a documented, self-consistent target |
+| Ratings and Reputation | Ready to plan. The scale is 1–5 and the window is 14 calendar days |
 | Messaging and Collaboration | Ready to plan; MVP scope is deliberately narrow and self-contained |
-| Notifications | Ready to plan for in-app delivery; email delivery additionally needs a provider decision (P0-2) |
-| Disputes | **Ready to plan.** `BLOCKER-1` is resolved; the lifecycle, eligibility, evidence, adjudication, and financial-resolution contract are complete and self-consistent. Two inherited P0 items (P0-4: post-payout liability, funded-cancellation compensation) gate only the specific cancellation- and chargeback-adjacent *feature* work, not the domain's schema, opening, evidence, or ordinary adjudication paths. |
+| Notifications | Ready to plan. Resend is selected. Push and SMS are out of MVP. Live email delivery waits on credentials |
+| Disputes | **Ready to plan.** `BLOCKER-1` is resolved. Funded-cancellation compensation is the mutual award. Broader post-payout recovery stays open and gates only that recovery path. |
 | Moderation | Not written this batch; Ratings', Messaging's, and Disputes' moderation contracts are forward-compatible stubs, not blockers to those domains' own MVP paths. |
 
 **Overall:** with `BLOCKER-1` resolved, the specification baseline is implementation-ready piecemeal for every domain, with the P0 items in Section 8 as the next gating decisions for Ratings, Notifications, and specific Escrow/Disputes feature work. Section 15 makes the explicit, task-required readiness-gate determination for planning as a whole.
@@ -223,27 +223,28 @@ Every new or reconciled document's repository claims were checked directly again
 
 **Determination: PASS.**
 
-**Rationale.** `BLOCKER-1` — the single item version 0.1.0 of this audit identified as preventing implementation planning — is resolved (Section 7). No other BLOCKER exists anywhere in the tree; this audit's own complete identifier, link, ownership, and terminology sweep (Sections 3–5) found none. Every remaining P0 item (Section 8) gates a specific, narrow piece of *feature* work — a rating scale, an email provider, an operational duration, a liability or compensation policy — not the ability to decompose Projects, Milestones, Deliverables, Escrow, Payments, Ratings, Messaging, Notifications, or Disputes into a build sequence. Each of those nine domains has a complete target data model, state machine, authorization model, and cross-domain contract, independent of whether its own narrow P0 is later resolved before or during implementation of the specific feature that P0 gates.
+**Rationale.** `BLOCKER-1` is resolved (Section 7). The 2026-10-01 decisions resolved the rating scale, the email provider, the fee schedule, funded-cancellation compensation, and the Cashfree, Cloudflare R2, and Resend selections. Milestones Q18 durations and post-payout recovery beyond the affected transaction remain open. Neither blocks decomposing the MVP into a build sequence.
 
 **Classification of every remaining unresolved item**, per the task's required A/B/C/D framework:
 
 | Item | Classification | Reasoning |
 | --- | --- | --- |
-| P0-1 (Ratings score scale) | **B** — does not block planning | Blocks finalizing the rating-submission endpoint's validation range; does not block schema, eligibility, or any other domain's planning |
-| P0-2 (Notifications email provider) | **B** — does not block planning | Blocks the email channel adapter only; in-app delivery, the Intent/Delivery model, and every other domain's planning proceed unaffected |
+| P0-1 (Ratings score scale) | Resolved 2026-10-01 | Whole integers 1 through 5 |
+| P0-2 (Notifications email provider) | Resolved 2026-10-01 | Resend. Live delivery waits on credentials |
 | P0-3 (Milestones review-period/intervention durations) | **B** — does not block planning | Blocks tuning the non-response scheduled job's exact timing; the state machine, transitions, and every other domain's planning proceed unaffected |
-| P0-4 (Disputes/Escrow: post-payout liability, funded-cancellation compensation) | **B** — does not block planning | Blocks finalizing the `execution_blocked` manual-resolution policy and the `cancellation_disagreement` compensation default; the Dispute lifecycle, opening, evidence, and every other outcome path plan and build independently of this policy |
+| P0-4 (Disputes/Escrow: post-payout liability, funded-cancellation compensation) | Compensation resolved 2026-10-01. Broader recovery stays open | Mutual award is decided. Recovery beyond the affected transaction is not |
 | P1-1–P1-9 (collection windows, channel adoption, retry schedule, real-time-vs-poll, read receipts, change-order mechanism, Moderation unwritten, Disputes durations, Disputes assignment mechanism) | **B** — do not block planning; each affects the implementation of the specific feature it names, once reached | Every P1 item is a configuration value, an engineering choice already flagged as such, or a dependency on an explicitly future, unblocking domain (Moderation) |
 | P2-1–P2-7 (glossary, milestones.md version-vs-status, "review" terminology, `roles.md` TBD, provisional `SPEC`/`EVT`/`OPS` families, Disputes decision-correction/follow-up/instruction-schema questions, Disputes-Ratings interaction) | **D** — implementation detail / documentation debt | None of these seven items changes target product behavior; each is either editorial, a future governance-identifier decision, or a narrow architectural refinement reachable during implementation of the specific feature it touches |
 | Moderation itself (unwritten) | **C** — future / post-MVP | No MVP transaction step (Section 26 of the implementation plan, if this gate passes) requires Moderation; Ratings, Messaging, and Disputes each degrade gracefully with Moderation absent, exactly as their own specifications already state |
-| Payment provider selection (Escrow/Payments Question EQ13) | **B** — does not block planning | Affects only the provider-adapter implementation step; the Escrow/Payments schema, state machine, and ledger architecture are provider-neutral by design |
-| Fee rates and kinds (Escrow Question EQ1) | **B** — does not block planning | Affects only final fee-calculation logic within the release/refund journals; the ledger architecture, journal balancing, and every non-fee-dependent path plan independently |
+| Payment provider selection (Escrow/Payments Question EQ13) | Resolved 2026-10-01 | Cashfree. The adapter stays provider-neutral. Production activation waits for Cashfree approval |
+| Fee rates and kinds (Escrow Question EQ1) | Resolved 2026-10-01 | Seller commission 10%. Buyer fee 0%. Activation fee 0% |
 
-No item is classified **A** (blocks implementation planning). This is the determination the task's own worked examples anticipate: "an unknown payment provider may affect payment implementation but does not necessarily prevent schema/project work planning... an unresolved funded-cancellation compensation may block cancellation implementation but not authentication or project creation" — every P0/P1/P2 item in this tree fits that same pattern.
+No item is classified **A** (blocks implementation planning). The 2026-10-01 decisions resolved the examples this section previously used for an unknown payment provider and an unresolved compensation policy.
 
 ## 16. Version history
 
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial cross-document specification-consistency audit following the specification-foundation batch (Phase 1 reconciliation; Disputes ownership blocker recorded; Ratings, Messaging, and Notifications created). Zero duplicate identifiers found; two pre-existing structural defects found and fixed (a broken-link set in `users.md`, a heading-level skip in `authorization.md`); one architectural BLOCKER recorded (Disputes ownership); open-question consolidation completed. | Documentation Working Group |
+| 0.2.1 | 2026-10-01 | Marked the 2026-10-01 Product decisions resolved in Sections 8–11, 14, and 15. Broader post-payout recovery and Milestones Q18 stay open. The readiness gate stays PASS. | Product |
 | 0.2.0 | 2026-09-25 | Re-run following governed Disputes ownership resolution and the creation of `disputes.md`. `BLOCKER-1` marked Resolved (Section 7); baseline inventory updated for six modified documents and one new document (Section 2); identifier audit extended to the new `DISPUTES` family with zero collisions found (Section 3); ownership audit updated for the resolved "Dispute Evidence" purpose (Section 4); terminology audit extended for Disputes-introduced terms (Section 5); this batch's five targeted cross-document fixes recorded (Section 6.6); two inherited P0 items and eight new P1/P2 items added from Disputes' own Open Questions (Sections 8–10); repository-status audit extended to `disputes.md` (Section 13); MVP readiness assessment updated, Disputes reclassified Ready to plan (Section 14); added Section 15, the explicit readiness-gate determination required before implementation planning may begin — **PASS**, with every remaining item classified A/B/C/D and none classified A. | Documentation Working Group |

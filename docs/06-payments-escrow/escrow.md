@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Escrow, allocations, ledger, release, refund, and financial outcomes (governed `ESCROW` token) |
 | Status | Proposed |
-| Version | 0.2.2 |
+| Version | 0.2.3 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Target Escrow product architecture and verified current repository comparison |
@@ -319,7 +319,7 @@ Financial truth has one authority: the ledger (Section 13). Every total on the E
 | `buyer_user_id` | UUID FK to Users, `RESTRICT` | Snapshot of the Project Buyer at creation, kept as immutable financial evidence; never an authorization source | Immutable | Not Implemented: no Buyer column; payer appears only on `payments` |
 | `seller_user_id` | UUID FK to Users, `RESTRICT` | Snapshot of the accepted Seller at creation, kept as immutable beneficiary evidence per `BR-USERS-018`; never an authorization source | Immutable | Not Implemented |
 | `currency`, `currency_exponent` | Supported ISO 4217 code and exponent snapshot | Snapshot | Immutable | Partially Implemented: unrestricted `TEXT`, no exponent |
-| `expected_amount` | Signed 64-bit minor units, positive; equals the sum of active allocations at creation | Snapshot, changed only by an accepted amendment through supplemental funding (Section 11.3) | Immutable after creation except by amendment | Partially Implemented: `amount INT`, positive CHECK |
+| `expected_amount` | Signed 64-bit minor units, positive; equals the sum of active allocations at creation | Snapshot. MVP does not increase it through supplemental funding (EQ10, Section 11.3) | Immutable after funding. An increase is not an MVP amendment | Partially Implemented: `amount INT`, positive CHECK |
 | `funded_amount` | Minor units | Projection | Ledger-posting function only | Partially Implemented: stored mutable `INT`, nonnegative CHECK, not tied to any ledger |
 | `allocated_amount` | Minor units | Projection | Ledger-posting function only | Not Implemented |
 | `released_amount` | Minor units | Projection | Ledger-posting function only | Partially Implemented: stored mutable `INT`, nonnegative CHECK |
@@ -359,7 +359,7 @@ The current `escrow_status` enum has nine values. Distinctions that duplicate Pa
 | Partially released | `funded` with `0 < released_amount` and funds remaining | `partially_released` |
 | Refund pending | A refund Payment is non-terminal | `refund_pending` |
 | Held | At least one open hold | `disputed` |
-| Supplement pending | `funded` with `funding_gap > 0` after an amendment | none |
+| Supplement pending | Not an MVP state. A funded amendment must not create `funding_gap > 0` (EQ10, 2026-10-01) | none |
 
 The legacy values `funding_pending`, `partially_released`, `refund_pending`, and `disputed` remain in the PostgreSQL enum because values cannot be safely removed, but the target never writes them. The Foundation state sketch that goes `funded` to `disputed` is non-normative ([Product Overview Section 10.4](../01-foundation/product-overview.md#104-escrow-lifecycle) and System Architecture Section 10.7). A dispute is a hold on funds, not an Escrow state, so Escrow state never duplicates Dispute state.
 
@@ -1515,5 +1515,6 @@ The authoring validation for version 0.2.0 covers version 0.1.0's checks plus th
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial Proposed Escrow aggregate, allocations, ledger, funding model, release, refund, cancellation and dispute financial outcomes, chargebacks, fees, currency, eligibility, authorization, concurrency, audit, reconciliation, target data model, verified repository comparison, security findings, and traceability, companion to `payments.md`. | Product and Architecture |
 | 0.2.0 | 2026-09-25 | Reconciled the Buyer non-response product decision ([Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention)): Section 14's release-eligibility fact now explicitly covers a platform non-response release authorization alongside ordinary Buyer approval, treated identically at the Escrow layer without Escrow itself evaluating Buyer responsiveness. Added `REQ-ESCROW-036`, `BR-ESCROW-049`, and reconciliation item ER8. No existing identifier, section number, or unrelated content changed. | Product and Architecture |
+| 0.2.3 | 2026-10-01 | Removed the supplemental-funding path from `expected_amount` and the Supplement pending qualifier (EQ10). | Product |
 | 0.2.2 | 2026-10-01 | Aligned Sections 8, 14, 16, 18, 19, 20, 30, and 31 with the resolved EQ rows so those sections no longer describe the decided rates, expiry, verification timing, payout wait, or provider as open. | Product |
 | 0.2.1 | 2026-10-01 | Recorded Product decisions for EQ1–EQ4, EQ7, EQ8, EQ10, and EQ13, and the MVP limits of EQ5 and EQ9. Fee rate is 10% Seller commission with the Section 19.3 rounding rule. EQ6, EQ11, EQ12, EQ14, EQ15, and chargeback recovery beyond the affected transaction stay open. | Product |
