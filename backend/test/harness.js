@@ -24,6 +24,7 @@ const APPLICATION_TABLES = [
   "inbox_events",
   "escrow_ledger",
   "escrow_allocations",
+  "payment_webhook_receipts",
   "payments",
   "escrows",
   "escrow_fee_snapshots",

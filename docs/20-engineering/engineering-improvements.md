@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.27 |
+| Version | 0.7.28 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2041,6 +2041,66 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-079 The Cashfree order call holds the funding transaction
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-079 |
+| Title | The Cashfree order call holds the funding transaction |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 implementation |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | `createFundingPayment` calls the selected adapter inside the transaction that locks the project and the escrow. The mock returns in process. The Cashfree adapter performs HTTP before that transaction commits. |
+| Evidence / problem | A slow or hung provider call keeps the row locks. Splitting the call from the commit can leave a created provider order without a local payment row. |
+| Suggested improvement | Create the provider order with a short lock, persist the reference, then confirm funding from the webhook without holding the lock across HTTP. |
+| Expected benefit | Provider latency does not block other project commands. |
+| Risk of doing nothing | The mock path used by tests does not call the network. A live Cashfree create holds the locks for the HTTP round trip. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | A live Cashfree credential. This entry does not authorize a second funding path. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | Live creates hold project and escrow locks for the provider round trip. |
+| Priority suggestion | Medium |
+| Recommended timing | Before production Cashfree activation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | The MVP-025 pull request |
+| Resolution | — |
+
+### ENG-IMP-080 Expired funding attempts are not cancelled by a clock
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-080 |
+| Title | Expired funding attempts are not cancelled by a clock |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 implementation |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | A funding payment expires 24 hours after creation. The next create cancels an expired open attempt so a new idempotency key can proceed. A webhook for an expired attempt cancels it and does not fund. No process scans for expiry on its own. |
+| Evidence / problem | Until one of those commands runs, the row stays in its open status even though its `expires_at` is past. D13 does not require a scheduler. |
+| Suggested improvement | Add an operational expiry sweep only if a later specification requires attempts to leave the open status without a buyer or provider call. |
+| Expected benefit | Open-payment reports would not show an attempt that can no longer fund. |
+| Risk of doing nothing | A later buyer create still cancels the expired row and can start a new attempt. The accepted project is not cancelled. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a scheduler. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None until a sweep exists. |
+| Priority suggestion | Low |
+| Recommended timing | If operations need expired rows to leave the open status without a new attempt |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | The MVP-025 pull request |
+| Resolution | — |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2172,3 +2232,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
+| 0.7.28 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. `ENG-IMP-084` and `ENG-IMP-085` are already on main. | Engineering |

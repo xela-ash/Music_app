@@ -616,7 +616,40 @@ async function recordMilestoneCreated(client, milestone, actorId, projectId) {
   ]);
 }
 
+async function applyLockedSystemMilestone(client, command) {
+  await client.query("SELECT set_config('musicapp.milestone_transition', 'on', true)");
+  const projectResult = await repository.lockProject(client, command.projectId);
+  const project = projectResult.rows[0];
+  const milestoneResult = await repository.lockProjectMilestones(client, command.projectId);
+  const milestone = milestoneResult.rows.find((row) => row.id === command.milestoneId);
+  if (!project || !milestone) {
+    return { status: 404, body: { error: "Milestone not found" } };
+  }
+  const eventId = text((command.facts || {}).event_id, 255);
+  if (!eventId) {
+    return { status: 400, body: { error: "A source fact id is required" } };
+  }
+  const lockedCommand = { ...command, expectedVersion: milestone.version };
+  let result;
+  const consumed = await consumeInboxEvent(client, {
+    consumer: "milestones",
+    source: command.action,
+    eventId,
+    eventType: command.action,
+  }, async () => {
+    result = await applyInside(client, lockedCommand, project, milestone);
+    return quarantineOrThrow(result);
+  });
+  if (consumed.duplicate) {
+    return consumed.result === "applied"
+      ? { status: 200, body: { duplicate: true } }
+      : { status: 409, body: { error: "Milestone fact does not match" } };
+  }
+  return result;
+}
+
 module.exports = {
   applyMilestoneTransition,
+  applyLockedSystemMilestone,
   recordMilestoneCreated,
 };
