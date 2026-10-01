@@ -304,6 +304,25 @@ async function applyRefund(client, command) {
       validated.key,
       changeHash,
     ]);
+    if (closed) {
+      await invitations.insertAuditEvent(client, [
+        invitations.makeAuditExternalId(),
+        escrow.project_id,
+        "AUD-ESCROW-002",
+        "system",
+        SYSTEM_ACTOR_ID,
+        "system",
+        "escrow.close",
+        "refunded",
+        null,
+        "funded",
+        "refunded",
+        escrowVersion,
+        command.correlationId,
+        validated.key,
+        changeHash,
+      ]);
+    }
     await enqueueOutboxMessage(client, {
       eventType: "AllocationRefunded",
       eventVersion: 1,

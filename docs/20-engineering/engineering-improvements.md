@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.24 |
+| Version | 0.7.25 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2011,6 +2011,36 @@ Copy this template for each new entry:
 | Related PR | The MVP-029 pull request |
 | Resolution | — |
 
+### ENG-IMP-067 A settled allocation with a release stays funded
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-067 |
+| Title | A settled allocation with a release stays funded |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-029 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | A refund that brings `released_amount + refunded_amount` to `funded_amount` sets `allocation_status` to `refunded` only when `released_amount` is zero. Any positive released amount leaves the allocation `funded`. |
+| Evidence / problem | Escrow §11.3 says a fully settled allocation is `released` when any amount reached the Seller. No release writer sets `released_amount` today, so this branch does not run. |
+| Suggested improvement | When a later release item settles an allocation that already has a release, set `allocation_status` to `released`. |
+| Expected benefit | The stored allocation state matches §11.3 once a release amount exists. |
+| Risk of doing nothing | Refund-only settlement still becomes `refunded`. A mixed release-and-refund settlement is not produced by the current services. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A release journal. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the release item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#31](https://github.com/xela-ash/Music_app/issues/31) |
+| Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2079,3 +2109,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.22 | 2026-10-01 | Added `ENG-IMP-062` (PROPOSED): the application role still owns `escrow_ledger`. Not authorized. The ledger cross-reference now records the append-only BIGINT journal. | Engineering |
 | 0.7.23 | 2026-10-01 | Added `ENG-IMP-063` and `ENG-IMP-064` (both PROPOSED) from the MVP-026 review. Neither is authorized. | Engineering |
 | 0.7.24 | 2026-10-01 | Added `ENG-IMP-065` and `ENG-IMP-066` (both PROPOSED) from MVP-029. Neither is authorized. | Engineering |
+| 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |

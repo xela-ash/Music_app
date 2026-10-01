@@ -316,6 +316,12 @@ describe("MVP-029 refund execution", { concurrency: 1, timeout: 30000 }, () => {
     );
     assert.equal(stored.rows[0].refunded_amount, "100000");
     assert.equal(stored.rows[0].status, "funded");
+    const closure = await pool.query(
+      `SELECT COUNT(*) FROM project_audit_events
+       WHERE project_id = $1 AND event_type = 'AUD-ESCROW-002'`,
+      [project.projectId]
+    );
+    assert.equal(closure.rows[0].count, "0");
     const refunds = await pool.query(
       `SELECT COUNT(*) FROM escrow_ledger
        WHERE escrow_id = $1 AND entry_type = 'refunded_to_buyer'`,
@@ -384,11 +390,13 @@ describe("MVP-029 refund execution", { concurrency: 1, timeout: 30000 }, () => {
     assert.equal(projectState.rows[0].state, project.projectState);
     const audit = await pool.query(
       `SELECT event_type, action FROM project_audit_events
-       WHERE project_id = $1 AND event_type = 'AUD-ESCROW-004'`,
+       WHERE project_id = $1 AND event_type IN ('AUD-ESCROW-004', 'AUD-ESCROW-002')
+       ORDER BY event_type`,
       [project.projectId]
     );
-    assert.equal(audit.rows.length, 1);
-    assert.equal(audit.rows[0].action, "escrow.refund");
+    assert.deepEqual(audit.rows.map((row) => row.event_type), ["AUD-ESCROW-002", "AUD-ESCROW-004"]);
+    assert.equal(audit.rows.find((row) => row.event_type === "AUD-ESCROW-004").action, "escrow.refund");
+    assert.equal(audit.rows.find((row) => row.event_type === "AUD-ESCROW-002").action, "escrow.close");
     const events = await pool.query(
       `SELECT event_type FROM outbox_messages
        WHERE event_type IN ('AllocationRefunded', 'EscrowClosed')
