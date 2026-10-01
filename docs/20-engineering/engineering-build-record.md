@@ -799,7 +799,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Affected components | `backend/db/023_platform_roles.sql`, `backend/src/roles/`, `backend/src/authorization/authorize.js`, `backend/test/roles.test.js`, `backend/test/authorize.test.js`, `backend/test/harness.js` |
 | Reversal / migration considerations | New tables only. Dropping the state guard would let a writer set `revoked` or `active` outside the service. Dropping the audit trigger would let a writer rewrite the bootstrap record. |
 | Related specification IDs | `REQ-ROLE-007`, `BR-ROLE-008`, `BR-ROLE-010`, `BR-ROLE-012`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `SEC-ROLE-001`, `AUD-ROLE-001`, `AUD-ROLE-002` |
-| Related PR / commit | The MVP-008 commit on `cursor/mvp-008-admin-bootstrap-255b` |
+| Related PR / commit | [#106](https://github.com/xela-ash/music_app/pull/106) on `cursor/mvp-008-admin-bootstrap-255b` |
 | Status | ACTIVE |
 
 ### 6.3 EDR index
@@ -876,7 +876,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
-| 2026-10-01 | MVP-008 / GitHub issue #10 | First Administrator is a non-public CLI bootstrap of one existing active user, refused once any active Administrator exists. `authorize()` reads the live assignment. Governed grant and revoke fail closed until step-up assurance exists. | Authorization, database, testing | 023 | No public bootstrap route | None | `SEC-ROLE-001`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `AUD-ROLE-001` | `backend/test/roles.test.js`, `backend/test/authorize.test.js` | EDR-026 | `ENG-IMP-086` | The MVP-008 pull request | The MVP-008 commit on `cursor/mvp-008-admin-bootstrap-255b` |
+| 2026-10-01 | MVP-008 / GitHub issue #10 | First Administrator is a non-public CLI bootstrap of one existing active user, refused once any active Administrator exists. `authorize()` reads the live assignment. Governed grant and revoke fail closed until step-up assurance exists. | Authorization, database, testing | 023 | No public bootstrap route | None | `SEC-ROLE-001`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `AUD-ROLE-001` | `backend/test/roles.test.js`, `backend/test/authorize.test.js` | EDR-026 | `ENG-IMP-086` | #106 | `13f1678` on `cursor/mvp-008-admin-bootstrap-255b` |
 
 ## 8. Version history
 

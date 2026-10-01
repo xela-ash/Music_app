@@ -2128,7 +2128,7 @@ Copy this template for each new entry:
 | Recommended timing | After the step-up decision |
 | Status | PROPOSED |
 | Related GitHub Issue | [#10](https://github.com/xela-ash/Music_app/issues/10) |
-| Related PR | The MVP-008 pull request |
+| Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
