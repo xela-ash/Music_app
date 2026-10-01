@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.27 |
+| Version | 0.7.28 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2101,6 +2101,36 @@ Copy this template for each new entry:
 | Related PR | [#104](https://github.com/xela-ash/music_app/pull/104) |
 | Resolution | — |
 
+### ENG-IMP-086 Governed role grant and revoke wait on step-up assurance
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-086 |
+| Title | Governed role grant and revoke wait on step-up assurance |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-008 implementation |
+| Category | Authorization |
+| Affected subsystem | Roles |
+| Current state | `assignPlatformRole` and `revokePlatformRole` return the `authorize()` denial and do not write. An active Administrator receives `step-up required`. Authorization §35.2 item 8 does not choose the proof or the recency window. |
+| Evidence / problem | `BR-ROLE-017` requires step-up before a Moderator or Administrator grant or revocation. A client-supplied boolean would invent that proof. |
+| Suggested improvement | When Product chooses the assurance method and recency window, perform the grant or revocation in the same transaction as `AUD-ROLE-001`. |
+| Expected benefit | A second Administrator and a Moderator can be granted without a public bootstrap. |
+| Risk of doing nothing | The CLI can create only the first Administrator. Later grants stay refused. |
+| Implementation risk | High until the proof is specified |
+| Estimated scope | M |
+| Dependencies | Authorization §35.2 item 8. This entry does not authorize a proof. |
+| Product behavior impact | No until that decision |
+| Specification impact | Yes, the owning specification must record the proof before the write exists |
+| Migration impact | None for the refusal. A later proof may add columns. |
+| Security impact | The closed path preserves `BR-ROLE-017` |
+| Performance impact | None |
+| Priority suggestion | High once the proof is decided |
+| Recommended timing | After the step-up decision |
+| Status | PROPOSED |
+| Related GitHub Issue | [#10](https://github.com/xela-ash/Music_app/issues/10) |
+| Related PR | The MVP-008 pull request |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2172,3 +2202,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
+| 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. `ENG-IMP-068` through `ENG-IMP-083` stay reserved by unmerged pull requests. | Engineering |
