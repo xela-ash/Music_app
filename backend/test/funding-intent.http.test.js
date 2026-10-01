@@ -564,6 +564,20 @@ describe("MVP-024 funding intent", { concurrency: 1, timeout: 30000 }, () => {
       ]);
 
       await otherClient.query("BEGIN");
+      await otherClient.query("SELECT set_config('musicapp.ledger_posting', 'on', true)");
+      await otherClient.query(
+        `UPDATE escrows
+         SET status = 'cancelled', cancelled_at = clock_timestamp()
+         WHERE id = $1`,
+        [replacement.rows[0].id]
+      );
+      await assert.rejects(
+        otherClient.query("COMMIT"),
+        /a cancelled escrow cannot keep an active allocation/
+      );
+      await otherClient.query("ROLLBACK");
+
+      await otherClient.query("BEGIN");
       const secondSnapshot = await otherClient.query(
         `INSERT INTO escrow_fee_snapshots (external_id, fee_lines, currency, currency_exponent)
          VALUES ('efs_abcdef0123456789abcd', '[]'::jsonb, 'INR', 2)
