@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.20.0 |
+| Version | 0.20.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -855,6 +855,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-029 / GitHub issue #31 | An internal refund instruction posts `refunded_to_buyer` and rejects any amount that would make cumulative refunds exceed captured funding. No payment, no `refund_paid`, and no product `funded` transition. | Escrow, testing | None | None | None | `REQ-ESCROW-010`, `BR-ESCROW-011`, `BR-ESCROW-017`, `BR-ESCROW-018`, `INT-ESCROW-008`, `AUD-ESCROW-004` | `backend/test/refund-rules.test.js`, `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-065`, `ENG-IMP-066` | The MVP-029 pull request | The MVP-029 commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
+| 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
 
 ## 8. Version history
 
@@ -895,3 +896,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.19.0 | 2026-10-01 | Recorded MVP-029: internal refund execution against captured funding, and EDR-021. Sections 4.3, 4.13, 4.20, and 4.22. | Engineering |
 | 0.19.1 | 2026-10-01 | Recorded the MVP-029 review repair: E05 closure also writes `AUD-ESCROW-002`. | Engineering |
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
+| 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |

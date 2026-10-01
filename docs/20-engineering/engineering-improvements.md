@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.26 |
+| Version | 0.7.27 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2041,6 +2041,66 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-084 Unused direct-insert repository functions remain
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-084 |
+| Title | Unused direct-insert repository functions remain |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-005 independent review |
+| Category | Users and profiles |
+| Affected subsystem | Users, profiles |
+| Current state | `users/repository.js` `insertUser` and `profiles/repository.js` `insertProfile` are exported and have no production caller. Signup uses `insertActiveUser` and `insertSignupProfile`. |
+| Evidence / problem | `insertUser` still accepts a caller-supplied status. `insertProfile` still accepts a caller-supplied `user_id`. No route passes a request body to either function after MVP-005. |
+| Suggested improvement | Remove the unused exports when a later cleanup is authorized, or keep them only if a specified internal caller needs them. |
+| Expected benefit | The client-status and client-owner insert helpers are not left as unused bypass-shaped functions. |
+| Risk of doing nothing | No HTTP route calls them. A later caller could reuse the client-supplied status or owner parameters. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the cleanup. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None while unused |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later users/profiles cleanup |
+| Status | PROPOSED |
+| Related GitHub Issue | [#7](https://github.com/xela-ash/Music_app/issues/7) |
+| Related PR | [#104](https://github.com/xela-ash/music_app/pull/104) |
+| Resolution | — |
+
+### ENG-IMP-085 ENG-IMP-007 still names the removed creation routes
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-085 |
+| Title | ENG-IMP-007 still names the removed creation routes |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-005 independent review |
+| Category | Documentation |
+| Affected subsystem | Engineering improvements register |
+| Current state | `ENG-IMP-007` describes `POST /users` and `POST /profiles` as live PostgreSQL error mappings. Those routes are removed. The cross-reference table already records the removal. |
+| Evidence / problem | The error-handler finding itself is unchanged. The route names in that entry's current-state field are historical. |
+| Suggested improvement | When `ENG-IMP-007` is next edited, name a route that still exists as the malformed-JSON example. |
+| Expected benefit | The register does not imply the removed routes are still mounted. |
+| Risk of doing nothing | A reader of `ENG-IMP-007` alone can think the legacy routes still map database errors. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize an edit of `ENG-IMP-007`. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With any later error-handler work |
+| Status | PROPOSED |
+| Related GitHub Issue | [#7](https://github.com/xela-ash/Music_app/issues/7) |
+| Related PR | [#104](https://github.com/xela-ash/music_app/pull/104) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2111,3 +2171,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.24 | 2026-10-01 | Added `ENG-IMP-065` and `ENG-IMP-066` (both PROPOSED) from MVP-029. Neither is authorized. | Engineering |
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
+| 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
