@@ -36,6 +36,7 @@ const NOTIFICATION_MARK_READ = "notification.mark_read";
 const CONVERSATION_READ = "conversation.read";
 const CONVERSATION_SEND = "conversation.send";
 const MESSAGE_TOMBSTONE = "message.tombstone";
+const ASSET_UPLOAD = "asset.upload";
 
 function participantWhereSql(alias) {
   return `${alias}.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = ${alias}.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')`;
@@ -170,6 +171,25 @@ function authorizeTombstone(actor, resource) {
   return allow();
 }
 
+function authorizeAssetUpload(actor, resource) {
+  if (!resource) {
+    return deny(404, "Project not found");
+  }
+  if (resource.binding === "profile") {
+    if (!resource.profileId || resource.profileUserId !== actor.id) {
+      return deny(404, "Profile not found");
+    }
+    return allow({ profileId: resource.profileId });
+  }
+  if (resource.binding === "project") {
+    if (resource.buyerUserId !== actor.id && resource.activeSellerUserId !== actor.id) {
+      return deny(404, "Project not found");
+    }
+    return allow({ projectId: resource.projectId });
+  }
+  return deny(404, "Project not found");
+}
+
 function authorize(actor, action, resource) {
   const id = actorId(actor);
   if (!id) {
@@ -210,6 +230,9 @@ function authorize(actor, action, resource) {
   if (action === MESSAGE_TOMBSTONE) {
     return authorizeTombstone(principal, resource);
   }
+  if (action === ASSET_UPLOAD) {
+    return authorizeAssetUpload(principal, resource);
+  }
   return deny(403, "Forbidden");
 }
 
@@ -228,6 +251,7 @@ module.exports = {
   CONVERSATION_READ,
   CONVERSATION_SEND,
   MESSAGE_TOMBSTONE,
+  ASSET_UPLOAD,
   participantWhereSql,
   authorize,
 };

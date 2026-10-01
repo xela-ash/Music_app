@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.20.1 |
+| Version | 0.21.0 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -81,7 +81,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | [Authorization](#46-authorization) | Partially Implemented (`authorize()` for existing project rules) | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
 | [Users, profiles, and discovery](#47-users-profiles-and-discovery) | Partially Implemented | [users.md](../02-users-roles-permissions/users.md), [profiles.md](../02-users-roles-permissions/profiles.md), [user-settings.md](../03-identity-profiles-verification/user-settings.md) |
 | [Identity verification](#48-identity-verification) | Schema Implemented | [verification.md](../03-identity-profiles-verification/verification.md) |
-| [Assets](#49-assets) | Not Implemented (placeholder columns only) | [assets-and-media.md](../03-identity-profiles-verification/assets-and-media.md) |
+| [Assets](#49-assets) | Partially Implemented (upload session and local adapter) | [assets-and-media.md](../03-identity-profiles-verification/assets-and-media.md) |
 | [Projects](#410-projects) | Partially Implemented | [projects.md](../05-projects-milestones/projects.md) |
 | [Milestones](#411-milestones) | Partially Implemented | [milestones.md](../05-projects-milestones/milestones.md) |
 | [Deliverables](#412-deliverables) | Not Implemented | [deliverables.md](../05-projects-milestones/deliverables.md) |
@@ -166,13 +166,13 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Field | Record |
 |---|---|
 | Canonical specification | [authorization.md](../02-users-roles-permissions/authorization.md), [roles.md](../02-users-roles-permissions/roles.md) |
-| Implementation status | Partially Implemented. `authorize()` decides project create, list, lock, seller invitation commands, in-app notification list, read, and mark-read, and conversation read, send, and tombstone. There are no roles tables. Invitation commands write `project_audit_events`. Notification commands write `notification_audit_events`. Messaging commands write `messaging_audit_events`. |
+| Implementation status | Partially Implemented. `authorize()` decides project create, list, lock, seller invitation commands, in-app notification list, read, and mark-read, conversation read, send, and tombstone, and `asset.upload`. There are no roles tables. Invitation commands write `project_audit_events`. Notification commands write `notification_audit_events`. Messaging commands write `messaging_audit_events`. Asset commands write `asset_audit_events`. |
 | Entry points | `backend/src/authorization/authorize.js`. `createProject` and `listProjects` call it. `lockMilestones` calls it after `SELECT … FOR UPDATE`. |
 | Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, all `/projects` routes, all `/notifications` routes, and the messaging routes under `/projects/:projectExternalId/messages`. Account status is enforced only in `requireAuth` (`BR-AUTHZ-005`). `project.create` denies self-dealing with `400` and an ineligible seller with `404`, and the inserted buyer is `obligations.buyerUserId`. `GET /projects` runs the participant `whereSql` from `authorize`: the buyer, or an active seller participant. `seller_user_id` alone is not access (`BR-AUTHZ-032`). Invite, withdraw, accept, decline, and review each have an action. A non-buyer invite and a non-invitee accept or decline return a concealing `404`. Invite no longer rejects a non-draft project before the idempotency store; the transition service rejects an unready proposal inside the handler. Propose, seek-seller, cancel, start, archive, and restore conceal a caller who is neither the buyer nor the active seller with `404`, then `commitTransition` checks the edge's actor. Lock-milestones is unchanged. `notification.list` returns `recipientUserId` and the list query is scoped to that user. Read and mark-read of another user's delivery, or of a missing id, return the same `404`. `conversation.read` and `conversation.send` allow the live Buyer or the active accepted Seller and conceal everyone else with `404`. `message.tombstone` allows only that message's sender; another live participant receives `403`. |
 | Known limitations | `GET /users` is unauthenticated (`SEC-AUTH-008`). `POST /users` and `POST /profiles` are removed (`SEC-001`). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). `POST /projects` still stores `seller_user_id` before acceptance (`ENG-IMP-032`). There are no role tables (MVP-008). An unknown action fails closed with `403`. |
 | Engineering decisions | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) |
 | Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule, including notification list, read, and mark-read, and conversation read, send, and tombstone). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. Notification HTTP coverage is in `backend/test/notifications.http.test.js`. Messaging HTTP coverage is in `backend/test/messages.http.test.js`. |
-| Last materially changed | MVP-005 (2026-10-01) |
+| Last materially changed | MVP-010 (2026-10-01) |
 
 ### 4.7 Users, profiles, and discovery
 
@@ -180,7 +180,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Canonical specification | [users.md](../02-users-roles-permissions/users.md), [profiles.md](../02-users-roles-permissions/profiles.md), [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace) (Marketplace) |
 | Implementation status | Partially Implemented |
-| Database tables | `users` (001: `user_status` enum `active`/`suspended`/`deleted`, `CITEXT` unique email, unique `phone_e164`, `users_email_or_phone_present`); `profiles` (002: one per user, `CITEXT` unique `handle`, `genres TEXT[]`, `profile_photo_asset_id UUID` without FK) |
+| Database tables | `users` (001: `user_status` enum `active`/`suspended`/`deleted`, `CITEXT` unique email, unique `phone_e164`, `users_email_or_phone_present`); `profiles` (002: one per user, `CITEXT` unique `handle`, `genres TEXT[]`, `profile_photo_asset_id UUID` referencing `assets` as of migration 021) |
 | API routes | `GET /users` (unauthenticated list), `GET /profiles` (authenticated, explicit columns excluding `dob`, server-side search, newest-first page of at most 100). `POST /users` and `POST /profiles` are removed. `POST /auth/signup` creates the user, profile, and credential. |
 | Frontend components | `DiscoverScreen` (sends the search box to `GET /profiles` as `name`, `handle`, `genre`, `city`, and `country`), `ProfileCard`, `ProfileDetailScreen` (shows initials when no photo is set) |
 | Known limitations | No profile edit or settings routes. Profile visibility and lifecycle columns do not exist, so search cannot yet scope to public active Profiles (`REQ-PROFILE-005`). Signup returns `RETURNING *`. Leading-wildcard search has no index (`ENG-IMP-030`). Supplied search dimensions are OR-combined (`ENG-IMP-031`). `GET /users` stays unauthenticated (`SEC-AUTH-008`). |
@@ -201,10 +201,16 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 
 | Field | Record |
 |---|---|
-| Canonical specification | [assets-and-media.md](../03-identity-profiles-verification/assets-and-media.md) |
-| Implementation status | Not Implemented. No `assets` table, upload route, storage adapter, or file handling. |
-| What exists | Two placeholder UUID columns waiting for the `assets` table: `profiles.profile_photo_asset_id` and `verification_documents.asset_id` (migration comments: "FK to assets(id) will be added after assets table exists") |
-| Next | MVP-010, MVP-011 |
+| Canonical specification | [assets-and-media.md](../03-identity-profiles-verification/assets-and-media.md) §7.3, §11–§15 |
+| Implementation status | Partially Implemented. Upload sessions, a provider-neutral local adapter, a Cloudflare R2 adapter, validation, and a mock scan can make an original `Ready` on the local adapter. Retention, delivery, and live R2 verification are not built. |
+| Database tables | `assets`, `asset_upload_sessions`, `asset_storage_objects`, `asset_variants`, `asset_project_bindings`, and append-only `asset_audit_events` (021). `profiles.profile_photo_asset_id` and `verification_documents.asset_id` now reference `assets` with `ON DELETE RESTRICT`. The migration refuses to add those foreign keys when unresolved values already exist. |
+| API routes | `POST /asset-upload-sessions`, `PUT /asset-upload-sessions/:id/content`, `PUT /asset-upload-sessions/:id/parts/:partNumber`, `POST /asset-upload-sessions/:id/parts/:partNumber/grant`, `POST /asset-upload-sessions/:id/complete`, `GET /asset-upload-sessions/:id` |
+| How it works | The server stamps the §7.3 byte maximum for the purpose. `1 MB` is `1000000` bytes and `1 GB` is `1000000000` bytes. A declared or observed size equal to the maximum is accepted. One byte over is `413`. Profile Avatar and Profile cover use server-mediated streaming and a `20000000` byte maximum. The other approved purposes use multipart upload. Automated tests use the local adapter, which accepts part bytes on the API and does not parse them as JSON. `ASSET_STORAGE_PROVIDER=r2` selects Cloudflare R2 Standard. That adapter refuses a file body and returns a presigned part URL from the grant route. Missing `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, or `R2_BUCKET` makes create return `503`. There is no audio or video duration ceiling. Raster pixel count is `width × height`; `25000000` is accepted and `25000001` is rejected. An image whose dimensions cannot be verified does not become `Ready`. Project sessions reserve `declared_size_bytes` against the `50000000000` byte Project quota. Profile bytes are not part of that quota. A total equal to the quota is accepted. One byte over is `429`. `asset.upload` re-reads the live profile owner or the live buyer or active seller. An unrelated caller gets `404`. Storage keys are opaque. The mock scanner is not a selected product scanner. A suspicious or failed scan quarantines the Asset. `AUD-ASSET-001` and an outbox row are written in the same transaction. Nothing dispatches the outbox. Live R2 calls are not part of the test suite. |
+| Known limitations | Session duration, rate, and concurrency numbers remain open. With `ASSET_UPLOAD_SESSION_TTL_SECONDS` unset, create returns `503` (`ENG-IMP-068`). HEIC dimensions, full raster decode, EXIF stripping, and archive expansion limits are not implemented (`ENG-IMP-069`). The local adapter refuses part numbers above `10000` as an inode guard, not a product quota (`ENG-IMP-070`). Portfolio, verification, message, dispute, organization, and export purposes stay non-uploadable. DAW archives are stored opaquely and are not extracted. |
+| Engineering decisions | [EDR-022](#edr-022-local-mock-storage-decimal-byte-limits-and-cloudflare-r2) |
+| Tests | `backend/test/asset-limits.test.js`, `backend/test/asset-storage.test.js`, `backend/test/asset-ingest.http.test.js`, `backend/test/asset-constraints.test.js` |
+| Last materially changed | MVP-010 (2026-10-01) |
+| Next | MVP-011, after a human merges this EXTERNAL-DEPENDENCY item |
 
 ### 4.10 Projects
 
@@ -764,6 +770,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | The MVP-029 commit on `cursor/mvp-029-refund-execution-255b` |
 | Status | ACTIVE |
 
+### EDR-022 Local mock storage, decimal byte limits, and Cloudflare R2
+
+| Field | Value |
+|---|---|
+| ID | EDR-022 |
+| Date | 2026-10-01 |
+| Issue | MVP-010 / GitHub issue #12 |
+| Decision | Store upload bytes through a provider-neutral adapter. Automated tests use the local adapter. `ASSET_STORAGE_PROVIDER=r2` selects Cloudflare R2 Standard. Byte limits use decimal SI units from Assets §7.3. |
+| Context | Assets §7.3, §11, and §15. `INT-ASSET-006`, `BR-ASSET-019`, `REQ-ASSET-001`, `REQ-ASSET-002`, `REQ-ASSET-004`, `BR-ASSET-001`, `BR-ASSET-002`, `BR-ASSET-003`, `SEC-ASSET-001`, `SEC-ASSET-003`, `SEC-ASSET-011`, and `AUD-ASSET-001`. Product confirmed the byte, pixel, duration, and Project-quota limits, and selected Cloudflare R2 Standard, on 2026-10-01. Session TTL, rate, concurrency, page limits, and the scanner remain open. |
+| Options considered | (1) Buffer multi-GB bodies in `express.json()`. §7.3 forbids routing those objects through the application as a buffered body. (2) Pick IEC mebibytes. The decision defines `1 MB` as `1000000` bytes and `1 GB` as `1000000000` bytes. (3) Invent a session TTL, a duration ceiling, or a production scanner. Those questions stay open. (4) Call R2 from the test suite. Credentials are not in the repository. (5) Chosen: local adapter for tests, an R2 adapter that fails closed without credentials and presigns part URLs when configured, and SHA-256 as the temporary strong digest. |
+| Chosen approach | Migration `021` adds the asset, session, storage-object, variant, project-binding, and append-only audit tables. It refuses to add the profile and verification foreign keys when unresolved values already exist. Create reserves the purpose maximum and the Project quota, then stores an opaque key. Profile purposes stream one part through the API. Larger purposes on the local adapter do the same with an explicit part number, because the mock has no separate network endpoint. The R2 adapter's `writePart` refuses the body. Its grant route returns a presigned PUT that does not include the secret. Completion hashes the assembled local object, checks the prefix, and runs the mock scanner. A suspicious or thrown scan becomes `Quarantined`. `ASSET_UPLOAD_SESSION_TTL_SECONDS` must be a positive integer or create returns `503`. |
+| Why | The acceptance criterion is that an uploaded file becomes a Ready Asset version after scan and validation, proved with the local adapter. The same adapter boundary is what lets R2 replace that store without a second asset model. |
+| Trade-offs | The local multipart path still receives bytes on the API. That is the deterministic test path, not the production large-object path. R2 completion does not yet download the object back through the application to scan it (`ENG-IMP-071`). There is no full raster decode, no HEIC dimension parser, and no EXIF strip (`ENG-IMP-069`). The local part cap of `10000` is an inode guard (`ENG-IMP-070`). The `3600` second value in tests is fixture configuration, not a product TTL (`ENG-IMP-068`). |
+| Affected components | `backend/db/021_assets_ingest.sql`, `backend/src/assets/`, `backend/src/authorization/authorize.js`, `backend/Index.js`, `backend/test/asset-limits.test.js`, `backend/test/asset-storage.test.js`, `backend/test/asset-ingest.http.test.js`, `backend/test/asset-constraints.test.js` |
+| Reversal / migration considerations | The migration adds tables and `RESTRICT` foreign keys. It does not delete rows. Dropping the ready-asset or audit triggers would let a writer rewrite a Ready object or an audit row. A later provider must keep the same locator columns. |
+| Related specification IDs | `REQ-ASSET-001`, `REQ-ASSET-002`, `REQ-ASSET-004`, `BR-ASSET-001`, `BR-ASSET-002`, `BR-ASSET-003`, `BR-ASSET-010`, `BR-ASSET-011`, `BR-ASSET-012`, `BR-ASSET-013`, `BR-ASSET-019`, `SEC-ASSET-001`, `SEC-ASSET-003`, `SEC-ASSET-006`, `SEC-ASSET-011`, `AUD-ASSET-001`, `INT-ASSET-001`, `INT-ASSET-002`, `INT-ASSET-006`, `INT-ASSET-007` |
+| Related PR / commit | Branch `cursor/mvp-010-asset-ingest-255b` |
+| Status | ACTIVE |
+
 ### EDR-025 Remove the legacy creation routes
 
 | Field | Value |
@@ -806,6 +831,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-019](#edr-019-funding-intent-creates-the-escrow) | Funding intent creates the escrow | ACTIVE | 2026-10-01 |
 | [EDR-020](#edr-020-ledger-posting-is-internal-and-append-only) | Ledger posting is internal and append-only | ACTIVE | 2026-10-01 |
 | [EDR-021](#edr-021-refund-execution-is-an-internal-instruction) | Refund execution is an internal instruction | ACTIVE | 2026-10-01 |
+| [EDR-022](#edr-022-local-mock-storage-decimal-byte-limits-and-cloudflare-r2) | Local mock storage, decimal byte limits, and Cloudflare R2 | ACTIVE | 2026-10-01 |
 | [EDR-025](#edr-025-remove-the-legacy-creation-routes) | Remove the legacy creation routes | ACTIVE | 2026-10-01 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
@@ -856,6 +882,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
+| 2026-10-01 | MVP-010 / GitHub issue #12 | Upload sessions enforce the §7.3 decimal limits, pixel cap, and Project quota, then a mock scan can mark the local object Ready. Cloudflare R2 is the selected production adapter and fails closed without credentials. | Assets, authorization, database, testing | 021 | Upload-session create, content, part, grant, complete, and read | None | `SEC-ASSET-001`, `SEC-ASSET-003`, `SEC-ASSET-011`, `AUD-ASSET-001` | `backend/test/asset-limits.test.js`, `backend/test/asset-storage.test.js`, `backend/test/asset-ingest.http.test.js`, `backend/test/asset-constraints.test.js` | EDR-022 | `ENG-IMP-068`, `ENG-IMP-069`, `ENG-IMP-070`, `ENG-IMP-071` | The MVP-010 pull request | The MVP-010 commit on `cursor/mvp-010-asset-ingest-255b` |
 
 ## 8. Version history
 
@@ -897,3 +924,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.19.1 | 2026-10-01 | Recorded the MVP-029 review repair: E05 closure also writes `AUD-ESCROW-002`. | Engineering |
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
 | 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |
+| 0.21.0 | 2026-10-01 | Recorded MVP-010: asset upload sessions, decimal §7.3 limits, the local adapter, the Cloudflare R2 adapter, and EDR-022. Sections 4.6, 4.7, and 4.9. | Engineering |

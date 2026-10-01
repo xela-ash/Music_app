@@ -9,6 +9,7 @@ const projectsRouter = require("./src/projects/routes");
 const milestonesRouter = require("./src/milestones/routes");
 const notificationsRouter = require("./src/notifications/routes");
 const messagingRouter = require("./src/messaging/routes");
+const assetsRouter = require("./src/assets/routes");
 
 const app = express();
 app.use(cors());
@@ -35,6 +36,7 @@ app.use(projectsRouter);
 app.use(milestonesRouter);
 app.use(notificationsRouter);
 app.use(messagingRouter);
+app.use(assetsRouter);
 
 if (require.main === module) {
   const PORT = 4000;
