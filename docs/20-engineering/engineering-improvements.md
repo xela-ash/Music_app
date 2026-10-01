@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.28 |
+| Version | 0.7.29 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2068,7 +2068,97 @@ Copy this template for each new entry:
 | Recommended timing | With a seller acceptance disclosure surface |
 | Status | PROPOSED |
 | Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
-| Related PR | The MVP-027 pull request |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-076 Commission helper repeats the snapshot rate
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-076 |
+| Title | Commission helper repeats the snapshot rate |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | `sellerCommissionMinor` multiplies by a hardcoded `1000n`. `FEE_LINES[0].rate_bps` is also `1000`. |
+| Evidence / problem | The two constants match the recorded schedule today. A later edit could change one and leave the other. |
+| Suggested improvement | Read the seller-commission basis points from the snapshotted line when a release item computes the fee. |
+| Expected benefit | The posted fee cannot drift from the row the escrow references. |
+| Risk of doing nothing | Both values are `1000` on schedule `2026-10-01`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The release item that posts the commission. This entry does not authorize that posting. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With MVP-028 |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-077 Fee-snapshot immutability test does not delete
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-077 |
+| Title | Fee-snapshot immutability test does not delete |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Testing |
+| Affected subsystem | Escrow |
+| Current state | `funding-intent.http.test.js` rejects an `UPDATE` of `fee_lines`. It does not issue a `DELETE`. |
+| Evidence / problem | The same trigger function rejects both. The test proves the update path only. |
+| Suggested improvement | Add a `DELETE` assertion next to the update assertion. |
+| Expected benefit | A trigger that stopped rejecting deletes would fail the suite. |
+| Risk of doing nothing | `DELETE` is still rejected by `escrow_fee_snapshots_no_delete`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the extra assertion by itself. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a later escrow test change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-078 Seller commission timing names release
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-078 |
+| Title | Seller commission timing names release |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | The seller line stores `timing: "release"` and `basis: "seller_award"`. |
+| Evidence / problem | Escrow §19.2 says the commission is taken at release or award. The funding-intent command does not post it. |
+| Suggested improvement | When the release item posts the commission, keep the basis as the seller award, including a dispute award that is not a milestone release. |
+| Expected benefit | A split award still uses the snapshotted 10% line. |
+| Risk of doing nothing | No commission is posted by this item. The basis already says `seller_award`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | MVP-028. This entry does not authorize a fee journal. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the release posting |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
 | Resolution | — |
 
 ### ENG-IMP-084 Unused direct-insert repository functions remain
@@ -2203,3 +2293,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-075` (PROPOSED): seller acceptance does not repeat the fee schedule. Not authorized. `ENG-IMP-068` through `ENG-IMP-074` remain on the unmerged MVP-010 branch. `ENG-IMP-084` and `ENG-IMP-085` are already on main. | Engineering |
+| 0.7.29 | 2026-10-01 | Added `ENG-IMP-076`, `ENG-IMP-077`, and `ENG-IMP-078` (all PROPOSED) from the MVP-027 review. None are authorized. | Engineering |

@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.21.0 |
+| Version | 0.21.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -724,7 +724,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Reversal / migration considerations | Dropping the projection trigger would let a writer set `funded` without a journal. Dropping the partial unique index would allow two active escrows. A later fee schedule can append lines to new snapshots; it must not update an existing `escrow_fee_snapshots` row. |
 | Related specification IDs | `REQ-ESCROW-002`, `REQ-ESCROW-003`, `REQ-ESCROW-004`, `REQ-ESCROW-005`, `BR-ESCROW-005`, `BR-ESCROW-006`, `BR-ESCROW-007`, `BR-ESCROW-010`, `BR-ESCROW-012`, `DATA-ESCROW-001`, `DATA-ESCROW-002`, `DATA-ESCROW-006`, `SEC-ESCROW-005`, `SEC-ESCROW-007`, `INT-ESCROW-001`, `AUD-ESCROW-001`, `EVT-ESCROW-001` |
 | Related PR / commit | [#92](https://github.com/xela-ash/music_app/pull/92) on `cursor/mvp-024-funding-intent-255b` |
-| Status | ACTIVE |
+| Status | ACTIVE for escrow creation from the agreed terms. The empty fee snapshot is superseded by [EDR-023](#edr-023-fee-schedule-is-snapshotted-at-funding-intent). |
 
 ### EDR-020 Ledger posting is internal and append-only
 
@@ -766,21 +766,22 @@ Write an EDR for a significant **implementation** decision that does not belong 
 
 ### EDR-023 Fee schedule is snapshotted at funding intent
 
-| Field | Record |
+| Field | Value |
 |---|---|
 | ID | EDR-023 |
-| Title | Fee schedule is snapshotted at funding intent |
-| Status | ACTIVE |
 | Date | 2026-10-01 |
 | Issue | MVP-027 / GitHub issue #29 |
 | Decision | The funding-intent command writes an immutable `escrow_fee_snapshots` row for schedule `2026-10-01`: seller commission `1000` basis points of the later seller award, buyer platform fee `0`, and activation fee `0`. Rounding is `(basis * rate_bps + 5000) / 10000`. The escrow stays `created`. No fee ledger entry is posted. |
 | Context | EQ1 is recorded. `REQ-ESCROW-015` requires the snapshot before funding and disclosure before funding. E02, the product `funded` transition, still needs a verified payment. Commission is earned at release, which MVP-028 owns. EDR-022 is reserved by the unmerged MVP-010 pull request. |
 | Options considered | (1) Leave `fee_lines` empty until a `funded` transition exists. The acceptance criterion is a referenced immutable snapshot, and the funding intent is the moment before funding. (2) Post `platform_fee` now. No seller award exists yet, and a fee journal would move money this item does not authorize. (3) Omit the zero buyer and activation lines. The recorded decision is that those fees are zero, so the snapshot says so. (4) Chosen: store the three lines, return them on the funding-intent response, and compute the commission only through `sellerCommissionMinor`. |
-| Consequences | A later schedule change does not alter this row. The trigger already rejects `UPDATE` and `DELETE`. Seller acceptance does not yet repeat the schedule (`ENG-IMP-075`). |
+| Chosen approach | `insertFeeSnapshot` writes `SCHEDULE_VERSION` and the three `FEE_LINES` in the same transaction as the escrow, `AUD-ESCROW-001`, and the outbox row. The response returns that snapshot. `sellerCommissionMinor` applies the Section 19.3 half-up formula and is not called by the funding-intent command. A non-200 result rolls the snapshot back. |
+| Why | The acceptance criterion is an immutable snapshot referenced by the escrow. Funding intent is the command that creates the escrow, and it is before capture. Storing the recorded zeros makes a later reader able to see that those fees are not charged. |
+| Trade-offs | Seller acceptance does not repeat the schedule (`ENG-IMP-075`). Acknowledgment timestamps stay null. The commission rate in `sellerCommissionMinor` is a second constant beside the snapshot line (`ENG-IMP-076`). The HTTP immutability test covers `UPDATE` and not `DELETE` (`ENG-IMP-077`). The seller line's `timing` is `release`; the basis is `seller_award` (`ENG-IMP-078`). No fee is posted. |
 | Affected components | `backend/src/escrow/fee-schedule.js`, `backend/src/escrow/service.js`, `backend/src/escrow/repository.js`, `backend/test/fee-schedule.test.js`, `backend/test/funding-intent.http.test.js` |
-| Reversal / migration considerations | No migration. The existing snapshot table and immutability trigger are sufficient. |
+| Reversal / migration considerations | No migration. The existing snapshot table and immutability trigger are sufficient. A later schedule change must insert a new snapshot for a new escrow and must not update this row. |
 | Related specification IDs | `REQ-ESCROW-015`, `BR-ESCROW-025`, `BR-ESCROW-026`, `DATA-ESCROW-006`, `AUD-ESCROW-001` |
-| Related PR / commit | The MVP-027 commit on `cursor/mvp-027-fee-schedule-255b` |
+| Related PR / commit | [#101](https://github.com/xela-ash/music_app/pull/101) on `cursor/mvp-027-fee-schedule-255b` |
+| Status | ACTIVE |
 
 ### EDR-025 Remove the legacy creation routes
 
@@ -875,7 +876,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
-| 2026-10-01 | MVP-027 / GitHub issue #29 | Funding intent snapshots schedule `2026-10-01`: 10% seller commission, 0 buyer fee, and 0 activation fee. The row is immutable. No fee journal and no `funded` transition. | Escrow, testing | None | `POST /projects/:projectId/funding-intent` returns the snapshot | None | `REQ-ESCROW-015`, `BR-ESCROW-025`, `BR-ESCROW-026`, `DATA-ESCROW-006`, `AUD-ESCROW-001` | `backend/test/fee-schedule.test.js`, `backend/test/funding-intent.http.test.js` | EDR-023 | `ENG-IMP-075` | The MVP-027 pull request | The MVP-027 commit on `cursor/mvp-027-fee-schedule-255b` |
+| 2026-10-01 | MVP-027 / GitHub issue #29 | Funding intent snapshots schedule `2026-10-01`: 10% seller commission, 0 buyer fee, and 0 activation fee. The row is immutable. No fee journal and no `funded` transition. | Escrow, testing | None | `POST /projects/:projectId/funding-intent` returns the snapshot | None | `REQ-ESCROW-015`, `BR-ESCROW-025`, `BR-ESCROW-026`, `DATA-ESCROW-006`, `AUD-ESCROW-001` | `backend/test/fee-schedule.test.js`, `backend/test/funding-intent.http.test.js` | EDR-023 | `ENG-IMP-075` | [#101](https://github.com/xela-ash/music_app/pull/101) | `151303e` on `cursor/mvp-027-fee-schedule-255b` |
 
 ## 8. Version history
 
@@ -918,3 +919,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
 | 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.21.0 | 2026-10-01 | Recorded MVP-027: the funding-intent fee snapshot and EDR-023. Section 4.13. | Engineering |
+| 0.21.1 | 2026-10-01 | Recorded the MVP-027 review: EDR-023 uses the Section 6.2 fields, EDR-019's empty snapshot is superseded by EDR-023, and `ENG-IMP-076` through `ENG-IMP-078` stay proposed. No application behavior changed. | Engineering |
