@@ -61,4 +61,5 @@ function parseMajorToMinor(input, exponent) {
 module.exports = {
   formatAmount,
   parseMajorToMinor,
+  toMinorBigInt,
 };

@@ -60,9 +60,36 @@ function ensureMigrated() {
 }
 
 async function resetApplicationData() {
-  await pool.query(
-    `TRUNCATE TABLE ${APPLICATION_TABLES.join(", ")} RESTART IDENTITY CASCADE`
+  // escrow_ledger rejects UPDATE, DELETE, and TRUNCATE for the application
+  // role. The cluster superuser resets fixtures with session_replication_role
+  // so that trigger does not fire. The application pool never sets that role.
+  const sql = `TRUNCATE TABLE ${APPLICATION_TABLES.join(", ")} RESTART IDENTITY CASCADE`;
+  const result = spawnSync(
+    "sudo",
+    [
+      "-u",
+      "postgres",
+      "psql",
+      "-p",
+      String(process.env.DB_PORT),
+      "-d",
+      process.env.DB_NAME,
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      "SET session_replication_role = replica",
+      "-c",
+      sql,
+      "-c",
+      "SET session_replication_role = origin",
+    ],
+    { encoding: "utf8" }
   );
+  if (result.status !== 0) {
+    throw new Error(
+      `Fixture reset failed (status ${result.status}).\n${result.stdout || ""}\n${result.stderr || ""}`
+    );
+  }
 }
 
 function startServer() {

@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.21 |
+| Version | 0.7.23 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1861,6 +1861,96 @@ Copy this template for each new entry:
 | Related PR | [#92](https://github.com/xela-ash/music_app/pull/92) |
 | Resolution | — |
 
+### ENG-IMP-062 The application role owns the ledger table
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-062 |
+| Title | The application role owns the ledger table |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-026 implementation |
+| Category | Security |
+| Affected subsystem | Escrow |
+| Current state | Migration `020` revokes `UPDATE`, `DELETE`, and `TRUNCATE` on `escrow_ledger` from `PUBLIC` and from `musicapp`. Triggers reject those statements as well. `musicapp` still owns the table, runs migrations, and serves the API. |
+| Evidence / problem | Escrow §13.4 asks for an application role with `INSERT` and `SELECT` only. An owner can grant the revoked privileges back or disable the trigger. The repository has one database role for migrations and the application. |
+| Suggested improvement | Introduce a non-owner application role that cannot alter `escrow_ledger`, and keep ownership with the migration role. |
+| Expected benefit | A compromised application credential cannot disable the append-only trigger. |
+| Risk of doing nothing | The trigger still rejects `UPDATE`, `DELETE`, and `TRUNCATE` for the current role unless that role first disables the trigger. |
+| Implementation risk | Medium. Every connection string and the test fixture would change. |
+| Estimated scope | M |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | Role and grant changes. No ledger rewrite. |
+| Security impact | Closes the remaining owner path in `SEC-ESCROW-001`. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before a production financial deployment |
+| Status | PROPOSED |
+| Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
+| Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
+| Resolution | — |
+
+### ENG-IMP-063 The ledger poster does not write allocation projections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-063 |
+| Title | The ledger poster does not write allocation projections |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-026 independent review |
+| Category | Database |
+| Affected subsystem | Escrow |
+| Current state | `postJournal` rewrites `escrows.funded_amount`, `released_amount`, and `refunded_amount` from the ledger. The deferred check also requires each allocation's `funded_amount`, `released_amount`, and `refunded_amount` to match that allocation's ledger net. The service does not update those allocation columns. |
+| Evidence / problem | A journal that changes an allocation net aborts at commit with `allocation projections must equal the ledger`. Escrow and allocation projections cannot drift. A later funding journal that posts `allocated_to_milestone` has to update the allocation rows in the same transaction. |
+| Suggested improvement | When a later item posts an allocation movement, write the allocation projections from the same ledger sums inside `postJournal` before commit. |
+| Expected benefit | E02 and release journals can commit through the one poster. |
+| Risk of doing nothing | Today's net-zero journals do not touch allocations, so they commit. A later caller that forgets the allocation update cannot commit a drifting total. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A later item that posts an allocation movement. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None. The deferred check still rejects drift. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the first journal that moves an allocation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
+| Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
+| Resolution | — |
+
+### ENG-IMP-064 The created-escrow guard watches only three projections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-064 |
+| Title | The created-escrow guard watches only three projections |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-026 independent review |
+| Category | Security |
+| Affected subsystem | Escrow |
+| Current state | `postJournal` rejects a `created` escrow journal whose funded, released, or refunded projection would become nonzero. `projectionDelta` does not include `adjustment`, `chargeback`, `payout_initiated`, `payout_paid`, `refund_paid`, or a fee whose source is `EXTERNAL_BUYER`. `reverses_entry_id` is not required to reference the same escrow. |
+| Evidence / problem | An adjustment can leave a balance in an account while `funded_amount` stays 0. Escrow §9.1 and §10.1 define confirmed funds as those three projections, so this does not leave a `created` escrow holding confirmed funds. |
+| Suggested improvement | When a later command posts those entry types, require the verified fact that §13.2 names for the type, and require `reverses_entry_id` to belong to the same escrow. |
+| Expected benefit | Account movements that are not confirmed-fund projections still wait for their own authorizing fact. |
+| Risk of doing nothing | The internal service can post a net-zero or non-projection entry. There is no HTTP route. A `created` escrow still cannot show a nonzero funded, released, or refunded total. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The command that is allowed to post that entry type. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None beyond the disclosed internal service. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the first command that posts an adjustment, chargeback, payout, or buyer-sourced fee |
+| Status | PROPOSED |
+| Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
+| Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1875,8 +1965,8 @@ The initial review confirmed the following gaps in the code. Each is already own
 | JWT in `localStorage` | `SEC-USERS-005`; [Authentication §19.3](../02-users-roles-permissions/authentication.md#193-browser-token-delivery--target-vs-current) |
 | `err.detail` echoed in error responses | [Authentication §22](../02-users-roles-permissions/authentication.md#22-failure-handling) |
 | `RETURNING *` returns full Profile rows | [Profiles](../02-users-roles-permissions/profiles.md) findings |
-| Escrow and allocation amounts are `BIGINT` minor units with `INR` exponent 2. `projects.price_amount`, `payments`, and `escrow_ledger` remain 32-bit. | `REQ-ESCROW-003`; `ENG-IMP-050`; MVP-026 owns the ledger |
-| `escrow_ledger` not append-only; financial `ON DELETE CASCADE` | [Escrow §13](../06-payments-escrow/escrow.md#13-ledger-architecture), [§24](../06-payments-escrow/escrow.md#24-target-data-model); MVP-026 |
+| Escrow and allocation amounts are `BIGINT` minor units with `INR` exponent 2. `escrow_ledger` amounts are `BIGINT` minor units with `INR` exponent 2. `projects.price_amount` and `payments` remain 32-bit. | `REQ-ESCROW-003`; `ENG-IMP-050` |
+| `escrow_ledger` rejects `UPDATE`, `DELETE`, and `TRUNCATE`. Its foreign keys are `RESTRICT`. The application role still owns the table. | [Escrow §13](../06-payments-escrow/escrow.md#13-ledger-architecture); MVP-026; `ENG-IMP-062` |
 | No `updated_at` maintenance trigger | [Milestones §26](../05-projects-milestones/milestones.md#26-target-data-model), [Projects §26](../05-projects-milestones/projects.md#26-target-data-model) |
 | `GET /profiles` search is server-side and still paged at 100 rows. Public/active scoping is not applied because those columns do not exist. | [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace); MVP-013; `REQ-PROFILE-005` |
 | Only `console.*` logging, no structured observability | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps); target practice in [Handbook §15](engineering-handbook.md#15-observability) |
@@ -1926,3 +2016,5 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.19 | 2026-10-01 | Added `ENG-IMP-055` through `ENG-IMP-059` (all PROPOSED) from the MVP-018 review. None are authorized. | Engineering |
 | 0.7.20 | 2026-10-01 | Added `ENG-IMP-060` (PROPOSED) from the MVP-019 review: the concurrent start test does not resubmit the losing key. Not authorized. | Engineering |
 | 0.7.21 | 2026-10-01 | Added `ENG-IMP-061` (PROPOSED) from the MVP-024 review: escrow audit rows keep amount and currency in the hash. Not authorized. The money cross-reference now records the BIGINT escrow columns. | Engineering |
+| 0.7.22 | 2026-10-01 | Added `ENG-IMP-062` (PROPOSED): the application role still owns `escrow_ledger`. Not authorized. The ledger cross-reference now records the append-only BIGINT journal. | Engineering |
+| 0.7.23 | 2026-10-01 | Added `ENG-IMP-063` and `ENG-IMP-064` (both PROPOSED) from the MVP-026 review. Neither is authorized. | Engineering |
