@@ -8,6 +8,7 @@ const {
   stopPool,
 } = require("./harness");
 const pool = require("../db/db");
+const { withMilestoneTerms } = require("./milestone-fixture");
 
 let baseUrl = "";
 let server;
@@ -104,7 +105,7 @@ describe("project invitation database constraints", { concurrency: 1, timeout: 3
         requirements: "Hold",
         price_amount: 100,
         delivery_days: 7,
-        milestones: [{ title: "Only", amount: 100, due_at: "2027-01-01T00:00:00.000Z" }],
+        milestones: [withMilestoneTerms({ title: "Only", amount: 100, due_at: "2027-01-01T00:00:00.000Z" })],
       },
     });
     assert.equal(created.status, 201, created.text);

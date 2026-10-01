@@ -9,6 +9,7 @@ const {
   stopPool,
 } = require("./harness");
 const pool = require("../db/db");
+const { withMilestoneTerms } = require("./milestone-fixture");
 const { findTransition, listedTargets } = require("../src/projects/transition-rules");
 const { commitTransition } = require("../src/projects/transition-service");
 const repository = require("../src/projects/transition-repository");
@@ -87,7 +88,7 @@ function projectBody(sellerUserId) {
     requirements: "Stems",
     price_amount: 100,
     delivery_days: 7,
-    milestones: [{ title: "Only", amount: 100, due_at: futureIso(30) }],
+    milestones: [withMilestoneTerms({ title: "Only", amount: 100, due_at: futureIso(30) })],
   };
 }
 
@@ -157,15 +158,48 @@ async function seedProject(buyerId, sellerId, from, to, edge) {
   );
   const projectId = created.rows[0].id;
   await pool.query(
-    `INSERT INTO project_milestones (external_id, project_id, milestone_no, title, amount, currency, due_at)
-     VALUES ($1, $2, 1, 'Only', 100, 'INR', clock_timestamp() + interval '30 days')`,
+    `INSERT INTO project_milestones (
+       external_id, project_id, milestone_no, title, amount, currency, currency_exponent,
+       due_at, revision_allowance, deliverable_definition
+     )
+     VALUES (
+       $1, $2, 1, 'Only', 100, 'INR', 2, clock_timestamp() + interval '30 days', 0,
+       '{"required_deliverables":["final_master_wav"],"other_description":null}'::jsonb
+     )`,
     [hexId("mls"), projectId]
   );
   if (needsProposal) {
     const proposal = await repository.insertProposalVersion(pool, projectId, hexId("ptv"));
+    const proposalVersion = proposal.rows[0].version_number;
     await pool.query(
       "UPDATE projects SET proposal_version = $2 WHERE id = $1",
-      [projectId, proposal.rows[0].version_number]
+      [projectId, proposalVersion]
+    );
+    const milestone = await pool.query(
+      "SELECT id, milestone_no, title, description, deliverable_definition, revision_allowance, amount, currency, currency_exponent, due_at FROM project_milestones WHERE project_id = $1",
+      [projectId]
+    );
+    const row = milestone.rows[0];
+    await repository.insertMilestoneSnapshot(pool, [
+      hexId("mtv"),
+      row.id,
+      proposalVersion,
+      "proposal",
+      row.milestone_no,
+      row.title,
+      row.description,
+      JSON.stringify(row.deliverable_definition),
+      row.revision_allowance,
+      row.amount,
+      row.currency,
+      row.currency_exponent,
+      row.due_at,
+    ]);
+    await pool.query(
+      `UPDATE project_milestones
+       SET terms_status = 'frozen', current_term_version = $2
+       WHERE project_id = $1`,
+      [projectId, proposalVersion]
     );
   }
   if (needsAgreed) {
@@ -340,7 +374,7 @@ describe("MVP-015 project term versions and state machine", { concurrency: 1, ti
       "SELECT event_type FROM project_audit_events WHERE project_id = $1",
       [project.id]
     );
-    assert.deepEqual(audits.rows.map((row) => row.event_type).sort(), ["AUD-PROJECTS-001", "AUD-PROJECTS-003"]);
+    assert.deepEqual(audits.rows.map((row) => row.event_type).sort(), ["AUD-PROJECTS-001", "AUD-PROJECTS-003", "AUD-PROJECTS-008"]);
     const outbox = await pool.query(
       "SELECT event_type FROM outbox_messages WHERE aggregate_id = $1 AND event_type = 'ProjectStateChanged'",
       [project.external_id]

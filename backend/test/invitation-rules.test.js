@@ -39,6 +39,12 @@ describe("proposal hash", () => {
       description: null,
       amount: 100,
       currency: "INR",
+      currency_exponent: 2,
+      deliverable_definition: {
+        required_deliverables: ["final_master_wav"],
+        other_description: null,
+      },
+      revision_allowance: 0,
       due_at: new Date("2026-10-02T00:00:00.000Z"),
     },
   ];

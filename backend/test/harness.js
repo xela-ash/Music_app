@@ -32,6 +32,7 @@ const APPLICATION_TABLES = [
   "project_term_versions",
   "project_participants",
   "project_invitations",
+  "milestone_term_versions",
   "project_milestones",
   "projects",
   "verification_documents",

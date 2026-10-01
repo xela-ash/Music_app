@@ -5,6 +5,8 @@ const { hashRequest } = require("../infrastructure/canonical-json");
 const { findTransition } = require("./transition-rules");
 const repository = require("./transition-repository");
 const invitations = require("./invitation-repository");
+const milestonesRepository = require("../milestones/repository");
+const { assertSnapshotReady } = require("../milestones/catalogue");
 const { authorize, PROJECT_LIST } = require("../authorization/authorize");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -98,7 +100,9 @@ async function preconditionFailure(client, project, edge, actor) {
       const aligned = row.milestone_count >= 1
         && row.deadlines_future === true
         && row.same_currency === true
+        && row.terms_complete === true
         && row.milestone_total === project.price_amount;
+      const milestones = await milestonesRepository.listMilestonesForProject(client, project.id);
       if (
         !project.title
         || !project.requirements
@@ -107,6 +111,7 @@ async function preconditionFailure(client, project, edge, actor) {
         || project.price_amount <= 0
         || project.delivery_days <= 0
         || !aligned
+        || !assertSnapshotReady(milestones.rows, project).ok
       ) {
         return notReady(edge.actions.includes("project.propose") ? 422 : 409);
       }
@@ -204,6 +209,58 @@ async function preconditionFailure(client, project, edge, actor) {
   return null;
 }
 
+async function captureMilestoneSnapshots(client, project, termVersion) {
+  const milestones = await repository.milestoneSnapshotRows(client, project.id);
+  if (milestones.rows.length === 0) {
+    return false;
+  }
+  for (const milestone of milestones.rows) {
+    await repository.insertMilestoneSnapshot(client, [
+      repository.makeMilestoneTermExternalId(),
+      milestone.id,
+      termVersion,
+      "proposal",
+      milestone.milestone_no,
+      milestone.title,
+      milestone.description,
+      JSON.stringify(milestone.deliverable_definition),
+      milestone.revision_allowance,
+      milestone.amount,
+      milestone.currency,
+      milestone.currency_exponent,
+      milestone.due_at,
+    ]);
+  }
+  const updated = await repository.setMilestoneTermsStatus(client, project.id, "draft", "frozen", termVersion);
+  return updated.rowCount === milestones.rows.length;
+}
+
+async function captureAgreedMilestoneSnapshots(client, project, proposalVersion, agreedVersion) {
+  const snapshots = await repository.proposalMilestoneSnapshots(client, project.id, proposalVersion);
+  if (snapshots.rows.length === 0) {
+    return false;
+  }
+  for (const snapshot of snapshots.rows) {
+    await repository.insertMilestoneSnapshot(client, [
+      repository.makeMilestoneTermExternalId(),
+      snapshot.milestone_id,
+      agreedVersion,
+      "agreed",
+      snapshot.milestone_no,
+      snapshot.title,
+      snapshot.description,
+      JSON.stringify(snapshot.deliverable_definition),
+      snapshot.revision_allowance,
+      snapshot.amount,
+      snapshot.currency,
+      snapshot.currency_exponent,
+      snapshot.due_at,
+    ]);
+  }
+  const updated = await repository.setMilestoneTermsStatus(client, project.id, "frozen", "agreed", agreedVersion);
+  return updated.rowCount === snapshots.rows.length;
+}
+
 async function commitTransition(client, { project, action, targetState, actorType, actorId, expectedVersion, facts, sourceFactId }) {
   const edge = findTransition(project.state, targetState, action);
   if (!edge) {
@@ -225,6 +282,10 @@ async function commitTransition(client, { project, action, targetState, actorTyp
     }
     termVersion = inserted.rows[0];
     proposalVersion = termVersion.version_number;
+    const captured = await captureMilestoneSnapshots(client, project, proposalVersion);
+    if (!captured) {
+      throw new Error("Milestone proposal snapshot was not captured");
+    }
   }
   if (edge.effect === "freeze_agreed") {
     const inserted = await repository.insertAgreedVersion(
@@ -238,6 +299,10 @@ async function commitTransition(client, { project, action, targetState, actorTyp
     }
     termVersion = inserted.rows[0];
     agreedTermVersion = termVersion.version_number;
+    const captured = await captureAgreedMilestoneSnapshots(client, project, project.proposal_version, agreedTermVersion);
+    if (!captured) {
+      throw new Error("Milestone agreed snapshot was not captured");
+    }
   }
 
   const resumeState = edge.effect === "save_resume" || edge.effect === "archive"
@@ -324,6 +389,33 @@ async function commitTransition(client, { project, action, targetState, actorTyp
       null,
       sourceFactId || null,
       versionHash,
+    ]);
+  }
+  if (edge.effect === "freeze_proposal" || edge.effect === "freeze_agreed") {
+    const termAuditVersion = edge.effect === "freeze_proposal" ? proposalVersion : agreedTermVersion;
+    const termAuditHash = hashRequest({
+      action: edge.effect === "freeze_proposal" ? "milestone_terms_frozen" : "milestone_terms_agreed",
+      currency: project.currency,
+      currency_exponent: project.currency_exponent,
+      plan_sum: project.price_amount,
+      term_version: termAuditVersion,
+    });
+    await invitations.insertAuditEvent(client, [
+      invitations.makeAuditExternalId(),
+      project.id,
+      "AUD-PROJECTS-008",
+      actorType,
+      actorId,
+      actorType === "system" ? "system" : "participant",
+      edge.effect === "freeze_proposal" ? "milestone_terms_frozen" : "milestone_terms_agreed",
+      "completed",
+      null,
+      edge.effect === "freeze_proposal" ? "draft" : "frozen",
+      edge.effect === "freeze_proposal" ? "frozen" : "agreed",
+      next.version,
+      null,
+      sourceFactId || null,
+      termAuditHash,
     ]);
   }
   await enqueueOutboxMessage(client, {

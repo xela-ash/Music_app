@@ -39,7 +39,8 @@ function lockProjectById(db, projectId) {
 
 function listMilestonesForHash(db, projectId) {
   return db.query(
-    `SELECT milestone_no, title, description, amount, currency, due_at
+    `SELECT milestone_no, title, description, deliverable_definition, revision_allowance,
+            amount, currency, currency_exponent, due_at
      FROM project_milestones
      WHERE project_id = $1
      ORDER BY milestone_no`,
