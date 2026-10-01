@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.14.1 |
+| Version | 0.14.2 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -722,6 +722,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-09-30 | MVP-016 review / GitHub issue #18 | `agreed_term_version` can only move forward to an existing agreed snapshot that matches the live commercial columns. A direct pointer retarget is rejected. | Projects, database, testing | 015 (function replaced before merge) | None | None | `BR-PROJECTS-017` | `backend/test/amendments.http.test.js` | EDR-015 | `ENG-IMP-047`, `ENG-IMP-048` | #84 | The review-repair commit on `cursor/mvp-016-project-amendments-255b` |
 | 2026-10-01 | MVP-017 / GitHub issue #19 | Proposal and acceptance each capture an immutable milestone snapshot. Amounts are integer minor units with an explicit exponent. Deliverables are catalogue selections. Revision allowance is an explicit nonnegative integer with no platform default. | Milestones, projects, database, frontend, testing | 016 | `POST /projects` requires `revision_allowance` and `deliverable_definition`. Propose and accept write milestone snapshots. Project responses include `currency_exponent`. | Create-project catalogue and revision dropdown. Amount display uses the stored exponent. | `REQ-PROJECTS-025`, `BR-PROJECTS-034`, `BR-PROJECTS-036`, `AUD-PROJECTS-008` | `backend/test/amount.test.js`, `backend/test/catalogue.test.js`, `backend/test/milestone-terms.http.test.js` | EDR-016 | `ENG-IMP-050`, `ENG-IMP-051` | Branch `cursor/mvp-017-milestone-term-versions-255b` | The MVP-017 commit on that branch |
 | 2026-10-01 | MVP-017 review / GitHub issue #19 | Agreed rows must have complete terms. A frozen historical row may not. Lock and a later draft-to-frozen update reject a missing allowance or catalogue selection. Acceptance of a proposal with no milestone snapshots returns 409 when the live terms are incomplete, and captures them when they are complete. A missing allowance stays null in the invitation hash. | Milestones, projects, database, testing | 017 | Lock of incomplete terms is `400`. Acceptance without a capturable snapshot is `409`. An incomplete proposal cannot be invited. | None | `BR-PROJECTS-034`, `BR-PROJECTS-036`, `DATA-PROJECTS-009` | `backend/test/milestone-terms.http.test.js`, `backend/test/invitation-rules.test.js` | EDR-016 | None | #86 | The review-repair commit on `cursor/mvp-017-milestone-term-versions-255b` |
+| 2026-10-01 | MVP-017 review record / GitHub issue #19 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-052`, `ENG-IMP-053` | #86 | The review-record commit on `cursor/mvp-017-milestone-term-versions-255b` |
 
 ## 8. Version history
 
@@ -750,3 +751,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.13.1 | 2026-09-30 | Recorded the MVP-016 review repair: the agreed-term pointer cannot be retargeted without a newer matching snapshot. | Engineering |
 | 0.14.0 | 2026-10-01 | Recorded MVP-017: milestone term snapshots, integer minor units, the deliverable catalogue, and explicit revision allowance. Sections 4.10 and 4.11, plus EDR-016. | Engineering |
 | 0.14.1 | 2026-10-01 | Recorded the MVP-017 review repair: migration 017, the agreed-only completeness check, and acceptance that does not invent a missing snapshot. | Engineering |
+| 0.14.2 | 2026-10-01 | Recorded the MVP-017 review's non-blocking improvements. No application behavior changed. | Engineering |
