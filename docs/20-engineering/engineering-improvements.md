@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.27 |
+| Version | 0.7.28 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2041,6 +2041,36 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-075 Seller acceptance does not repeat the fee schedule
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-075 |
+| Title | Seller acceptance does not repeat the fee schedule |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 implementation |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding intent returns schedule `2026-10-01` to the Buyer. Seller acceptance of a proposal does not include that schedule. `buyer_acknowledged_at` and `seller_acknowledged_at` stay null. |
+| Evidence / problem | Escrow §19.4 says the snapshot is disclosed to the Seller before acceptance. The 2026-10-01 decision requires disclosure before funding, which the funding-intent response does. Acceptance happens before that response exists, so this item does not invent a second disclosure surface. |
+| Suggested improvement | When a later item can show the recorded schedule on seller acceptance, store the seller acknowledgment time on the snapshot that funding then freezes. |
+| Expected benefit | The Seller sees the same immutable lines before agreeing to the Project. |
+| Risk of doing nothing | The Buyer still receives the snapshot before funding. The Seller does not see it on the acceptance response. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A seller-facing acceptance response that can carry the schedule. This entry does not authorize that response. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a seller acceptance disclosure surface |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | The MVP-027 pull request |
+| Resolution | — |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2172,3 +2202,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
+| 0.7.28 | 2026-10-01 | Added `ENG-IMP-075` (PROPOSED): seller acceptance does not repeat the fee schedule. Not authorized. `ENG-IMP-068` through `ENG-IMP-074` remain on the unmerged MVP-010 branch. `ENG-IMP-084` and `ENG-IMP-085` are already on main. | Engineering |

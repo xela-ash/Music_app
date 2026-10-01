@@ -53,7 +53,7 @@ function insertFeeSnapshot(db, values) {
     `INSERT INTO escrow_fee_snapshots (
        external_id, schedule_version, fee_lines, currency, currency_exponent
      )
-     VALUES ($1, NULL, '[]'::jsonb, $2, $3)
+     VALUES ($1, $2, $3::jsonb, $4, $5)
      RETURNING id, external_id, schedule_version, fee_lines, currency, currency_exponent`,
     values
   );
