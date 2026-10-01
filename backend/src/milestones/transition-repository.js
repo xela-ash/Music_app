@@ -56,10 +56,20 @@ function activeSeller(db, projectId) {
 
 function predecessorStates(db, projectId, milestoneNo) {
   return db.query(
-    `SELECT state
+    `SELECT external_id, milestone_no, state
      FROM project_milestones
-     WHERE project_id = $1 AND milestone_no < $2`,
+     WHERE project_id = $1 AND milestone_no < $2
+     ORDER BY milestone_no`,
     [projectId, milestoneNo]
+  );
+}
+
+function actorAccountStatus(db, userId) {
+  return db.query(
+    `SELECT status
+     FROM users
+     WHERE id = $1`,
+    [userId]
   );
 }
 
@@ -234,6 +244,7 @@ function recordCreation(db, milestone, actorId) {
 module.exports = {
   activeSeller,
   activeSibling,
+  actorAccountStatus,
   answerOpenRevision,
   applyState,
   approvalCount,

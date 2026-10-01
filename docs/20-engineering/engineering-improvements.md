@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.19 |
+| Version | 0.7.20 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1801,6 +1801,36 @@ Copy this template for each new entry:
 | Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
 | Resolution | — |
 
+### ENG-IMP-060 The concurrent start test does not resubmit the losing key
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-060 |
+| Title | The concurrent start test does not resubmit the losing key |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-019 independent review |
+| Category | Testing |
+| Affected subsystem | Milestones |
+| Current state | Two parallel `milestone.start` commands on one milestone produce one `200` and one `409`, and one start transition. The test does not send the losing idempotency key again. |
+| Evidence / problem | A `409` that had been committed with the key would still satisfy the current assertions. The service rolls the failed command back, so the key is not stored, but the test does not show the retry. |
+| Suggested improvement | After the race, resubmit the losing key with the current version and assert that start is rejected as stale or already in progress without a second transition. |
+| Expected benefit | The concurrency test would fail if a losing `409` consumed the idempotency key. |
+| Risk of doing nothing | The rollback path is implemented and covered by the single transition count. A future change could commit the `409` without this test noticing the key. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later milestone-command test pass |
+| Status | PROPOSED |
+| Related GitHub Issue | [#21](https://github.com/xela-ash/music_app/issues/21) |
+| Related PR | [#90](https://github.com/xela-ash/music_app/pull/90) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1864,3 +1894,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.17 | 2026-10-01 | Added `ENG-IMP-052` and `ENG-IMP-053` (both PROPOSED) from the MVP-017 review. Neither is authorized. | Engineering |
 | 0.7.18 | 2026-10-01 | Added `ENG-IMP-054` (PROPOSED): revision reason codes and the detail bound stay unspecified. Not authorized. | Engineering |
 | 0.7.19 | 2026-10-01 | Added `ENG-IMP-055` through `ENG-IMP-059` (all PROPOSED) from the MVP-018 review. None are authorized. | Engineering |
+| 0.7.20 | 2026-10-01 | Added `ENG-IMP-060` (PROPOSED) from the MVP-019 review: the concurrent start test does not resubmit the losing key. Not authorized. | Engineering |
