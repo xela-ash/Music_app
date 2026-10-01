@@ -2068,7 +2068,7 @@ Copy this template for each new entry:
 | Recommended timing | Before production Cashfree activation |
 | Status | PROPOSED |
 | Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
-| Related PR | The MVP-025 pull request |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
 | Resolution | — |
 
 ### ENG-IMP-080 Expired funding attempts are not cancelled by a clock
@@ -2098,7 +2098,7 @@ Copy this template for each new entry:
 | Recommended timing | If operations need expired rows to leave the open status without a new attempt |
 | Status | PROPOSED |
 | Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
-| Related PR | The MVP-025 pull request |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
 | Resolution | — |
 
 ### ENG-IMP-084 Unused direct-insert repository functions remain
