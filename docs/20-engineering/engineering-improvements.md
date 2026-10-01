@@ -1888,7 +1888,7 @@ Copy this template for each new entry:
 | Recommended timing | Before a production financial deployment |
 | Status | PROPOSED |
 | Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
-| Related PR | The MVP-026 pull request |
+| Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
