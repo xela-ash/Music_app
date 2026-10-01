@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { apiGet, apiPost } from "./api/api";
+import { DELIVERABLE_CATALOGUE, DELIVERABLE_GROUPS, deliverableLabel } from "./deliverableCatalogue";
+import { formatMoney, parseMajorToMinor } from "./money";
 import "./App.css";
 
 const TOKEN_KEY = "musicapp_token";
@@ -91,8 +93,9 @@ interface Project {
   seller_user_id: string;
   title: string;
   requirements: string;
-  price_amount: number; // integer minor units in `currency`, e.g. paise for INR, cents for USD
+  price_amount: number; // integer minor units; divide only by 10^currency_exponent
   currency: string;
+  currency_exponent: number;
   delivery_days: number;
   revision_limit: number;
   state: ProjectState;
@@ -122,10 +125,17 @@ interface ProjectMilestone {
   milestone_no: number;
   title: string;
   description: string | null;
-  amount: number; // integer minor units in `currency`, e.g. paise for INR, cents for USD
+  deliverable_definition: {
+    required_deliverables: string[];
+    other_description: string | null;
+  };
+  revision_allowance: number;
+  amount: number; // integer minor units; divide only by 10^currency_exponent
   currency: string;
+  currency_exponent: number;
   due_at: string | null;
   state: MilestoneState;
+  terms_status: "draft" | "frozen" | "agreed";
   created_at: string;
   updated_at: string;
 }
@@ -135,6 +145,11 @@ interface CreateProjectMilestonePayload {
   description: string | null;
   amount: number;
   due_at: string | null;
+  revision_allowance: number;
+  deliverable_definition: {
+    required_deliverables: string[];
+    other_description: string | null;
+  };
 }
 
 interface CreateProjectPayload {
@@ -1055,20 +1070,12 @@ const POSTGRES_INT_MAX = 2147483647;
 // create is stamped INR server-side, so the live summary and payload
 // semantics are always denominated in rupees here.
 const PROJECT_CURRENCY = "INR";
+// The server stamps INR projects with exponent 2. This constant matches that
+// stamp; it is not inferred from the currency code.
+const PROJECT_CURRENCY_EXPONENT = 2;
 
-// Converts a rupee major-unit string ("1500.5", "1500.50") to integer minor
-// units, i.e. paise (150050), using string/integer arithmetic only — no
-// floating-point multiplication, so there's no rounding drift for values
-// like 1500.1.
 function parseBudgetToMinorUnits(input: string): number | null {
-  const trimmed = input.trim();
-  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return null;
-
-  const [wholePart, fractionalPart = ""] = trimmed.split(".");
-  const cents = fractionalPart.padEnd(2, "0");
-  const minorUnits = Number(wholePart) * 100 + Number(cents);
-
-  return minorUnits > 0 ? minorUnits : null;
+  return parseMajorToMinor(input, PROJECT_CURRENCY_EXPONENT);
 }
 
 function parsePositiveInteger(input: string): number | null {
@@ -1093,10 +1100,38 @@ interface MilestoneFormRow {
   description: string;
   amountInput: string;
   dueDateInput: string; // "" or "YYYY-MM-DD" from <input type="date">
+  revisionChoice: string;
+  customRevision: string;
+  deliverables: string[];
+  otherDescription: string;
 }
 
 function makeEmptyMilestoneRow(): MilestoneFormRow {
-  return { key: crypto.randomUUID(), title: "", description: "", amountInput: "", dueDateInput: "" };
+  return {
+    key: crypto.randomUUID(),
+    title: "",
+    description: "",
+    amountInput: "",
+    dueDateInput: "",
+    revisionChoice: "",
+    customRevision: "",
+    deliverables: [],
+    otherDescription: "",
+  };
+}
+
+function revisionAllowanceFor(row: MilestoneFormRow): number | null {
+  if (row.revisionChoice === "") {
+    return null;
+  }
+  if (row.revisionChoice === "custom") {
+    const trimmed = row.customRevision.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      return null;
+    }
+    return Number(trimmed);
+  }
+  return Number(row.revisionChoice);
 }
 
 function CreateProjectScreen({
@@ -1186,11 +1221,31 @@ function CreateProjectScreen({
         setError("Amount exceeds the supported project limit.");
         return;
       }
+      const revisionAllowance = revisionAllowanceFor(row);
+      if (revisionAllowance === null || revisionAllowance > POSTGRES_INT_MAX) {
+        setError("Select a revision allowance for every milestone.");
+        return;
+      }
+      if (row.deliverables.length === 0) {
+        setError("Select at least one deliverable for every milestone.");
+        return;
+      }
+      if (row.deliverables.includes("other_agreed_deliverable") && !row.otherDescription.trim()) {
+        setError("Describe the Other Agreed Deliverable.");
+        return;
+      }
       preparedMilestones.push({
         title: row.title.trim(),
         description: row.description.trim() ? row.description.trim() : null,
         amount: milestoneAmount,
         due_at: row.dueDateInput.trim() ? row.dueDateInput.trim() : null,
+        revision_allowance: revisionAllowance,
+        deliverable_definition: {
+          required_deliverables: row.deliverables,
+          other_description: row.deliverables.includes("other_agreed_deliverable")
+            ? row.otherDescription.trim()
+            : null,
+        },
       });
     }
 
@@ -1347,6 +1402,70 @@ function CreateProjectScreen({
                 />
               </div>
 
+              <div className="form-field">
+                <label htmlFor={`milestone-revisions-${row.key}`}>Revision allowance</label>
+                <select
+                  id={`milestone-revisions-${row.key}`}
+                  value={row.revisionChoice}
+                  onChange={(e) => updateMilestoneRow(row.key, { revisionChoice: e.target.value })}
+                  required
+                >
+                  <option value="">Select revision allowance</option>
+                  <option value="0">0 — no included revisions</option>
+                  <option value="1">1 — one included revision</option>
+                  <option value="2">2 — two included revisions</option>
+                  <option value="3">3 — three included revisions</option>
+                  <option value="custom">Custom…</option>
+                </select>
+                {row.revisionChoice === "custom" ? (
+                  <input
+                    id={`milestone-revisions-custom-${row.key}`}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={row.customRevision}
+                    onChange={(e) => updateMilestoneRow(row.key, { customRevision: e.target.value })}
+                    required
+                    aria-label="Custom revision allowance"
+                  />
+                ) : null}
+              </div>
+
+              <fieldset className="deliverable-catalogue">
+                <legend>Required deliverables</legend>
+                {DELIVERABLE_GROUPS.map((group) => (
+                  <div className="deliverable-group" key={`${row.key}-${group}`}>
+                    <p className="deliverable-group-label">{group}</p>
+                    {DELIVERABLE_CATALOGUE.filter((entry) => entry.groups.includes(group)).map((entry) => (
+                      <label className="deliverable-option" key={`${row.key}-${group}-${entry.code}`}>
+                        <input
+                          type="checkbox"
+                          checked={row.deliverables.includes(entry.code)}
+                          onChange={() => {
+                            const selected = row.deliverables.includes(entry.code)
+                              ? row.deliverables.filter((code) => code !== entry.code)
+                              : [...row.deliverables, entry.code];
+                            updateMilestoneRow(row.key, { deliverables: selected });
+                          }}
+                        />
+                        {entry.label}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+                {row.deliverables.includes("other_agreed_deliverable") ? (
+                  <div className="form-field">
+                    <label htmlFor={`milestone-other-${row.key}`}>Other agreed deliverable</label>
+                    <input
+                      id={`milestone-other-${row.key}`}
+                      value={row.otherDescription}
+                      onChange={(e) => updateMilestoneRow(row.key, { otherDescription: e.target.value })}
+                      required
+                    />
+                  </div>
+                ) : null}
+              </fieldset>
+
               <div className="milestone-form-row-fields">
                 <div className="form-field">
                   <label htmlFor={`milestone-amount-${row.key}`}>Amount (INR)</label>
@@ -1386,11 +1505,11 @@ function CreateProjectScreen({
           <div className="milestone-summary">
             <div className="milestone-summary-row">
               <span>Project budget</span>
-              <span>{formatCurrencyFromMinorUnits(budgetMinorUnits, PROJECT_CURRENCY)}</span>
+              <span>{formatMoney(budgetMinorUnits, PROJECT_CURRENCY, PROJECT_CURRENCY_EXPONENT)}</span>
             </div>
             <div className="milestone-summary-row">
               <span>Milestone total</span>
-              <span>{formatCurrencyFromMinorUnits(milestoneTotalMinorUnits, PROJECT_CURRENCY)}</span>
+              <span>{formatMoney(milestoneTotalMinorUnits, PROJECT_CURRENCY, PROJECT_CURRENCY_EXPONENT)}</span>
             </div>
             <div
               className={`milestone-summary-row milestone-summary-remaining ${
@@ -1400,7 +1519,7 @@ function CreateProjectScreen({
               <span>Remaining</span>
               <span>
                 {remainingMinorUnits < 0 ? "-" : ""}
-                {formatCurrencyFromMinorUnits(Math.abs(remainingMinorUnits), PROJECT_CURRENCY)}
+                {formatMoney(Math.abs(remainingMinorUnits), PROJECT_CURRENCY, PROJECT_CURRENCY_EXPONENT)}
               </span>
             </div>
           </div>
@@ -1424,18 +1543,8 @@ function CreateProjectScreen({
 // =====================
 // Project detail screen
 // =====================
-// Old development records may still carry other currencies (e.g. USD) from
-// before MusicApp locked to INR — pick a sensible display locale per
-// currency rather than assuming INR everywhere.
-function localeForCurrency(currency: string): string {
-  return currency === "INR" ? "en-IN" : "en-US";
-}
-
-function formatCurrencyFromMinorUnits(minorUnits: number, currency: string): string {
-  return new Intl.NumberFormat(localeForCurrency(currency), {
-    style: "currency",
-    currency,
-  }).format(minorUnits / 100);
+function formatStoredMoney(amountMinor: number, currency: string, exponent: number): string {
+  return formatMoney(amountMinor, currency, exponent);
 }
 
 function formatMilestoneState(state: MilestoneState): string {
@@ -1484,7 +1593,7 @@ function ProjectDetailScreen({
         <div className="project-detail-meta-item">
           <p className="project-detail-meta-label">Budget</p>
           <p className="project-detail-meta-value">
-            {formatCurrencyFromMinorUnits(project.price_amount, project.currency)}
+            {formatStoredMoney(project.price_amount, project.currency, project.currency_exponent)}
           </p>
         </div>
         <div className="project-detail-meta-item">
@@ -1525,8 +1634,19 @@ function ProjectDetailScreen({
                   {milestone.description ? (
                     <p className="milestone-item-description">{milestone.description}</p>
                   ) : null}
+                  <p className="milestone-item-description">
+                    {milestone.deliverable_definition.required_deliverables.map(deliverableLabel).join(", ")}
+                    {milestone.deliverable_definition.other_description
+                      ? ` (${milestone.deliverable_definition.other_description})`
+                      : ""}
+                  </p>
                   <div className="milestone-item-meta">
-                    <span>{formatCurrencyFromMinorUnits(milestone.amount, milestone.currency)}</span>
+                    <span>{formatStoredMoney(milestone.amount, milestone.currency, milestone.currency_exponent)}</span>
+                    <span>
+                      {milestone.revision_allowance === 0
+                        ? "No included revisions"
+                        : `${milestone.revision_allowance} included revisions`}
+                    </span>
                     <span>
                       {milestone.due_at
                         ? new Date(milestone.due_at).toLocaleDateString()
@@ -1804,7 +1924,7 @@ function ProjectCard({
       <p className="profile-card-handle">@{collaborator.handle}</p>
 
       <div className="project-card-terms">
-        <span>{formatCurrencyFromMinorUnits(project.price_amount, project.currency)}</span>
+        <span>{formatStoredMoney(project.price_amount, project.currency, project.currency_exponent)}</span>
         <span>{project.delivery_days} days</span>
         <span>{project.revision_limit} revisions</span>
       </div>

@@ -55,8 +55,13 @@ function publicProposal(project, milestones) {
       milestone_no: milestone.milestone_no,
       title: milestone.title,
       description: milestone.description,
-      amount: milestone.amount,
+      deliverable_definition: milestone.deliverable_definition,
+      revision_allowance: milestone.revision_allowance === null || milestone.revision_allowance === undefined
+        ? null
+        : Number(milestone.revision_allowance),
+      amount: Number(milestone.amount),
       currency: milestone.currency,
+      currency_exponent: Number(milestone.currency_exponent),
       due_at: milestone.due_at,
     })),
   };
@@ -294,7 +299,8 @@ async function inviteSeller(projectId, body, actorUserId, idempotencyKeyHeader) 
           project.currency !== "INR" ||
           project.price_amount <= 0 ||
           readiness.milestone_count < 1 ||
-          readiness.deadlines_future !== true
+          readiness.deadlines_future !== true ||
+          readiness.terms_complete !== true
         ) {
           return { status: 409, body: { error: "Proposal is not ready for invitation" } };
         }

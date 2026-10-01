@@ -8,6 +8,7 @@ const {
   stopPool,
 } = require("./harness");
 const pool = require("../db/db");
+const { withMilestoneTerms } = require("./milestone-fixture");
 
 let baseUrl = "";
 let server;
@@ -87,7 +88,7 @@ function projectBody(sellerUserId) {
     requirements: "Stems",
     price_amount: 100,
     delivery_days: 7,
-    milestones: [{ title: "Only", amount: 100, due_at: futureIso(30) }],
+    milestones: [withMilestoneTerms({ title: "Only", amount: 100, due_at: futureIso(30) })],
   };
 }
 

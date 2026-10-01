@@ -32,7 +32,14 @@ function proposalReadiness(db, projectId) {
        COUNT(*)::int AS milestone_count,
        COALESCE(SUM(amount), 0)::int AS milestone_total,
        COALESCE(bool_and(due_at IS NOT NULL AND due_at > clock_timestamp()), false) AS deadlines_future,
-       COALESCE(bool_and(currency = 'INR'), false) AS same_currency
+       COALESCE(bool_and(currency = 'INR'), false) AS same_currency,
+       COALESCE(bool_and(
+         revision_allowance IS NOT NULL
+         AND currency_exponent = (SELECT currency_exponent FROM projects WHERE id = $1)
+         AND deliverable_definition IS NOT NULL
+         AND jsonb_typeof(deliverable_definition -> 'required_deliverables') = 'array'
+         AND jsonb_array_length(deliverable_definition -> 'required_deliverables') > 0
+       ), false) AS terms_complete
      FROM project_milestones
      WHERE project_id = $1`,
     [projectId]
@@ -141,6 +148,60 @@ function insertAgreedVersion(db, projectId, externalId, proposalVersion) {
   );
 }
 
+function makeMilestoneTermExternalId() {
+  return `mtv_${crypto.randomBytes(10).toString("hex")}`;
+}
+
+function milestoneSnapshotRows(db, projectId) {
+  return db.query(
+    `SELECT id, milestone_no, title, description, deliverable_definition,
+            revision_allowance, amount, currency, currency_exponent, due_at
+     FROM project_milestones
+     WHERE project_id = $1
+     ORDER BY milestone_no`,
+    [projectId]
+  );
+}
+
+function insertMilestoneSnapshot(db, values) {
+  return db.query(
+    `INSERT INTO milestone_term_versions (
+       external_id, milestone_id, project_term_version, kind,
+       milestone_no, title, description, deliverable_definition,
+       revision_allowance, amount, currency, currency_exponent, due_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13)`,
+    values
+  );
+}
+
+function proposalMilestoneSnapshots(db, projectId, proposalVersion) {
+  return db.query(
+    `SELECT snapshot.milestone_id, snapshot.milestone_no, snapshot.title, snapshot.description,
+            snapshot.deliverable_definition, snapshot.revision_allowance, snapshot.amount,
+            snapshot.currency, snapshot.currency_exponent, snapshot.due_at
+     FROM milestone_term_versions snapshot
+     JOIN project_milestones milestone ON milestone.id = snapshot.milestone_id
+     WHERE milestone.project_id = $1
+       AND snapshot.project_term_version = $2
+       AND snapshot.kind = 'proposal'
+     ORDER BY snapshot.milestone_no`,
+    [projectId, proposalVersion]
+  );
+}
+
+function setMilestoneTermsStatus(db, projectId, fromStatus, toStatus, termVersion) {
+  return db.query(
+    `UPDATE project_milestones
+     SET terms_status = $3,
+         current_term_version = $4,
+         updated_at = clock_timestamp()
+     WHERE project_id = $1
+       AND terms_status = $2`,
+    [projectId, fromStatus, toStatus, termVersion]
+  );
+}
+
 function agreedVersion(db, projectId, versionNumber) {
   return db.query(
     `SELECT version_number, represented_state, total_amount, currency, currency_exponent
@@ -222,6 +283,11 @@ module.exports = {
   pendingInvitationCount,
   invitationStatusCounts,
   activeSeller,
+  makeMilestoneTermExternalId,
+  milestoneSnapshotRows,
+  insertMilestoneSnapshot,
+  proposalMilestoneSnapshots,
+  setMilestoneTermsStatus,
   insertProposalVersion,
   insertAgreedVersion,
   agreedVersion,

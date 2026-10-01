@@ -129,8 +129,11 @@ async function createProject(body, actorUserId) {
         i + 1,
         milestone.title,
         milestone.description,
+        JSON.stringify(milestone.deliverable_definition),
+        milestone.revision_allowance,
         milestone.amount,
         PROJECT_CURRENCY,
+        project.currency_exponent,
         milestone.due_at,
       ]);
 
@@ -184,6 +187,7 @@ async function listProjects(actorUserId) {
       requirements: row.requirements,
       price_amount: row.price_amount,
       currency: row.currency,
+      currency_exponent: row.currency_exponent,
       delivery_days: row.delivery_days,
       revision_limit: row.revision_limit,
       state: row.state,

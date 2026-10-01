@@ -6,9 +6,9 @@
 | Type | Specification (SPEC) |
 | Domain | Milestones (governed under the `PROJECTS` token) |
 | Status | Proposed |
-| Version | 1.1.1 |
+| Version | 1.1.2 |
 | Owner | Product and Architecture |
-| Last Reviewed | 2026-09-25 |
+| Last Reviewed | 2026-10-01 |
 | Applies To | Target Milestone product architecture and verified current repository comparison |
 | Governed token | `PROJECTS` |
 | Canonical path | `docs/05-projects-milestones/milestones.md` |
@@ -250,15 +250,15 @@ Storage classes: **Stored** is directly stored and authoritative; **Snapshot** i
 | `title` | Bounded non-blank text | Stored; term snapshot | Draft-editable; frozen and agreed immutable | Partially Implemented: no bound or blank check at the database |
 | `description` | Bounded text, nullable | Stored; term snapshot | Same as `title` | Implemented (nullable text) |
 | `scope` | Not a separate field; folded into `description` and `deliverable_definition` | Not adopted | Not applicable | Not Implemented |
-| `deliverable_definition` | Bounded text of expected output and acceptance criteria, embedding the declarative `submission_requirements` substructure (minimum Asset count, optional required Asset classes, text-only-sufficient flag) that Deliverables enforces at Submission time (`deliverables.md` Section 7.1); not a full service-template language | Stored; term snapshot | Same as `title` | Not Implemented |
-| `revision_allowance` | Nonnegative integer; the agreed per-Milestone count of Buyer-initiated revision requests (Section 17) | Stored; term snapshot | Same as `title`; immutable after agreement except through an accepted amendment | Not Implemented; supersedes reliance on `projects.revision_limit` (Section 33) |
-| `amount` | Signed 64-bit integer minor units, positive | Stored; term snapshot | Same as `title` | Partially Implemented: `INT`, 32-bit, positive check |
+| `deliverable_definition` | JSON object whose primary definition is the Buyer's catalogue selection `required_deliverables` (Section 9.3). `other_agreed_deliverable` carries `other_description`. The 2026-09-25 `submission_requirements` declaration remains a separate embedded substructure and is not replaced by the catalogue | Stored; term snapshot | Same as `title` | Partially Implemented: catalogue selection stored and snapshotted; `submission_requirements` not collected |
+| `revision_allowance` | Nonnegative integer agreed by Buyer and Seller. `0` means no included revisions. No platform default and no product maximum (Section 9.3) | Stored; term snapshot | Same as `title`; immutable after agreement except through an accepted amendment | Partially Implemented: explicit value stored and snapshotted; not copied from `projects.revision_limit` |
+| `amount` | Signed 64-bit integer minor units, positive. Interpreted only as `amount_minor / 10^currency_exponent` with the explicit `currency` (Section 9.3) | Stored; term snapshot | Same as `title` | Partially Implemented: `BIGINT` minor units; application still rejects a line above the project total's 32-bit range |
 | `currency` | ISO 4217 code equal to Project currency | Stored; Project-derived value validated at write | Immutable from freeze | Partially Implemented: unconstrained `TEXT` |
-| `currency_exponent` | Small integer snapshot from the currency registry | Snapshot | Immutable with term version | Not Implemented |
+| `currency_exponent` | Small integer snapshot copied from the Project. Clients do not supply or infer it | Snapshot | Immutable with term version | Partially Implemented: copied from the Project at creation |
 | `due_at` | Nullable timestamptz | Stored; term snapshot | Same as `title` | Implemented |
 | `starts_at` | Not adopted; start is derived from predecessor approval, funding, and the explicit start command | Not adopted | Not applicable | Not Implemented |
 | `state` | Governed enum (Section 11) | Stored; Milestones | Transition service only | Partially Implemented: enum exists; no service |
-| `terms_status` | `draft`, `frozen`, `agreed` | Stored; Milestones | Forward only, except frozen to draft before acceptance | Not Implemented |
+| `terms_status` | `draft`, `frozen`, `agreed` | Stored; Milestones | Forward only, except frozen to draft before acceptance | Partially Implemented: `draft` to `frozen` on proposal and `frozen` to `agreed` on acceptance; reopen remains Question Q5 |
 | `current_term_version` | Positive integer reference to the latest term snapshot | Stored; Milestones | Changes only with a new term version | Not Implemented |
 | `introduced_in_term_version`, `superseded_in_term_version` | Project term-version references; latter nullable | Stored; Milestones | Superseded set once by an accepted amendment | Not Implemented |
 | `activated_at` | Not adopted; activation eligibility is derived, and `started_at` records the actual start | Not adopted | Not applicable | Not Implemented |
@@ -296,7 +296,7 @@ The repository trigger protects a subset: after lock it blocks insert, delete, a
 | Currency | Equals Project currency and exponent snapshot; MVP `INR` per `BR-PROJECTS-003` | Immutable from freeze; currency change is a Project amendment before funding and prohibited after | Must match Project, Escrow, allocation, and payment currency | Partially Implemented: checked at creation and lock in route code only |
 | Scope and title | `title`, `description`, `deliverable_definition` define what is being bought | Same lifecycle as `amount` | Agreed snapshot is the dispute reference | Partially Implemented |
 | Submission requirements | The `submission_requirements` declaration embedded in `deliverable_definition` (minimum Asset count, optional required Asset classes, text-only-sufficient flag) is negotiated and agreed per Milestone at the same time as scope; MusicApp does not impose a platform-wide minimum-Asset rule (Decision, 2026-09-25) | Same lifecycle as `deliverable_definition`; immutable once agreed except through an accepted amendment | Deliverables (`deliverables.md` Section 7.1) evaluates every Submission against exactly this declaration | Not Implemented |
-| Revision allowance | `revision_allowance` is a nonnegative integer negotiated and agreed per Milestone, independently of every other Milestone in the Project (Decision, 2026-09-25); it is not derived from or defaulted from the Project-level `revision_limit` column | Same lifecycle as `amount`; immutable once agreed except through an accepted amendment; unused revisions never transfer between Milestones | Milestones' own `revision_count` (Section 17) is compared only against this field | Not Implemented; the legacy `projects.revision_limit` column is superseded target-architecture debt (Section 33) |
+| Revision allowance | `revision_allowance` is a nonnegative integer negotiated and agreed per Milestone, independently of every other Milestone in the Project (Decision, 2026-09-25; restated 2026-10-01 in Section 9.3). `0` means no included revisions. MusicApp does not apply a platform default and does not impose a product maximum. It is not derived from or defaulted from the Project-level `revision_limit` column | Same lifecycle as `amount`; immutable once agreed except through an accepted amendment; unused revisions never transfer between Milestones | Milestones' own `revision_count` (Section 17) is compared only against this field | Partially Implemented: the explicit integer is stored and snapshotted. The legacy `projects.revision_limit` column is superseded target-architecture debt (Section 33) |
 | Deadline | `due_at` is an absolute deadline; not derived from `delivery_days` | Same lifecycle as `amount`; monotonic with number (Section 13) | Last Milestone due date not after Project `due_at` when both exist | Partially Implemented: stored; no ordering or Project consistency check |
 | Sequencing | `milestone_no` gives order; activation follows it | Renumbering only while `terms_status` is `draft` | Unique among active rows; dense at proposal readiness | Partially Implemented: unique and positive; density unenforced |
 | Agreed snapshot | Immutable `milestone_term_versions` row referenced by the Project agreed term version | Created at acceptance; superseded only by accepted amendment | Every active Milestone has exactly one agreed row | Not Implemented |
@@ -315,6 +315,52 @@ The repository trigger protects a subset: after lock it blocks insert, delete, a
 `REQ-PROJECTS-037`: The system MUST reconcile the active Milestone plan against the Project's proposed or agreed total and currency continuously, in the mutating transaction and by an independent database-level check, not only at creation.
 
 `REQ-PROJECTS-060`: The system MUST treat Deliverable submission requirements and the Buyer-initiated revision allowance as per-Milestone commercial terms, agreed and locked with the same lifecycle as `amount`, and MUST NOT apply a platform-wide minimum-Asset rule or a Project-wide revision count in their place.
+
+### 9.3 Amount, deliverable catalogue, and revision allowance (Decision 2026-10-01)
+
+Three product decisions were confirmed on 2026-10-01. They resolve Questions Q14 and Q15 and restate the revision rule in Section 9.2. They do not select an asset-upload ceiling, a fee, or a payment provider.
+
+**Amount.** A Milestone amount is stored as an integer of minor units together with the Project currency and the Project currency exponent. The only interpretation is `amount_minor / 10^currency_exponent`. For example, `125050` with currency `USD` and exponent `2` is `1250.50`. It is not `125000.50`, and it is not a floating-point value. The backend financial model is authoritative. A client or display component MUST NOT guess decimal placement from the currency code or from the magnitude of the integer. The server copies `currency` and `currency_exponent` from the Project and rejects a client-supplied currency or exponent. Floating-point storage is prohibited. A historical row whose currency does not match its Project is not rewritten and does not receive an invented exponent.
+
+**Deliverable definition.** Arbitrary free text is not the primary deliverable definition. During proposal, the Buyer selects one or more entries from the controlled catalogue below. That selection is stored on the Milestone and copied into the immutable proposal snapshot and the immutable agreed snapshot. `submission_requirements` (Section 9.2, Decision 2026-09-25) remains a separate declaration. This decision does not invent a minimum Asset count and does not repeal that declaration. The catalogue does not create an entry for each technical combination such as bit depth or sample rate. The model does not prevent format, bit depth, sample rate, or similar technical attributes from becoming structured metadata later. When a Seller later submits an Asset, the Seller identifies which agreed catalogue entry that Asset fulfils, so the agreed set, the submitted set, and the entry an Asset satisfies stay distinguishable. That fulfillment binding belongs to Deliverables and is not created by the Milestone snapshot. Asset upload ceilings remain undecided.
+
+| Group | Catalogue entry | Code |
+| --- | --- | --- |
+| Masters | Final Master WAV | `final_master_wav` |
+| Masters | Final Master MP3 | `final_master_mp3` |
+| Masters | Instrumental Master | `instrumental_master` |
+| Masters | Acapella/Vocal Master | `acapella_vocal_master` |
+| Masters | Clean/Radio Edit | `clean_radio_edit` |
+| Mixing | Final Mix WAV | `final_mix_wav` |
+| Mixing | Final Mix MP3 | `final_mix_mp3` |
+| Mixing | Instrumental Mix | `instrumental_mix` |
+| Mixing | Acapella Mix | `acapella_mix` |
+| Mixing | TV Mix | `tv_mix` |
+| Stems | Mixed Stems | `mixed_stems` |
+| Stems | Unmixed/Raw Stems | `unmixed_raw_stems` |
+| Stems | Vocal Stems | `vocal_stems` |
+| Stems | Instrumental Stems | `instrumental_stems` |
+| Production | Full Production | `full_production` |
+| Production | Instrumental/Beat | `instrumental_beat` |
+| Production | Arrangement | `arrangement` |
+| Production | MIDI Files | `midi_files` |
+| Vocals | Lead Vocals | `lead_vocals` |
+| Vocals | Backing Vocals | `backing_vocals` |
+| Vocals | Vocal Stems | `vocal_stems` |
+| Vocals | Raw Vocal Takes | `raw_vocal_takes` |
+| Session / Source | DAW Project/Session Files | `daw_project_session_files` |
+| Session / Source | Consolidated Audio Files | `consolidated_audio_files` |
+| Session / Source | Individual Source Tracks | `individual_source_tracks` |
+| Songwriting | Lyrics | `lyrics` |
+| Songwriting | Melody | `melody` |
+| Songwriting | Chords/Chord Chart | `chords_chord_chart` |
+| Songwriting | Demo Recording | `demo_recording` |
+| Other | Reference/Preview File | `reference_preview_file` |
+| Other | Other Agreed Deliverable | `other_agreed_deliverable` |
+
+`vocal_stems` is one code. It is shown in both the Stems and Vocals groups and creates one obligation, not two. `other_agreed_deliverable` requires a non-blank `other_description`. No product character maximum is set. A selection outside this catalogue is rejected. An empty selection is rejected at creation and cannot be frozen.
+
+**Revision allowance.** The value is an agreed nonnegative integer: `0` means no included revisions, `1` means one included revision, and each larger integer means that many included revisions. The proposal surface offers a controlled selection, not free text. The selected integer is part of the immutable agreed snapshot. MusicApp does not silently apply a platform default, including `0` and including `projects.revision_limit`. Buyer and Seller agree the value as part of the Milestone terms. No product maximum is imposed. The PostgreSQL integer range is a storage limit, not a revision quota.
 
 ## 10. Milestone locking
 
@@ -1094,7 +1140,7 @@ All primary keys are internal UUIDs. Every externally addressable record has a u
 | Identifier and model | Purpose and principal fields | Keys, uniqueness, and indexes | Checks and state | Versioning, lifecycle, and deletion | Repository status |
 | --- | --- | --- | --- | --- | --- |
 | `DATA-PROJECTS-008` `project_milestones` | Aggregate: `id`, `external_id`, `project_id`, `milestone_no`, `title`, `description`, `deliverable_definition`, `amount` BIGINT, `currency`, `currency_exponent`, `due_at`, `state`, `terms_status`, `current_term_version`, `introduced_in_term_version`, `superseded_in_term_version`, lifecycle timestamps, interruption fields, `created_by_user_id`, `version`, timestamps | PK `id`; unique `external_id`; FK `project_id` to Projects `RESTRICT`; unique `(project_id, milestone_no)` among active rows; partial unique index allowing at most one active row in `in_progress` or `delivered` per Project; indexes `(project_id, milestone_no)`, `(project_id, state)`, state and time | Positive amount; positive number; supported currency; `title` non-blank and bounded; `state` and `terms_status` enums; `resume_state` non-null exactly when `state` is `disputed` or `suspended`; terms-status trigger; deferred plan-sum and currency constraint | Monotonic `version`; frozen and agreed rows immutable in commercial columns; never hard-deleted after freeze; Draft rows deletable only when unreferenced | Partially Implemented |
-| `DATA-PROJECTS-009` `milestone_term_versions` | Immutable commercial snapshot per Milestone per Project term version: Milestone, term version, kind (`proposal`, `agreed`, `amendment`), title, description, deliverable definition (including its embedded `submission_requirements` declaration), `revision_allowance`, amount, currency, exponent, due date, number, plan-sum hash, created time and actor | PK; unique `(milestone_id, term_version, kind)`; FK Milestone `RESTRICT`; index by Project term version | Append-only; positive amount; nonnegative `revision_allowance`; currency equals Project snapshot | No update or delete; retention aligned with the Project | Not Implemented |
+| `DATA-PROJECTS-009` `milestone_term_versions` | Immutable commercial snapshot per Milestone per Project term version: Milestone, term version, kind (`proposal`, `agreed`, `amendment`), title, description, deliverable definition (including its embedded `submission_requirements` declaration), `revision_allowance`, amount, currency, exponent, due date, number, plan-sum hash, created time and actor | PK; unique `(milestone_id, term_version, kind)`; FK Milestone `RESTRICT`; index by Project term version | Append-only; positive amount; nonnegative `revision_allowance`; currency equals Project snapshot | No update or delete; retention aligned with the Project | Partially Implemented: proposal and agreed rows are append-only. Amendment rows and a plan-sum hash are not written |
 | `DATA-PROJECTS-010` `milestone_state_transitions` | Append-only history: Milestone, source and target state, trigger type, actor or source fact ID, precondition version, outcome, reason code, term version, time | PK and unique event ID; FK `RESTRICT`; unique successful source fact; indexes `(milestone_id, time)`, target and time | Source and target are enum values; outcome enumerated | Append-only; retention aligned with financial and audit policy | Not Implemented |
 | `DATA-PROJECTS-011` `milestone_audit_events` | Redacted immutable audit envelope for Milestone actions and privileged reads, per Section 25 | PK and unique external event ID; Milestone and Project references; indexes by Milestone and time, actor and time, correlation | Append-only database control | No ordinary update or delete. It may be a Milestone-scoped view of the shared audit store of `DATA-PROJECTS-006`; the physical layout is Question Q13 | Not Implemented |
 | `DATA-PROJECTS-012` `milestone_revision_requests` | Revision cycle records: Milestone, cycle number, requesting Buyer, submission reference answered, reason code, restricted detail, status (`open`, `answered`, `withdrawn_by_dispute`), answering submission reference, times | PK and external ID; unique `(milestone_id, cycle_number)`; at most one `open` per Milestone by partial unique index; FK `RESTRICT` | Cycle number positive and sequential; status enum | Append-retained; detail text restricted | Not Implemented |
@@ -1545,11 +1591,11 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 | Q8 | P1 | What are the consequences of a passed `due_at`, and does a revision cycle or Buyer review time extend a deadline? | Lateness rules are product policy; none is invented here | Product and Escrow | Sections 13 and 17 |
 | Q9 | P1 | What are the maximum Milestone count per Project and any minimum Milestone amount? | Abuse and usability limits need governed numbers | Product | Sections 7 and 29 |
 | Q10 | Resolved (2026-09-25) | ~~Does `revision_limit` apply per Milestone or across the whole Project?~~ Per Milestone: `revision_allowance` is an independently negotiated commercial term of each Milestone (Section 9.2) | Resolved the enforcement-scope blocker | Product decision, 2026-09-25; Milestones Section 9.2 | Section 17 |
-| Q14 | P1 | How are historical Milestone rows with non-INR currency or unverified amount units classified? | Enforcing the currency check or widening amounts could misstate money | Data, Finance, Product | Section 33 |
+| Q14 | Resolved (2026-10-01) | ~~How are historical Milestone rows with non-INR currency or unverified amount units classified?~~ An amount is minor units interpreted only as `amount_minor / 10^currency_exponent` with the explicit currency (Section 9.3). A row whose currency does not match its Project is not rewritten and does not receive an invented exponent | Resolved the unit-interpretation blocker without authorizing a silent historical rewrite | Product decision, 2026-10-01; Section 9.3 | Sections 8, 9.3, and 33 |
 | Q18 | P1 | What exact review-period duration, intervention contact-attempt count, contact channels, and operational SLA govern Buyer non-response (Section 18.2)? | Section 18.2 fixes the product behavior but deliberately sets no duration or count; without configuration values the intervention process cannot run | Product and Operations | Section 18.2 |
 | Q12 | P2 | Is an Asset purpose for Seller working files needed, and who owns it? | Assets denies undefined purposes by default | Assets and Product | Section 22 |
 | Q13 | P2 | Is `milestone_audit_events` physically part of the shared audit store of `DATA-PROJECTS-006`? | Avoids two audit stores | Architecture and Security | Section 26 |
-| Q15 | P2 | What structure should `deliverable_definition` take beyond its now-decided `submission_requirements` declaration (Section 9.2): free text, checklist, or typed acceptance criteria? | Affects acceptance clarity and Dispute evidence; the submission-requirements portion is resolved, the broader acceptance-criteria structure is not | Product and Deliverables owner | Section 8 |
+| Q15 | Resolved (2026-10-01) | ~~What structure should `deliverable_definition` take beyond its now-decided `submission_requirements` declaration?~~ The primary definition is the controlled catalogue in Section 9.3. `submission_requirements` remains the separate 2026-09-25 declaration | Resolved the primary-definition blocker without repealing submission requirements or deciding asset-upload ceilings | Product decision, 2026-10-01; Section 9.3 | Sections 8 and 9.3 |
 | Q16 | P2 | Which governed families should replace the provisional `SPEC`, `EVT`, and `OPS` identifiers, and when will the glossary exist? | Governance lacks these families and the glossary is absent (also open in Projects) | Governance | Section 3 |
 | Q17 | P2 | What roadmap and product need drive parallel or dependency-based Milestones? | Premature schema raises migration cost | Product and Architecture | Section 31 |
 | Q19 | P2 | Is a lightweight, self-serve change/add-on mechanism needed for MVP so a Buyer and Seller can voluntarily agree to work beyond a Milestone's locked `revision_allowance`, without mutating the locked term? | Without it, exhausted-allowance disagreement has only "approve" or "open a Dispute" as exits, which may be too coarse for MVP | Product | Sections 9, 17 |
@@ -1557,6 +1603,10 @@ Questions are ordered by priority. A P0 question materially blocks the Milestone
 ### 36.2 Questions resolved by confirmed product decisions (2026-09-25)
 
 Three product decisions were confirmed on 2026-09-25 and are reflected throughout this document rather than left as open questions: (1) Deliverable submission requirements are service/Milestone-dependent, declared in `deliverable_definition.submission_requirements` (Sections 9.2, 17; closes [Deliverables Question EQ1](deliverables.md#273-prioritized-open-questions)); (2) Buyer non-response cannot block a Seller indefinitely, and is resolved by a configurable review timeout and an auditable platform intervention ending in a non-response release authorization distinct from Buyer approval, never automatic approval (Section 18.2; closes the product-behavior half of Q2 and [Deliverables Question EQ2](deliverables.md#273-prioritized-open-questions)); (3) the Buyer-initiated revision allowance is negotiated and locked per Milestone, not Project-wide, and is immutable after agreement except through an accepted amendment (Section 9.2; closes Q10 and [Deliverables Question EQ3](deliverables.md#273-prioritized-open-questions)). Exact operational timing (Q18) and a future voluntary change-order mechanism (Q19) remain open, narrower questions.
+
+### 36.3 Questions resolved by confirmed product decisions (2026-10-01)
+
+Three product decisions were confirmed on 2026-10-01 and are normative in Section 9.3: (1) a Milestone amount is an integer of minor units interpreted only with the explicit Project currency and currency exponent, never as a floating-point value and never by guessing decimal placement; (2) the primary deliverable definition is a controlled catalogue selection, with a custom description only for Other Agreed Deliverable, and that selection is part of the immutable agreed snapshot; (3) `revision_allowance` is an explicit agreed nonnegative integer, with no platform default and no product maximum. These decisions close Q14 and Q15 and [Deliverables Question EQ7](deliverables.md#273-prioritized-open-questions). They do not decide asset-upload ceilings, and they do not copy `projects.revision_limit` into `revision_allowance`.
 
 ## 37. Traceability
 
@@ -1669,3 +1719,4 @@ Validation scripts and Git checks are execution evidence for the repository chan
 | 1.0.0 | 2026-09-20 | Initial approved Milestones aggregate: identity, term versions and locking, state machine, transitions, activation, funding, delivery, revision, approval, completion, cancellation, disputes, Asset bindings, authorization, target data model, verified repository comparison, security findings, traceability, and staged plan. | Product and Architecture |
 | 1.1.0 | 2026-09-25 | Reconciled three confirmed product decisions: (1) Deliverable submission requirements are service/Milestone-dependent, declared in `deliverable_definition.submission_requirements`; (2) Buyer non-response is resolved by a configurable review timeout and auditable platform intervention (new Section 18.2, transition M18, `DATA-PROJECTS-017`), never automatic approval; (3) the Buyer-initiated revision allowance (`revision_allowance`) is negotiated and locked per Milestone, superseding reliance on the Project-level `revision_limit`. Reclassified Questions Q2 and Q10 as Resolved; added Questions Q18 and Q19. Added `REQ-PROJECTS-060`–`061`, `BR-PROJECTS-076`–`078`, `SEC-PROJECTS-046`–`047`, `DATA-PROJECTS-017`, `INT-PROJECTS-035`, `AUD-PROJECTS-015`, `EVT-PROJECTS-019`–`021`, `OPS-PROJECTS-016`. No existing identifier, section number, or unrelated content changed. | Product and Architecture |
 | 1.1.1 | 2026-09-25 | Section 18.2.1: fixed the stale `../10-notifications/` directory link (written before `notifications.md` existed) to point at its canonical topic matrix now that the document exists, and removed the now-inaccurate "once that specification exists" qualifier. No other content changed. | Product and Architecture |
+| 1.1.2 | 2026-10-01 | Recorded the confirmed product decisions for Milestone amount interpretation, the deliverable catalogue, and explicit revision allowance (Section 9.3 and Section 36.3). Reclassified Questions Q14 and Q15 as Resolved. No asset-upload ceiling, fee, or payment provider was selected. | Product and Architecture |

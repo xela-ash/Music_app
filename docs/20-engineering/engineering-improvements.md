@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.14 |
-| Last Reviewed | 2026-09-30 |
+| Version | 0.7.17 |
+| Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -1501,6 +1501,126 @@ Copy this template for each new entry:
 | Related PR | [#84](https://github.com/xela-ash/music_app/pull/84) |
 | Resolution | — |
 
+### ENG-IMP-050 Milestone lines stay inside the 32-bit project total
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-050 |
+| Title | Milestone lines stay inside the 32-bit project total |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-017 implementation |
+| Category | Database |
+| Affected subsystem | Milestones, Projects |
+| Current state | `project_milestones.amount` is `BIGINT`. `projects.price_amount` is `INTEGER`. Create rejects a milestone amount above `2147483647`. |
+| Evidence / problem | The milestone sum must equal the project total. A BIGINT line that cannot fit in the project column cannot be stored, so the wider milestone type is not usable above the 32-bit project limit. |
+| Suggested improvement | Widen `projects.price_amount` and the escrow amount columns together when a financial item authorizes 64-bit live totals. |
+| Expected benefit | A milestone line and the project total can both use the signed 64-bit minor-unit range the specifications name. |
+| Risk of doing nothing | Values inside the current INTEGER range remain exact. Larger totals are rejected at create. |
+| Implementation risk | High if widened without the escrow columns |
+| Estimated scope | M |
+| Dependencies | Escrow money-type migration |
+| Product behavior impact | None while totals stay inside the current limit |
+| Specification impact | No |
+| Migration impact | A later widening migration |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The financial item that widens live money columns |
+| Status | PROPOSED |
+| Related GitHub Issue | [#19](https://github.com/xela-ash/Music_app/issues/19) |
+| Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
+| Resolution | — |
+
+### ENG-IMP-051 The milestone lock trigger does not lock the project row
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-051 |
+| Title | The milestone lock trigger does not lock the project row |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-017 implementation |
+| Category | Database |
+| Affected subsystem | Milestones |
+| Current state | `protect_locked_milestones` reads `projects.milestones_locked_at` and `proposal_version` with a plain `SELECT`. |
+| Evidence / problem | A concurrent insert can observe the project row before a freeze commits. The HTTP API has no route that inserts a milestone after create, so the race is direct SQL or a future route. |
+| Suggested improvement | Take a consistent lock order, project then milestone, before deciding that an insert is still allowed. |
+| Expected benefit | A freeze and a concurrent insert cannot both commit. |
+| Risk of doing nothing | The current create-then-propose API does not issue that concurrent insert. |
+| Implementation risk | Medium because the lock order can deadlock with the transition's project lock |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | None for the current routes |
+| Specification impact | No |
+| Migration impact | Trigger replacement only |
+| Security impact | Direct SQL can still race a freeze |
+| Performance impact | None at the current write rate |
+| Priority suggestion | Low |
+| Recommended timing | A later milestone-edit or concurrency item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#19](https://github.com/xela-ash/Music_app/issues/19) |
+| Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
+| Resolution | — |
+
+### ENG-IMP-052 The incomplete-freeze test does not execute the update
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-052 |
+| Title | The incomplete-freeze test does not execute the update |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-017 independent review |
+| Category | Testing |
+| Affected subsystem | Milestones, testing |
+| Current state | `backend/test/milestone-terms.http.test.js` checks migration text and `pg_get_functiondef` for `Milestone terms are incomplete`. |
+| Evidence / problem | The case does not issue a draft-to-frozen update and assert that PostgreSQL rejects it. |
+| Suggested improvement | Add a database update that expects the incomplete-freeze exception. |
+| Expected benefit | A trigger-body edit that keeps the exception text but drops the guard would fail the test. |
+| Risk of doing nothing | The function definition and the migration text still have to contain the guard. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | None |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later milestone-test item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#19](https://github.com/xela-ash/Music_app/issues/19) |
+| Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
+| Resolution | — |
+
+### ENG-IMP-053 Invite readiness does not recheck catalogue codes
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-053 |
+| Title | Invite readiness does not recheck catalogue codes |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-017 independent review |
+| Category | Backend |
+| Affected subsystem | Projects, invitations |
+| Current state | Invite `terms_complete` requires a non-empty `required_deliverables` array. It does not check that each code is in the catalogue. |
+| Evidence / problem | A direct SQL row could store an unknown code and still pass the invite query. Acceptance still runs `assertSnapshotReady`, which rejects unknown codes. |
+| Suggested improvement | Use the same catalogue validation on the invite gate that acceptance already uses. |
+| Expected benefit | An unknown code is rejected at invite as well as at acceptance. |
+| Risk of doing nothing | The create route and acceptance already reject unknown codes. The gap is a direct SQL row. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | None for rows created through the API |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later invitation-validation item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#19](https://github.com/xela-ash/Music_app/issues/19) |
+| Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1559,3 +1679,6 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.12 | 2026-09-30 | Added `ENG-IMP-046` (PROPOSED): amendment expiry has no specified maximum. Not authorized. | Engineering |
 | 0.7.13 | 2026-09-30 | Added `ENG-IMP-047` and `ENG-IMP-048` (PROPOSED) from the MVP-016 review. Neither is authorized. | Engineering |
 | 0.7.14 | 2026-09-30 | Added `ENG-IMP-049` (PROPOSED): a later matching snapshot can move the agreed pointer without an amendment. Not authorized. | Engineering |
+| 0.7.15 | 2026-10-01 | Added `ENG-IMP-050` and `ENG-IMP-051` (both PROPOSED): the 32-bit project total still caps milestone lines, and the lock trigger does not lock the project row. Neither is authorized. | Engineering |
+| 0.7.16 | 2026-10-01 | Recorded pull request #86 on `ENG-IMP-050` and `ENG-IMP-051`. Neither is authorized. | Engineering |
+| 0.7.17 | 2026-10-01 | Added `ENG-IMP-052` and `ENG-IMP-053` (both PROPOSED) from the MVP-017 review. Neither is authorized. | Engineering |

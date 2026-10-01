@@ -1,5 +1,6 @@
 const pool = require("../../db/db");
 const repository = require("./repository");
+const { assertSnapshotReady, validateDeliverableDefinition } = require("./catalogue");
 const projectsRepository = require("../projects/repository");
 const { PROJECT_LOCK_MILESTONES, authorize } = require("../authorization/authorize");
 
@@ -35,7 +36,11 @@ function validateMilestonesInput(milestones) {
       return { ok: false, error: "Each milestone must be an object" };
     }
 
-    const { title, description, amount, due_at } = item;
+    if (Object.prototype.hasOwnProperty.call(item, "currency") || Object.prototype.hasOwnProperty.call(item, "currency_exponent")) {
+      return { ok: false, error: "Milestone currency is taken from the project" };
+    }
+
+    const { title, description, amount, due_at, revision_allowance, deliverable_definition } = item;
 
     if (typeof title !== "string" || !title.trim()) {
       return { ok: false, error: "Each milestone title is required and must be a non-empty string" };
@@ -61,6 +66,24 @@ function validateMilestonesInput(milestones) {
       };
     }
 
+    if (
+      !Object.prototype.hasOwnProperty.call(item, "revision_allowance")
+      || typeof revision_allowance !== "number"
+      || !Number.isInteger(revision_allowance)
+      || revision_allowance < 0
+      || revision_allowance > POSTGRES_INT_MAX
+    ) {
+      return {
+        ok: false,
+        error: "Each milestone revision_allowance is required and must be a nonnegative integer",
+      };
+    }
+
+    const deliverables = validateDeliverableDefinition(deliverable_definition);
+    if (!deliverables.ok) {
+      return { ok: false, error: deliverables.error };
+    }
+
     let normalizedDueAt = null;
     if (due_at !== undefined && due_at !== null) {
       if (typeof due_at !== "string" || !due_at.trim()) {
@@ -78,6 +101,8 @@ function validateMilestonesInput(milestones) {
       description: normalizedDescription,
       amount,
       due_at: normalizedDueAt,
+      revision_allowance,
+      deliverable_definition: deliverables.value,
     });
   }
 
@@ -119,6 +144,14 @@ async function lockMilestones(projectId, actorUserId) {
     if (milestones.length === 0) {
       await client.query("ROLLBACK");
       return { status: 400, body: { error: "Project must have at least one milestone before locking" } };
+    }
+
+    if (!assertSnapshotReady(milestones, project).ok) {
+      await client.query("ROLLBACK");
+      return {
+        status: 400,
+        body: { error: "Each milestone must include a revision allowance and a catalogue selection" },
+      };
     }
 
     let milestoneTotal = 0;

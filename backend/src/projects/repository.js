@@ -4,7 +4,7 @@ const { makeParticipantExternalId, insertBuyerParticipant } = require("./invitat
 
 const SAFE_PROJECT_FIELDS = `
   id, external_id, buyer_user_id, seller_user_id, title, requirements,
-  price_amount, currency, delivery_days, revision_limit, state, version,
+  price_amount, currency, currency_exponent, delivery_days, revision_limit, state, version,
   accepted_at, delivered_at, completed_at, milestones_locked_at, created_at, updated_at
 `;
 
@@ -15,7 +15,7 @@ const SAFE_PROJECT_FIELDS = `
 // untouched.
 const SAFE_PROJECT_FIELDS_JOINED = `
   pr.id, pr.external_id, pr.buyer_user_id, pr.seller_user_id, pr.title, pr.requirements,
-  pr.price_amount, pr.currency, pr.delivery_days, pr.revision_limit, pr.state, pr.version,
+  pr.price_amount, pr.currency, pr.currency_exponent, pr.delivery_days, pr.revision_limit, pr.state, pr.version,
   pr.accepted_at, pr.delivered_at, pr.completed_at, pr.milestones_locked_at, pr.created_at, pr.updated_at
 `;
 

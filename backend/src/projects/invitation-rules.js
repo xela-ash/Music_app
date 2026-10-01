@@ -92,11 +92,18 @@ function proposalDocument(project, milestones) {
     currency: project.currency,
     delivery_days: project.delivery_days,
     milestones: milestones.map((milestone) => ({
-      amount: milestone.amount,
+      amount: Number(milestone.amount),
       currency: milestone.currency,
+      currency_exponent: milestone.currency_exponent === null || milestone.currency_exponent === undefined
+        ? null
+        : Number(milestone.currency_exponent),
+      deliverable_definition: milestone.deliverable_definition,
       description: milestone.description,
       due_at: timestampToIso(milestone.due_at),
       milestone_no: milestone.milestone_no,
+      revision_allowance: milestone.revision_allowance === null || milestone.revision_allowance === undefined
+        ? null
+        : Number(milestone.revision_allowance),
       title: milestone.title,
     })),
     price_amount: project.price_amount,

@@ -8,6 +8,7 @@ const {
   closeServer,
   stopPool,
 } = require("./harness");
+const { withMilestoneTerms } = require("./milestone-fixture");
 
 // MVP-002 smoke suite for the twelve currently implemented routes.
 // Assertions preserve the MVP-001 request/response snapshot.
@@ -463,7 +464,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         requirements: "None",
         price_amount: 100,
         delivery_days: 7,
-        milestones: [{ title: "Only", amount: 100 }],
+        milestones: [withMilestoneTerms({ title: "Only", amount: 100 })],
       },
     });
     assert.equal(self.status, 400);
@@ -477,7 +478,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         requirements: "None",
         price_amount: 100,
         delivery_days: 7,
-        milestones: [{ title: "Only", amount: 100 }],
+        milestones: [withMilestoneTerms({ title: "Only", amount: 100 })],
       },
     });
     assert.equal(absentSeller.status, 404);
@@ -491,7 +492,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         requirements: "None",
         price_amount: 100,
         delivery_days: 7,
-        milestones: [{ title: "Only", amount: 40 }],
+        milestones: [withMilestoneTerms({ title: "Only", amount: 40 })],
       },
     });
     assert.equal(mismatched.status, 400);
@@ -508,8 +509,8 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         price_amount: 150,
         delivery_days: 14,
         milestones: [
-          { title: " Demo ", description: "  rough  ", amount: 50, due_at: "2026-10-01T00:00:00.000Z" },
-          { title: "Final", description: "   ", amount: 100 },
+          withMilestoneTerms({ title: " Demo ", description: "  rough  ", amount: 50, due_at: "2026-10-01T00:00:00.000Z" }),
+          withMilestoneTerms({ title: "Final", description: "   ", amount: 100 }),
         ],
       },
     });
@@ -524,6 +525,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         requirements: "Deliver stems",
         price_amount: 150,
         currency: "INR",
+        currency_exponent: 2,
         delivery_days: 14,
         revision_limit: 0,
         state: "draft",
@@ -544,9 +546,17 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
           title: "Demo",
           description: "rough",
           amount: 50,
+          deliverable_definition: {
+            required_deliverables: ["final_master_wav"],
+            other_description: null,
+          },
+          revision_allowance: 0,
           currency: "INR",
+          currency_exponent: 2,
           due_at: "<timestamp>",
           state: "planned",
+          terms_status: "draft",
+          current_term_version: null,
           created_at: "<timestamp>",
           updated_at: "<timestamp>",
         },
@@ -558,9 +568,17 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
           title: "Final",
           description: null,
           amount: 100,
+          deliverable_definition: {
+            required_deliverables: ["final_master_wav"],
+            other_description: null,
+          },
+          revision_allowance: 0,
           currency: "INR",
+          currency_exponent: 2,
           due_at: null,
           state: "planned",
+          terms_status: "draft",
+          current_term_version: null,
           created_at: "<timestamp>",
           updated_at: "<timestamp>",
         },
@@ -583,6 +601,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
       requirements: "Deliver stems",
       price_amount: 150,
       currency: "INR",
+      currency_exponent: 2,
       delivery_days: 14,
       revision_limit: 0,
       state: "draft",
@@ -635,7 +654,7 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
         requirements: "One pass",
         price_amount: 80,
         delivery_days: 3,
-        milestones: [{ title: "Pass", amount: 80 }],
+        milestones: [withMilestoneTerms({ title: "Pass", amount: 80 })],
       },
     });
     assert.equal(created.status, 201);
