@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Notifications (governed `NOTIFICATIONS` token) |
 | Status | Proposed |
-| Version | 0.1.1 |
+| Version | 0.1.2 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Notifications product architecture and verified current repository comparison |
@@ -197,6 +197,8 @@ This matrix adopts [User Settings Section 11.1](../03-identity-profiles-verifica
 
 `BR-NOTIFICATIONS-001`: Notifications MUST classify every topic as `MANDATORY` or `CONFIGURABLE` at Intent creation time from this matrix, and a `MANDATORY` topic's durable in-app record MUST NOT be removable by any User preference.
 
+Product classified three previously unsettled topics on 2026-10-01. Buyer non-response intervention is a mandatory time-critical transactional notification. Dispute lifecycle notifications are mandatory workflow and safety transactional notifications. Rating availability is a configurable transactional notification. None of these are marketing. Removal of a Rating stays mandatory under the existing row. Security-critical account events and authentication informational alerts are not classified by this decision. Push and SMS are out of MVP. Channels for MVP are in-app and transactional email. There is no digest. A User sees only their own notification history. Maximum external delivery attempts are 3. The email provider is Resend, behind the provider-neutral adapter, with credentials only in the environment.
+
 ### 8.2 Preference evaluation
 
 Preference evaluation follows the precedence [User Settings Section 11.2](../03-identity-profiles-verification/user-settings.md#112-rules) already establishes, which this document adopts and does not redefine: mandatory topic policy first; the constrained security-alert projection for security topics; a permitted per-topic override; global channel toggles and digest/quiet-hours controls; then this matrix's default. A channel is eligible only when its destination is verified and provider/device permission exists. Quiet hours defer non-urgent delivery in the User's effective time zone and never suppress security, safety, or time-critical transactional events.
@@ -251,7 +253,7 @@ stateDiagram-v2
 | Concern | Rule | Repository status |
 | --- | --- | --- |
 | Retry trigger | A `FAILED` Delivery Attempt on a transient error class is retried on a bounded backoff schedule | Not Implemented |
-| Retry bound | A configured maximum attempt count, not invented here (Open Question EQ3, Section 21.3) | Not Implemented |
+| Retry bound | Maximum total Delivery Attempts is 3 (EQ3, decided 2026-10-01). After the third unsuccessful attempt the delivery is exhausted and is not retried indefinitely | Not Implemented |
 | Non-retryable failure | A permanent error class (for example, an invalid destination) is not retried; the attempt is marked `FAILED` terminally and alerted | Not Implemented |
 | Deduplication | A retried attempt reuses the original Delivery Attempt's idempotency key; it never creates a second Delivery Attempt for the same `(intent_id, channel)` | Not Implemented |
 | Exhausted retries | Alerted through `OPS-NOTIFICATIONS-001`; the mandatory topic's durable in-app record, if any, is unaffected regardless of channel-delivery outcome | Not Implemented |
@@ -480,11 +482,11 @@ flowchart TB
 
 | ID | Priority | Question | Why it blocks or risks | Decision owner | Affected contract |
 | --- | --- | --- | --- | --- | --- |
-| EQ1 | P0 | Which email provider will MusicApp integrate first? | The email channel adapter cannot be finalized without it | Product, Engineering | Section 7 |
-| EQ2 | P1 | Will push and/or SMS be adopted for MVP, or remain future-only? | Determines whether their channel adapters are built now or deferred | Product | Section 7 |
-| EQ3 | P1 | What is the exact retry schedule (attempt count, backoff) for a failed Delivery Attempt? | Section 9's product behavior is decided; the numbers are not | Product, Operations | Section 9.2 |
-| EQ4 | P2 | Should digest/batched delivery be supported for high-frequency topics (for example, many Milestone updates in a short window)? | Affects notification volume and perceived noise | Product | Section 19 |
-| EQ5 | P2 | Should a Support Operator or Administrator ever read another user's notification history for support purposes? | MVP denies this by default; a support workflow may need a narrow, audited exception | Product, Support | Section 11 |
+| EQ1 | Resolved 2026-10-01 | Which email provider is first? | Resend, behind the provider-neutral adapter, with a mock adapter for tests. API key and domain stay in the environment | Product decision | Section 7 |
+| EQ2 | Resolved 2026-10-01 | Are push and SMS in MVP? | No. MVP channels are in-app and transactional email. The architecture may stay extensible | Product decision | Section 7 |
+| EQ3 | Resolved 2026-10-01 | What is the retry bound? | Maximum total Delivery Attempts is 3. After the third unsuccessful attempt, mark the delivery exhausted and keep the audit record. Do not retry indefinitely | Product decision | Section 9.2 |
+| EQ4 | Resolved 2026-10-01 | Is digest in MVP? | No. Deliver eligible notifications individually under the existing topic and preference rules | Product decision | Section 19 |
+| EQ5 | Resolved 2026-10-01 | May Support or an Administrator read another user's notification history? | No. A User sees only their own history in MVP | Product decision | Section 11 |
 | EQ6 | P2 | Which governed families should replace the provisional `EVT-NOTIFICATIONS-*` and `OPS-NOTIFICATIONS-*` identifiers used here? | Governance defines no such families yet; also open in Milestones (Question Q16), Deliverables (Question EQ9), Ratings (Question EQ8), and Messaging (Question EQ6) | Governance | Section 13.2 |
 
 ## 21. Traceability
@@ -536,3 +538,4 @@ Note (Governance Section 21): this document links forward into Milestones Sectio
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Notifications domain specification: ownership resolved to the `NOTIFICATIONS` token under `docs/10-notifications/`, verified empty and identifier-collision-free before authoring; adopted User Settings Section 11's existing topic/preference contract as canonical and extended it with topics this specification batch introduced (Buyer non-response intervention, Dispute placeholders, Rating availability); Notification Intent / Delivery Attempt delivery model; provider-neutral channel adapter architecture covering in-app and email as MVP-target channels with push/SMS explicitly conditional; preference evaluation, retry, deduplication, and in-app read-state privacy; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
 | 0.1.1 | 2026-09-25 | Section 8.1: corrected the "Dispute opened / response required / resolved" topic row's Source domain cell to reference the now-canonical [`disputes.md`](../09-moderation-trust-safety/disputes.md), removing the "blocked pending Governance ownership decision" language now that `BLOCKER-1` is resolved. No topic classification, channel, or default was changed. | Product and Architecture |
+| 0.1.2 | 2026-10-01 | Recorded Resend, in-app and email only, a three-attempt maximum, no digest, no cross-user history, and the classes for Buyer non-response, Dispute lifecycle, and Rating availability. EQ6 stays open. | Product |

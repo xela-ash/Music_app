@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Ratings and Reputation (governed `RATINGS` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.1.1 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Ratings and Reputation product architecture and verified current repository comparison |
@@ -226,7 +226,7 @@ sequenceDiagram
 
 ## 9. Rating scale
 
-No rating scale is established by any existing specification or by the repository (`RR5`, Section 3.3). This document therefore defines only the architecture: `score` is a bounded, server-validated integer within a configured minimum and maximum, snapshotted at submission time so a later scale change cannot reinterpret historical Ratings. The exact bounds (for example, 1–5) are not chosen here and are Open Question EQ1 (Section 25.3).
+Product set the MVP scale on 2026-10-01 (EQ1). `score` is a whole integer from 1 through 5. There are no half-stars and no category sub-scores. The score is snapshotted at submission and stays immutable under the existing submission rules. A later scale change must not reinterpret a stored score.
 
 `BR-RATINGS-002`: A Rating's `score` MUST be validated against the platform's configured scale at submission time, and a later change to the configured scale MUST NOT reinterpret, rescale, or invalidate a previously submitted `score`.
 
@@ -260,7 +260,7 @@ Ratings Pending is a Projects-owned display and completion-tracking concept, not
 
 This document supplies the "future Ratings policy" [Projects Section 11.1](../05-projects-milestones/projects.md#111-completion-rule) names but defers: for each eligible direction, Ratings resolves to exactly one outcome — `SUBMITTED` (a real Rating exists) or `WAIVED_TIMEOUT` (a configured Ratings-collection window elapsed without a submission). A waived direction is recorded distinctly from a submitted one and is never fabricated as, or displayed as, an actual score. Once both directions have resolved to either outcome, Ratings emits one completion fact that Projects consumes for its own Completed-label convergence; Ratings does not decide or write the Project's Completed state itself (`RR4`).
 
-The exact Ratings-collection window duration is configurable operational policy, not invented here (Open Question EQ2, Section 25.3), consistent with how [Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention) treats its own review-period duration for the same reason: the product behavior is decided, the number is not.
+The Ratings-collection window is 14 calendar days from the moment that direction becomes eligible (EQ2, decided 2026-10-01). Expiry resolves that direction as `WAIVED_TIMEOUT`. This window is not the Milestones buyer-review period. Ratings never block Escrow release, Seller payout, or financial entitlement.
 
 ```mermaid
 flowchart TD
@@ -593,10 +593,10 @@ Documentation only; this stage does not modify application code or migrations.
 
 | ID | Priority | Question | Why it blocks or risks | Decision owner | Affected contract |
 | --- | --- | --- | --- | --- | --- |
-| EQ1 | P0 | What is the exact rating scale (for example, 1–5, 1–10, or another bounded range)? | No score can be validated or displayed without it | Product | Sections 7, 9 |
-| EQ2 | P1 | What is the exact Ratings-collection window duration before a direction resolves to `WAIVED_TIMEOUT`? | Section 11's product behavior is decided; the number is not | Product, Operations | Section 11 |
-| EQ3 | P2 | Should reputation ever use recency weighting or decay? | Premature complexity without a proven product need; deliberately deferred for MVP | Product | Section 12 |
-| EQ4 | P2 | Should category-based sub-scores (communication, quality, timeliness) be added? | Affects the field matrix and submission UI | Product | Section 7 |
+| EQ1 | Resolved 2026-10-01 | What is the exact rating scale? | Whole integers from 1 through 5. No half-stars. The score is immutable after submission | Product decision | Sections 7, 9 |
+| EQ2 | Resolved 2026-10-01 | What is the collection window? | 14 calendar days from eligibility. Expiry resolves that direction as `WAIVED_TIMEOUT`. Ratings never change financial entitlement | Product decision | Section 11 |
+| EQ3 | Resolved for MVP 2026-10-01 | Should reputation use recency weighting or decay? | No. MVP reputation is the governed overall 1–5 Rating only | Product decision | Section 12 |
+| EQ4 | Resolved for MVP 2026-10-01 | Should category sub-scores be added? | No. Quality, communication, and timeliness sub-ratings are out of MVP | Product decision | Section 7 |
 | EQ5 | P2 | Is a Buyer-editable window (for example, 24 hours) needed for correcting a submitted Rating before it becomes fully immutable? | MVP treats every Rating as immutable on submission; this may be too strict | Product | Section 7 |
 | EQ6 | P2 | What is the exact retention period for `REMOVED` Ratings and their audit trail? | Determines the deletion-policy boundary the schema must respect | Legal, Privacy, Data | Section 13 |
 | EQ7 | P2 | Should a rater be notified when their Rating is hidden or removed, and with what detail? | Balances transparency against moderation-process confidentiality | Product, Moderation | Section 17.3 |
@@ -656,3 +656,4 @@ This document was validated against Governance's structural requirements before 
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Ratings and Reputation domain specification: ownership resolved to the `RATINGS` token under `docs/08-ratings-reputation/`, taking over `BR-RATINGS-001` and the Ratings-owned content of `REQ-FOUNDATION-007`; one-Rating-per-direction-per-Project model; eligibility, submission, publication, and moderation contracts; the Ratings completion fact resolving Projects' deferred timeout/waiver policy without gating Escrow release; conservative MVP reputation projection; resolved Assets' "Review Evidence" purpose ownership; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
+| 0.1.1 | 2026-10-01 | Recorded the 1–5 whole-star scale, the 14-calendar-day collection window, and the MVP limit to the overall Rating. EQ5–EQ9 stay open. | Product |

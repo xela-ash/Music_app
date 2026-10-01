@@ -7,7 +7,7 @@
 | Document ID | SPEC-ROLE-000 (provisional — see §4.1) |
 | Type | Specification (SPEC) |
 | Status | Approved |
-| Version | 1.0.0 |
+| Version | 1.0.1 |
 | Owner | Engineering (interim: repository maintainers) |
 | Repository branch | `docs/specification-foundation` |
 | Last updated | 2026-07-22 |
@@ -980,7 +980,7 @@ This roadmap is sequencing guidance, not a committed schedule — no dates are i
 | 1 | Should GOV-000 §11's domain-token list be updated to add `ROLE`/`ROLES`, should Role identifiers fold under the existing `AUTHZ` token, or should this remain provisional indefinitely? | Identifier governance | §4.1 — mirrors the exact three-option shape `authorization.md` once posed for its own `AUTHZ` gap |
 | 2 | Exact database schema for `roles`, `role_assignments`, `organization_memberships`, `organization_role_assignments`, and `temporary_access_grants` — column names, types, and indices. | Implementation detail | §21 |
 | 3 | Complete Permission catalog and Role-to-Permission mapping. | Deferred scope | Deferred to a future `permissions.md` (`authorization.md` §3, §25; this document's §6.2) |
-| 4 | Exact bootstrap mechanism for the first Administrator, since every Administrator-assignment path in this document assumes an existing Administrator does the assigning. | Implementation detail | §9.1, §7.9 |
+| 4 | Resolved 2026-10-01. The first Administrator is granted by a non-public environment or CLI bootstrap. It operates only on an existing active User named explicitly, and only while zero Administrators exist. After that grant the bootstrap path refuses. Later grants use the governed assignment flow. The bootstrap is audited. There is no public HTTP bootstrap route and no self-service elevation. Bootstrap secrets are not committed. | Product decision | §9.1, §7.9 |
 | 5 | Whether an approval workflow (`Requested` → `Active`, §10.2) precedes Role activation, or whether every assignment is a direct grant. | Product design | §10.2 — drawn as Planned-but-optional since no canonical decision resolves it either way |
 | 6 | Exact segregation-of-duties rules for Administrator role assignment (e.g., whether the same Administrator may both propose and approve a colleague's grant). | Product design | Carried from `authorization.md` §35.2, item 9 |
 | 7 | Whether the seven-role Organization catalog (§8) is final and closed, or whether Organizations will be able to define custom roles beyond this list. | Product design | §8.3 |
@@ -1047,4 +1047,5 @@ This roadmap is sequencing guidance, not a committed schedule — no dates are i
 
 | Version | Date | Change | Author |
 |---|---|---|---|
+| 1.0.1 | 2026-10-01 | Recorded the first-Administrator bootstrap: non-public, one existing active User, only while zero Administrators exist, then refused. | Product |
 | 1.0.0 | 2026-07-22 | Initial approved Roles domain specification. Defined 10 Platform Roles (Anonymous, Authenticated User, Buyer, Seller, Verified Seller, Moderator, Administrator, Support Operator, System, Service Account) and 7 Organization Roles (Owner, Administrator, Billing Manager, Project Manager, Finance Manager, Member, Viewer), each with Purpose, Responsibilities, Capabilities, Restrictions, Assignment Rules, Removal Rules, Lifecycle, Relationships, Security Implications, and Repository Status. Introduced a four-category Role taxonomy (§6.3: session-derived, relationship-derived, explicitly assigned, non-human) to reconcile this catalog with `authorization.md` §13.2's "relationship-based, not role-based" framing of Buyer/Seller without contradicting it. Defined Role assignment, lifecycle, activation/suspension/expiry, temporary roles, revocation, delegation, multiplicity, precedence/conflict resolution, constraints, evaluation order, auditing, target data model, and interfaces. Verified the entire domain against the repository: confirmed zero Role, Permission, Role Assignment, or Organization schema exists anywhere; confirmed Buyer/Seller exist only as relationship columns; confirmed the frontend's `isBuyer`-derived UI copy is client-side-only and untrusted server-side. Identified six new findings (`SEC-ROLE-001`–`006`) and cross-referenced eight existing findings from `authorization.md`/`authentication.md`. Flagged the missing `ROLE` GOV-000 domain token as a governance gap, mirroring the exact precedent `authorization.md` v1.0.0 once established for `AUTHZ`, and recommended (without performing) a future dedicated governance-update task. No existing specification was modified; no objective contradiction requiring one was found. No repository code was changed. | Engineering |

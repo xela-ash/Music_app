@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Payments: provider adapter, Payment records, webhooks, payouts, refund execution, chargeback intake (governed `ESCROW` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.1.1 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Payments product architecture and verified current repository comparison |
@@ -813,9 +813,9 @@ Payments shares every risk listed in [escrow.md Section 31.1](escrow.md#311-risk
 
 | ID | Priority | Question | Why it blocks or risks | Decision owner | Affected contract |
 | --- | --- | --- | --- | --- | --- |
-| PQ1 | P0 | Which payment provider or providers will MusicApp integrate first, and what methods (cards, UPI, netbanking) and payout rails must the adapter support? | The concrete adapter implementation, webhook contract, and payout-account model cannot be finalized without it | Product, Engineering | Sections 8, 11 |
+| PQ1 | Resolved 2026-10-01 | Which payment provider is first? | Cashfree Payment Gateway, Cashfree marketplace split or the current vendor-settlement product, and Cashfree payout where the approved flow requires it. The provider-neutral adapter, a mock adapter, and environment credentials stay mandatory. Production activation waits for Cashfree approval of the marketplace, milestone-release, and Seller-settlement model | Product decision | Sections 8, 11 |
 | PQ2 | P1 | What is the provider's own dispute or chargeback evidence submission process, and what deadline applies? | Determines the `evidence_submitted` workflow and Assets binding for evidence | Product, Legal, chosen provider | Section 13 |
-| PQ3 | P1 | What payout schedule applies (immediate on release, batched daily, on request)? | Affects the payout-initiation trigger and Seller expectations | Product, Finance | Section 11 |
+| PQ3 | Resolved 2026-10-01 | What payout schedule applies? | Initiation is automatic and immediate once released Seller entitlement exists and the live payout gate passes. There is no withdrawal button and no daily batch. Release and payout stay separate records. Re-check account status and Identity Verification immediately before initiation. A failed gate retains the entitlement. Provider processing time is not instantaneous settlement | Product decision | Section 11 |
 | PQ4 | P2 | Does the platform need to support more than one active provider simultaneously in MVP, or is a single-provider MVP acceptable with the registry reserved for the future? | Affects whether Section 8.2's multi-provider registry is built for MVP or deferred | Product, Engineering | Section 8.2 |
 
 Every question in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questions) that touches provider mechanics (notably EQ13) is cross-referenced, not duplicated.
@@ -895,3 +895,4 @@ Every question in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questi
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial Proposed Payments capability: Payment model and state machine, provider adapter architecture, funding execution, refunds, payouts, chargeback intake, webhook security, idempotency, secret handling, target data model, verified repository comparison, security findings, and traceability, companion to `escrow.md`. | Product and Architecture |
+| 0.1.1 | 2026-10-01 | Recorded Cashfree as the target provider (PQ1) and automatic immediate payout initiation (PQ3). PQ2 and PQ4 stay open. | Product |
