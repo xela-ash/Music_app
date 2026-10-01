@@ -122,12 +122,32 @@ describe("MVP-018 milestone transitions M01–M17", { concurrency: 1, timeout: 1
       "UPDATE projects SET state = 'funded'::project_state WHERE id = $1",
       [projectId]
     );
+    const invitation = await pool.query(
+      `INSERT INTO project_invitations (
+         external_id, project_id, inviter_user_id, invitee_user_id,
+         proposal_version, proposal_hash, status, expires_at, decided_at
+       )
+       VALUES ($1, $2, $3, $4, 1, $5, 'accepted', clock_timestamp() + interval '1 day', clock_timestamp())
+       RETURNING id`,
+      [
+        `inv_${require("crypto").randomBytes(10).toString("hex")}`,
+        projectId,
+        buyer.userId,
+        seller.userId,
+        "ab".repeat(32),
+      ]
+    );
     await pool.query(
       `INSERT INTO project_participants (
-         external_id, project_id, user_id, category, status, accepted_at
+         external_id, project_id, user_id, category, status, source_invitation_id, accepted_at
        )
-       VALUES ($1, $2, $3, 'seller', 'active', clock_timestamp())`,
-      [`ppt_${require("crypto").randomBytes(10).toString("hex")}`, projectId, seller.userId]
+       VALUES ($1, $2, $3, 'seller', 'active', $4, clock_timestamp())`,
+      [
+        `ppt_${require("crypto").randomBytes(10).toString("hex")}`,
+        projectId,
+        seller.userId,
+        invitation.rows[0].id,
+      ]
     );
     return { projectId, milestoneId: milestone.id };
   }

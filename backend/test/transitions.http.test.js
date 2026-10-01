@@ -374,7 +374,10 @@ describe("MVP-015 project term versions and state machine", { concurrency: 1, ti
       "SELECT event_type FROM project_audit_events WHERE project_id = $1",
       [project.id]
     );
-    assert.deepEqual(audits.rows.map((row) => row.event_type).sort(), ["AUD-PROJECTS-001", "AUD-PROJECTS-003", "AUD-PROJECTS-008"]);
+    assert.deepEqual(
+      audits.rows.map((row) => row.event_type).sort(),
+      ["AUD-PROJECTS-001", "AUD-PROJECTS-003", "AUD-PROJECTS-007", "AUD-PROJECTS-008"]
+    );
     const outbox = await pool.query(
       "SELECT event_type FROM outbox_messages WHERE aggregate_id = $1 AND event_type = 'ProjectStateChanged'",
       [project.external_id]
