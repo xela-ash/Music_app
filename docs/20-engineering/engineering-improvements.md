@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.21 |
+| Version | 0.7.22 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1861,6 +1861,36 @@ Copy this template for each new entry:
 | Related PR | [#92](https://github.com/xela-ash/music_app/pull/92) |
 | Resolution | — |
 
+### ENG-IMP-062 The application role owns the ledger table
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-062 |
+| Title | The application role owns the ledger table |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-026 implementation |
+| Category | Security |
+| Affected subsystem | Escrow |
+| Current state | Migration `020` revokes `UPDATE`, `DELETE`, and `TRUNCATE` on `escrow_ledger` from `PUBLIC` and from `musicapp`. Triggers reject those statements as well. `musicapp` still owns the table, runs migrations, and serves the API. |
+| Evidence / problem | Escrow §13.4 asks for an application role with `INSERT` and `SELECT` only. An owner can grant the revoked privileges back or disable the trigger. The repository has one database role for migrations and the application. |
+| Suggested improvement | Introduce a non-owner application role that cannot alter `escrow_ledger`, and keep ownership with the migration role. |
+| Expected benefit | A compromised application credential cannot disable the append-only trigger. |
+| Risk of doing nothing | The trigger still rejects `UPDATE`, `DELETE`, and `TRUNCATE` for the current role unless that role first disables the trigger. |
+| Implementation risk | Medium. Every connection string and the test fixture would change. |
+| Estimated scope | M |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | Role and grant changes. No ledger rewrite. |
+| Security impact | Closes the remaining owner path in `SEC-ESCROW-001`. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | Before a production financial deployment |
+| Status | PROPOSED |
+| Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
+| Related PR | The MVP-026 pull request |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1875,8 +1905,8 @@ The initial review confirmed the following gaps in the code. Each is already own
 | JWT in `localStorage` | `SEC-USERS-005`; [Authentication §19.3](../02-users-roles-permissions/authentication.md#193-browser-token-delivery--target-vs-current) |
 | `err.detail` echoed in error responses | [Authentication §22](../02-users-roles-permissions/authentication.md#22-failure-handling) |
 | `RETURNING *` returns full Profile rows | [Profiles](../02-users-roles-permissions/profiles.md) findings |
-| Escrow and allocation amounts are `BIGINT` minor units with `INR` exponent 2. `projects.price_amount`, `payments`, and `escrow_ledger` remain 32-bit. | `REQ-ESCROW-003`; `ENG-IMP-050`; MVP-026 owns the ledger |
-| `escrow_ledger` not append-only; financial `ON DELETE CASCADE` | [Escrow §13](../06-payments-escrow/escrow.md#13-ledger-architecture), [§24](../06-payments-escrow/escrow.md#24-target-data-model); MVP-026 |
+| Escrow and allocation amounts are `BIGINT` minor units with `INR` exponent 2. `escrow_ledger` amounts are `BIGINT` minor units with `INR` exponent 2. `projects.price_amount` and `payments` remain 32-bit. | `REQ-ESCROW-003`; `ENG-IMP-050` |
+| `escrow_ledger` rejects `UPDATE`, `DELETE`, and `TRUNCATE`. Its foreign keys are `RESTRICT`. The application role still owns the table. | [Escrow §13](../06-payments-escrow/escrow.md#13-ledger-architecture); MVP-026; `ENG-IMP-062` |
 | No `updated_at` maintenance trigger | [Milestones §26](../05-projects-milestones/milestones.md#26-target-data-model), [Projects §26](../05-projects-milestones/projects.md#26-target-data-model) |
 | `GET /profiles` search is server-side and still paged at 100 rows. Public/active scoping is not applied because those columns do not exist. | [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace); MVP-013; `REQ-PROFILE-005` |
 | Only `console.*` logging, no structured observability | [System Architecture §14](../01-foundation/system-architecture.md#14-non-functional-and-operational-gaps); target practice in [Handbook §15](engineering-handbook.md#15-observability) |
@@ -1926,3 +1956,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.19 | 2026-10-01 | Added `ENG-IMP-055` through `ENG-IMP-059` (all PROPOSED) from the MVP-018 review. None are authorized. | Engineering |
 | 0.7.20 | 2026-10-01 | Added `ENG-IMP-060` (PROPOSED) from the MVP-019 review: the concurrent start test does not resubmit the losing key. Not authorized. | Engineering |
 | 0.7.21 | 2026-10-01 | Added `ENG-IMP-061` (PROPOSED) from the MVP-024 review: escrow audit rows keep amount and currency in the hash. Not authorized. The money cross-reference now records the BIGINT escrow columns. | Engineering |
+| 0.7.22 | 2026-10-01 | Added `ENG-IMP-062` (PROPOSED): the application role still owns `escrow_ledger`. Not authorized. The ledger cross-reference now records the append-only BIGINT journal. | Engineering |
