@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Payments: provider adapter, Payment records, webhooks, payouts, refund execution, chargeback intake (governed `ESCROW` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.1.3 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Payments product architecture and verified current repository comparison |
@@ -37,7 +37,7 @@ This document is canonical for:
 - Payments' own idempotency, concurrency, secret handling, and provider reconciliation;
 - Payments' target data model, dependencies, interfaces, security findings, and migration guidance.
 
-This document does not decide whether, how much, or to whom money is owed. Those are [escrow.md](escrow.md)'s decisions, and Payments only executes an instruction Escrow has issued or reports a fact it verified from the provider. This document does not select a specific provider, define adjudication or evidence rules for Disputes, or define Project or Milestone lifecycle.
+This document does not decide whether, how much, or to whom money is owed. Those are [escrow.md](escrow.md)'s decisions, and Payments only executes an instruction Escrow has issued or reports a fact it verified from the provider. Cashfree is the selected target provider (PQ1, 2026-10-01). The adapter stays provider-neutral, and production activation waits for Cashfree approval. This document does not define adjudication or evidence rules for Disputes, or define Project or Milestone lifecycle.
 
 ## 3. Governance, status, and authority
 
@@ -92,7 +92,7 @@ Payments follows every principle in [escrow.md Section 5](escrow.md#5-canonical-
 1. Payments never decides an amount, a beneficiary, or a state transition for Escrow; it executes instructions and reports verified facts.
 2. A provider callback is untrusted input until its signature, timestamp, and event identity are verified.
 3. A Payment's internal state is independent of Escrow, allocation, Milestone, and Project state; Escrow reads Payment facts and never writes them.
-4. No specific provider is named as canonical by this document. The adapter contract, not a vendor SDK, is the governed interface.
+4. Cashfree is the selected target provider (PQ1, 2026-10-01). The adapter contract, not a vendor SDK, is the governed interface. Production activation waits for Cashfree approval.
 5. A duplicate webhook, a duplicate Payment, or a retried request never causes a second money movement.
 6. Secrets (API keys, webhook signing secrets) are never logged, embedded in audit records, or returned in any response.
 
@@ -198,7 +198,7 @@ stateDiagram-v2
 
 ### 8.1 Provider-neutral contract
 
-No payment provider is selected by this document (Question EQ13 in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questions)). The architecture is a single internal adapter interface that every provider-specific implementation satisfies, so that Payments, Escrow, and every caller depend only on the interface.
+Cashfree is the selected target provider (Question EQ13 in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questions), resolved 2026-10-01). The architecture is a single internal adapter interface that the Cashfree adapter and the mock test adapter both satisfy, so that Payments, Escrow, and every caller depend only on the interface. Production activation waits for Cashfree approval of the marketplace, milestone-release, and Seller-settlement model.
 
 | Adapter operation | Contract | Repository status |
 | --- | --- | --- |
@@ -770,7 +770,7 @@ This task is documentation only. Payments' implementation is coordinated with [e
 3. **Establish Escrow and allocation invariants** (stage 3): add `instruction_id` to `payments` so every Payment traces to one instruction.
 4. **Enforce append-only ledger** (stage 4): not Payments-owned; Payments only reports facts that cause ledger entries.
 5. **Implement the Payment abstraction** (stage 5, Payments-owned): retire the two Escrow-decision `payment_type` values, add `payout`, add idempotency key and provider-reference uniqueness.
-6. **Add a provider adapter** (stage 6, Payments-owned): implement the interface of Section 8.1 behind a chosen provider (Question EQ13 in [escrow.md](escrow.md)).
+6. **Add a provider adapter** (stage 6, Payments-owned): implement the interface of Section 8.1 with a mock adapter and a Cashfree adapter (EQ13, resolved 2026-10-01). Live calls wait for credentials and Cashfree approval.
 7. **Add secure webhook processing** (stage 7, Payments-owned): raw-body route, signature verification, replay protection, event deduplication (Section 15.2).
 8. **Add the funding workflow** (stage 8): Payments executes; Escrow decides (Section 9).
 9. **Add allocation reconciliation** (stage 9): not Payments-owned.
@@ -804,7 +804,7 @@ Payments shares every risk listed in [escrow.md Section 31.1](escrow.md#311-risk
 
 ### 25.2 Assumptions
 
-1. A payment provider capable of India-first payment methods, webhooks, and payouts will be selected; this document does not select one (Question EQ13).
+1. Cashfree is the selected target provider for India-first payment methods, webhooks, and payouts (Question EQ13, resolved 2026-10-01). The adapter stays provider-neutral. Credentials stay in the environment.
 2. Every assumption in [escrow.md Section 31.2](escrow.md#312-assumptions) applies equally here, including that no financial row currently exists in any environment.
 3. The chosen provider supports webhook signature verification and idempotent request creation; if a chosen provider lacks one of these, the corresponding control in Section 15.2 or Section 14 needs a provider-specific compensating design, not a relaxed requirement.
 4. Payout to Indian bank accounts or UPI handles is the MVP payout method; other methods are future work.
@@ -813,9 +813,9 @@ Payments shares every risk listed in [escrow.md Section 31.1](escrow.md#311-risk
 
 | ID | Priority | Question | Why it blocks or risks | Decision owner | Affected contract |
 | --- | --- | --- | --- | --- | --- |
-| PQ1 | P0 | Which payment provider or providers will MusicApp integrate first, and what methods (cards, UPI, netbanking) and payout rails must the adapter support? | The concrete adapter implementation, webhook contract, and payout-account model cannot be finalized without it | Product, Engineering | Sections 8, 11 |
+| PQ1 | Resolved 2026-10-01 | Which payment provider is first? | Cashfree Payment Gateway, Cashfree marketplace split or the current vendor-settlement product, and Cashfree payout where the approved flow requires it. The provider-neutral adapter, a mock adapter, and environment credentials stay mandatory. Production activation waits for Cashfree approval of the marketplace, milestone-release, and Seller-settlement model | Product decision | Sections 8, 11 |
 | PQ2 | P1 | What is the provider's own dispute or chargeback evidence submission process, and what deadline applies? | Determines the `evidence_submitted` workflow and Assets binding for evidence | Product, Legal, chosen provider | Section 13 |
-| PQ3 | P1 | What payout schedule applies (immediate on release, batched daily, on request)? | Affects the payout-initiation trigger and Seller expectations | Product, Finance | Section 11 |
+| PQ3 | Resolved 2026-10-01 | What payout schedule applies? | Initiation is automatic and immediate once released Seller entitlement exists and the live payout gate passes. There is no withdrawal button and no daily batch. Release and payout stay separate records. Re-check account status and Identity Verification immediately before initiation. A failed gate retains the entitlement. Provider processing time is not instantaneous settlement | Product decision | Section 11 |
 | PQ4 | P2 | Does the platform need to support more than one active provider simultaneously in MVP, or is a single-provider MVP acceptable with the registry reserved for the future? | Affects whether Section 8.2's multi-provider registry is built for MVP or deferred | Product, Engineering | Section 8.2 |
 
 Every question in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questions) that touches provider mechanics (notably EQ13) is cross-referenced, not duplicated.
@@ -895,3 +895,6 @@ Every question in [escrow.md Section 31.3](escrow.md#313-prioritized-open-questi
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial Proposed Payments capability: Payment model and state machine, provider adapter architecture, funding execution, refunds, payouts, chargeback intake, webhook security, idempotency, secret handling, target data model, verified repository comparison, security findings, and traceability, companion to `escrow.md`. | Product and Architecture |
+| 0.1.3 | 2026-10-01 | Principle 4 names Cashfree as the selected provider and keeps the adapter contract provider-neutral. | Product |
+| 0.1.2 | 2026-10-01 | Aligned the scope, adapter section, implementation step, and assumptions with resolved PQ1 so they no longer say no provider is selected. | Product |
+| 0.1.1 | 2026-10-01 | Recorded Cashfree as the target provider (PQ1) and automatic immediate payout initiation (PQ3). PQ2 and PQ4 stay open. | Product |

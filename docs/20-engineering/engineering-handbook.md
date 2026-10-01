@@ -6,7 +6,7 @@
 | Type | Standard (STD) — engineering practice, not product behavior |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.1.0 |
+| Version | 0.1.1 |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Every human engineer and AI agent (Claude, Cursor, or other) changing code, schema, configuration, or tests in this repository |
 | Supersedes / Superseded By | None |
@@ -316,14 +316,14 @@ Escrow and Payments hold and move other people's money. These rules are elevated
 12. **Reconciliation.** Ledger, projections, and provider records are reconciled on a schedule ([`REQ-ESCROW-020`](../06-payments-escrow/escrow.md#23-audit-events-and-reconciliation), [Payments §16](../06-payments-escrow/payments.md#16-audit-and-provider-reconciliation)). Drift raises an alert and is never auto-corrected silently.
 13. **Partial failure is explicit.** If the provider call succeeds and the local commit fails, or the reverse, the system must land in a state it can recognize and recover from (pending, blocked, or quarantined). It must never report success it cannot prove. For example, an instruction against funds already paid out reports `execution_blocked`.
 14. **Required tests.** Every financial command has tests for duplicate submission, duplicate provider events, reordered events, a concurrent competing command (release vs. refund, approval vs. dispute), a currency or amount mismatch, and a partial failure at each external boundary.
-15. **Unspecified money movement is a stop condition.** If no specification section authorizes a movement, hold, release, or refund, do not build it ([`AGENTS.md`](../../AGENTS.md) Section 4). Fee rates, compensation for cancellation, and post-payout liability are open product decisions (MVP-027, MVP-030, MVP-036). Do not default them.
+15. **Unspecified money movement is a stop condition.** If no specification section authorizes a movement, hold, release, or refund, do not build it ([`AGENTS.md`](../../AGENTS.md) Section 4). The 2026-10-01 decisions set the Seller commission at 10% and funded-cancellation compensation as a mutual award. Broader post-payout recovery stays open (MVP-036). Do not default that recovery rule.
 
 ## 13. File and Asset engineering
 
 Owning specification: [Assets and media](../03-identity-profiles-verification/assets-and-media.md). **Current:** no `assets` table, upload route, storage adapter, or file handling exists. `profiles.profile_photo_asset_id` and `verification_documents.asset_id` are UUID columns without foreign keys, waiting for that table.
 
 - **Canonical identity:** an Asset (and its versions) is the only identity of a file. Other domains reference an Asset version by ID and never store paths, URLs, or bytes.
-- **Storage is separated from domain references.** A storage key or locator is internal to the storage adapter and never returned to clients as a durable identifier. The adapter is provider-neutral (Assets §14), and no provider is selected.
+- **Storage is separated from domain references.** A storage key or locator is internal to the storage adapter and never returned to clients as a durable identifier. The adapter is provider-neutral (Assets §14). Cloudflare R2 Standard is the selected provider. Credentials stay in the environment.
 - **Authorization:** every upload and download is authorized against the Asset's purpose, owner, and binding ([Assets §17](../03-identity-profiles-verification/assets-and-media.md#17-asset-access-policy)). Having the Asset ID is not permission.
 - **Upload validation** ([Assets §11](../03-identity-profiles-verification/assets-and-media.md#11-upload-architecture), [§13](../03-identity-profiles-verification/assets-and-media.md#13-file-validation-and-content-security)): enforce the size ceiling before the whole body is buffered. Detect type from content on the server and never trust a declared MIME type or extension. Use a per-purpose allowlist; the existing `verification_documents_mime_allowed` constraint is one example. Guard against decompression bombs and oversized decoded dimensions or durations.
 - **Security hooks:** an Asset is not `Ready` until its validation and scan hooks pass. The scanning engine is a provider decision.
@@ -455,4 +455,5 @@ This handbook changes only through an approved change that modifies engineering 
 
 | Version | Date | Change | Author |
 |---|---|---|---|
+| 0.1.1 | 2026-10-01 | Recorded the decided fee and compensation rules and Cloudflare R2 as the storage provider. Broader post-payout recovery stays a stop condition. | Product |
 | 0.1.0 | 2026-09-25 | Initial engineering handbook, derived from the verified repository state and the canonical specifications. Proposed pending human review. | Engineering (drafted by Claude Code) |
