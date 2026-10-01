@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.29 |
+| Version | 0.7.30 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2161,6 +2161,36 @@ Copy this template for each new entry:
 | Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
 | Resolution | — |
 
+### ENG-IMP-083 A Cashfree 5xx marks the funding attempt failed
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-083 |
+| Title | A Cashfree 5xx marks the funding attempt failed |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | `createFundingIntent` throws `payment_provider_rejected` for every non-OK HTTP response. The service then marks the payment `failed` and completes the idempotency key. A network throw stays `payment_provider_uncertain` and leaves the row `created`. |
+| Evidence / problem | The re-review of pull request #103. A provider 5xx can mean the order was not created, or that the result was lost. Marking it failed prevents the same key from retrying that reference. |
+| Suggested improvement | Treat HTTP 5xx like an uncertain result: leave the payment `created` and let the same idempotency key retry. |
+| Expected benefit | A transient provider error does not burn the order reference. |
+| Risk of doing nothing | The buyer can start a new idempotency key after a failed attempt. No live Cashfree call exists yet. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A live Cashfree credential. This entry does not authorize a retry-policy change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before production Cashfree activation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2294,3 +2324,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. `ENG-IMP-084` and `ENG-IMP-085` are already on main. | Engineering |
 | 0.7.29 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
+| 0.7.30 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
