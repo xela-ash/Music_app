@@ -9,7 +9,8 @@ const REQUIRED_ENV = Object.freeze([
 ]);
 const REGION = "auto";
 const SERVICE = "s3";
-const PRESIGN_SECONDS = 900;
+// AWS Signature Version 4 protocol maximum. Not a MusicApp product duration.
+const SIGNATURE_PROTOCOL_MAX_SECONDS = 604800;
 
 let transport = defaultTransport;
 
@@ -129,7 +130,7 @@ function signedRequest({ method, canonicalUri, queryEntries, body, now }) {
   };
 }
 
-function presignPart({ key, uploadId, partNumber, now = new Date() }) {
+function presignPart({ key, uploadId, partNumber, expiresSeconds, now = new Date() }) {
   const current = readConfig();
   if (!current.ok) {
     throw unconfigured();
@@ -145,6 +146,11 @@ function presignPart({ key, uploadId, partNumber, now = new Date() }) {
     error.code = "part_number";
     throw error;
   }
+  if (!Number.isInteger(expiresSeconds) || expiresSeconds < 1 || expiresSeconds > SIGNATURE_PROTOCOL_MAX_SECONDS) {
+    const error = new Error("Presign lifetime must be the remaining session time");
+    error.code = "presign_lifetime";
+    throw error;
+  }
   const host = endpoint(current.values.R2_ACCOUNT_ID);
   const stamp = amzTimestamp(now);
   const dateStamp = stamp.slice(0, 8);
@@ -154,7 +160,7 @@ function presignPart({ key, uploadId, partNumber, now = new Date() }) {
     ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
     ["X-Amz-Credential", credential],
     ["X-Amz-Date", stamp],
-    ["X-Amz-Expires", String(PRESIGN_SECONDS)],
+    ["X-Amz-Expires", String(expiresSeconds)],
     ["X-Amz-SignedHeaders", "host"],
     ["partNumber", String(partNumber)],
     ["uploadId", uploadId],
@@ -170,7 +176,7 @@ function presignPart({ key, uploadId, partNumber, now = new Date() }) {
     method: "PUT",
     url: `https://${host}${canonicalUri}?${query}&X-Amz-Signature=${signature}`,
     headers: {},
-    expires_in: PRESIGN_SECONDS,
+    expires_in: expiresSeconds,
   };
 }
 

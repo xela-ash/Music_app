@@ -257,6 +257,20 @@ describe("asset ingest", () => {
     });
     assert.equal(overQuota.status, 429);
     assert.equal(overQuota.json.code, "project_quota");
+    await pool.query(
+      `UPDATE asset_upload_sessions
+       SET expires_at = clock_timestamp() - interval '1 second'
+       WHERE project_id = (SELECT id FROM projects WHERE external_id = $1)`,
+      [project.external_id]
+    );
+    const afterExpiry = await openSession(buyer.token, {
+      purpose: "other_project_file",
+      declared_size_bytes: 1,
+      filename: "after-expiry.bin",
+      declared_mime_type: "application/octet-stream",
+      project_id: project.external_id,
+    });
+    assert.equal(afterExpiry.status, 201, afterExpiry.text);
   });
 
   it("makes a scanned file Ready and does not apply a duration ceiling", async () => {
@@ -360,6 +374,25 @@ describe("asset ingest", () => {
     assert.equal(rejected.status, 422);
     assert.equal(rejected.json.code, "pixel_limit");
     assert.equal(rejected.json.upload_session.asset_state, "rejected");
+
+    const notes = Buffer.from("not an image");
+    const plain = await openSession(user.token, {
+      purpose: "profile_avatar",
+      declared_size_bytes: notes.length,
+      filename: "notes.txt",
+      declared_mime_type: "text/plain",
+    });
+    assert.equal(plain.status, 201, plain.text);
+    const plainId = plain.json.upload_session.external_id;
+    await request("PUT", `/asset-upload-sessions/${plainId}/content`, { token: user.token, raw: notes });
+    const unverified = await request("POST", `/asset-upload-sessions/${plainId}/complete`, {
+      token: user.token,
+      idempotencyKey: nextId("plain"),
+      body: {},
+    });
+    assert.equal(unverified.status, 422);
+    assert.equal(unverified.json.code, "unverified_image_dimensions");
+    assert.equal(unverified.json.upload_session.asset_state, "rejected");
   });
 
   it("fails closed when the scanner is not clean and can record a derivative", async () => {

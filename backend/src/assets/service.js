@@ -429,6 +429,12 @@ async function completeUploadSession(externalId, body, actorId, idempotencyKey) 
       }
       const prefix = await storage.readPrefix(session.staging_key, 65536);
       const inspected = assessObjectPrefix(prefix, { allowArchive: session.purpose === "daw_project_archive" });
+      const profileImage = session.purpose === "profile_avatar" || session.purpose === "profile_cover";
+      if (inspected.ok && profileImage && (inspected.mime !== "image/png" && inspected.mime !== "image/jpeg" || !inspected.width || !inspected.height)) {
+        inspected.ok = false;
+        inspected.code = "unverified_image_dimensions";
+        inspected.error = "Image dimensions could not be verified";
+      }
       if (!inspected.ok) {
         await persistOutcome(client, session, actorId, {
           state: "rejected",
@@ -442,7 +448,7 @@ async function completeUploadSession(externalId, body, actorId, idempotencyKey) 
           height: null,
         });
         const view = await repository.publicSession(client, session.id);
-        const status = inspected.code === "pixel_limit" ? 422 : 415;
+        const status = inspected.code === "pixel_limit" || inspected.code === "unverified_image_dimensions" ? 422 : 415;
         return { status, body: { error: inspected.error, code: inspected.code, upload_session: sessionView(view) } };
       }
       const assetRow = await clientQueryAsset(client, session.asset_id);
@@ -631,10 +637,15 @@ async function grantPartUpload(externalId, actorId, partNumber) {
     }
     let grant;
     try {
+      const remainingSeconds = Math.floor((new Date(session.expires_at).getTime() - Date.now()) / 1000);
+      if (remainingSeconds < 1) {
+        return fail(409, "Session is expired", "session_expired");
+      }
       grant = storage.presignPart({
         key: session.staging_key,
         uploadId: session.object_generation,
         partNumber,
+        expiresSeconds: remainingSeconds,
       });
     } catch (error) {
       if (error.code === "storage_unconfigured") {

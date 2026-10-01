@@ -65,10 +65,19 @@ test("a configured R2 part grant is a direct URL and does not contain the secret
       key: "a".repeat(32),
       uploadId: "upload-id",
       partNumber: 1,
+      expiresSeconds: 3600,
       now: new Date("2026-10-01T00:00:00.000Z"),
     });
+    assert.equal(grant.expires_in, 3600);
+    assert.match(grant.url, /X-Amz-Expires=3600/);
     assert.equal(grant.method, "PUT");
     assert.match(grant.url, /^https:\/\/account-id\.r2\.cloudflarestorage\.com\/musicapp-assets\/a{32}\?/);
+    assert.throws(() => storage.presignPart({
+      key: "a".repeat(32),
+      uploadId: "upload-id",
+      partNumber: 1,
+      now: new Date("2026-10-01T00:00:00.000Z"),
+    }), { code: "presign_lifetime" });
     assert.match(grant.url, /X-Amz-Signature=[0-9a-f]{64}$/);
     assert.equal(grant.url.includes(SECRET), false);
     assert.equal(JSON.stringify(grant.headers).includes(SECRET), false);

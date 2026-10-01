@@ -36,7 +36,7 @@ async function projectReservedBytes(client, projectId) {
         CASE
           WHEN a.state = 'expired' THEN 0
           WHEN s.state = 'sealed' AND a.size_bytes IS NOT NULL THEN a.size_bytes
-          WHEN s.state IN ('created', 'uploading') THEN s.declared_size_bytes
+          WHEN s.state IN ('created', 'uploading') AND s.expires_at > clock_timestamp() THEN s.declared_size_bytes
           ELSE 0
         END
       ), 0)::text AS reserved
