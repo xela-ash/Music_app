@@ -387,6 +387,7 @@ AS $$
 DECLARE
   target uuid;
   expected bigint;
+  escrow_status escrow_status;
   active_sum bigint;
 BEGIN
   IF TG_TABLE_NAME = 'escrows' THEN
@@ -395,7 +396,10 @@ BEGIN
     target := COALESCE(NEW.escrow_id, OLD.escrow_id);
   END IF;
 
-  SELECT expected_amount INTO expected FROM escrows WHERE id = target;
+  SELECT escrows.status, escrows.expected_amount
+    INTO escrow_status, expected
+  FROM escrows
+  WHERE escrows.id = target;
   IF expected IS NULL THEN
     RETURN NULL;
   END IF;
@@ -404,6 +408,16 @@ BEGIN
   FROM escrow_allocations
   WHERE escrow_id = target
     AND allocation_status NOT IN ('cancelled', 'superseded');
+
+  -- Equality holds for an active escrow. E03 cancels the unfunded escrow and
+  -- its allocations together; the positive expected amount stays as history.
+  IF escrow_status = 'cancelled' THEN
+    IF active_sum <> 0 THEN
+      RAISE EXCEPTION 'a cancelled escrow cannot keep an active allocation'
+        USING ERRCODE = '23514';
+    END IF;
+    RETURN NULL;
+  END IF;
 
   IF expected IS DISTINCT FROM active_sum THEN
     RAISE EXCEPTION 'escrow expected amount does not equal active allocations'

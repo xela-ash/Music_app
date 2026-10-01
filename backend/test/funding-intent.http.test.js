@@ -499,6 +499,71 @@ describe("MVP-024 funding intent", { concurrency: 1, timeout: 30000 }, () => {
       await otherClient.query("ROLLBACK");
 
       await otherClient.query("BEGIN");
+      await otherClient.query("SELECT set_config('musicapp.ledger_posting', 'on', true)");
+      await otherClient.query(
+        `UPDATE escrow_allocations
+         SET allocation_status = 'cancelled'
+         WHERE escrow_id = $1`,
+        [escrow.rows[0].id]
+      );
+      await otherClient.query(
+        `UPDATE escrows
+         SET status = 'cancelled', cancelled_at = clock_timestamp()
+         WHERE id = $1`,
+        [escrow.rows[0].id]
+      );
+      await otherClient.query("COMMIT");
+
+      await otherClient.query("BEGIN");
+      const replacementSnapshot = await otherClient.query(
+        `INSERT INTO escrow_fee_snapshots (external_id, fee_lines, currency, currency_exponent)
+         VALUES ('efs_fedcba9876543210fedc', '[]'::jsonb, 'INR', 2)
+         RETURNING id`
+      );
+      const replacement = await otherClient.query(
+        `INSERT INTO escrows (
+           external_id, project_id, buyer_user_id, seller_user_id, agreed_term_version,
+           currency, currency_exponent, expected_amount, fee_snapshot_id, status
+         )
+         VALUES ('esc_fedcba9876543210fedc', $1, $2, $3, $4, 'INR', 2, $5, $6, 'created')
+         RETURNING id`,
+        [
+          agreed.project.id,
+          escrow.rows[0].buyer_user_id,
+          escrow.rows[0].seller_user_id,
+          agreed.stored.agreed_term_version,
+          milestone.rows[0].amount,
+          replacementSnapshot.rows[0].id,
+        ]
+      );
+      await otherClient.query(
+        `INSERT INTO escrow_allocations (
+           external_id, escrow_id, milestone_id, revision_number, term_version,
+           allocated_amount, currency, currency_exponent, allocation_status
+         )
+         VALUES ('eal_fedcba9876543210fedc', $1, $2, 2, $3, $4, 'INR', 2, 'planned')`,
+        [
+          replacement.rows[0].id,
+          milestone.rows[0].id,
+          agreed.stored.agreed_term_version,
+          milestone.rows[0].amount,
+        ]
+      );
+      await otherClient.query("COMMIT");
+      const replaced = await pool.query(
+        `SELECT status, COUNT(*)::int AS count
+         FROM escrows
+         WHERE project_id = $1
+         GROUP BY status
+         ORDER BY status`,
+        [agreed.project.id]
+      );
+      assert.deepEqual(replaced.rows, [
+        { status: "created", count: 1 },
+        { status: "cancelled", count: 1 },
+      ]);
+
+      await otherClient.query("BEGIN");
       const secondSnapshot = await otherClient.query(
         `INSERT INTO escrow_fee_snapshots (external_id, fee_lines, currency, currency_exponent)
          VALUES ('efs_abcdef0123456789abcd', '[]'::jsonb, 'INR', 2)
