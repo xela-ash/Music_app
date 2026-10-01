@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.18.0 |
+| Version | 0.18.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -810,6 +810,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-024 / GitHub issue #26 | A buyer funding intent creates a `created` escrow and `planned` allocations equal to the agreed milestone amounts and currency. The fee snapshot has no lines. No ledger entry and no `funded` transition. | Escrow, projects, database, testing | 019 | `POST /projects/:projectId/funding-intent` | None | `REQ-ESCROW-002`, `REQ-ESCROW-003`, `REQ-ESCROW-005`, `BR-ESCROW-005`, `BR-ESCROW-012`, `SEC-ESCROW-005`, `SEC-ESCROW-007`, `AUD-ESCROW-001` | `backend/test/funding-intent.http.test.js` | EDR-019 | None | #92 | The MVP-024 commit on `cursor/mvp-024-funding-intent-255b` |
 | 2026-10-01 | MVP-024 review / GitHub issue #26 | A cancelled escrow keeps its historical expected amount and must not keep an active allocation, so E03 can cancel and replace it. The active-sum equality still applies while the escrow is not cancelled. | Escrow, database, testing | 019 (function replaced before merge) | None | None | `REQ-ESCROW-002`, `BR-ESCROW-005` | `backend/test/funding-intent.http.test.js` | EDR-019 | `ENG-IMP-061` | #92 | The review-repair commit on `cursor/mvp-024-funding-intent-255b` |
 | 2026-10-01 | MVP-026 / GitHub issue #28 | `escrow_ledger` is an append-only balanced journal. Amounts are positive `BIGINT` minor units with the escrow currency and exponent. `UPDATE`, `DELETE`, and `TRUNCATE` are rejected. Projections are written only by the internal poster. No funding route and no `funded` transition. | Escrow, database, testing | 020 | None | None | `REQ-ESCROW-005`, `REQ-ESCROW-008`, `BR-ESCROW-008`, `BR-ESCROW-009`, `BR-ESCROW-010`, `SEC-ESCROW-001`, `SEC-ESCROW-004` | `backend/test/ledger-rules.test.js`, `backend/test/ledger-posting.test.js` | EDR-020 | `ENG-IMP-062` | #94 | `f8ea930` on `cursor/mvp-026-ledger-posting-255b` |
+| 2026-10-01 | MVP-026 review / GitHub issue #28 | Recorded two non-blocking review notes. The poster does not write allocation projections. The created-escrow guard watches funded, released, and refunded only. Neither change is implemented. | Documentation | None | None | None | None | None | EDR-020 | `ENG-IMP-063`, `ENG-IMP-064` | #94 | The review-note commit on `cursor/mvp-026-ledger-posting-255b` |
 
 ## 8. Version history
 
@@ -846,3 +847,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.17.0 | 2026-10-01 | Recorded MVP-024: funding-intent escrow creation, BIGINT escrow amounts, and EDR-019. Sections 4.3 and 4.13. | Engineering |
 | 0.17.1 | 2026-10-01 | Recorded the MVP-024 review repair: cancellation of an unfunded escrow is not blocked by the active-allocation sum. | Engineering |
 | 0.18.0 | 2026-10-01 | Recorded MVP-026: append-only ledger posting and EDR-020. Sections 4.3, 4.13, 4.19, 4.20, and 4.22. | Engineering |
+| 0.18.1 | 2026-10-01 | Recorded the MVP-026 review's non-blocking improvements. No application behavior changed. | Engineering |

@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.22 |
+| Version | 0.7.23 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1891,6 +1891,66 @@ Copy this template for each new entry:
 | Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
 | Resolution | — |
 
+### ENG-IMP-063 The ledger poster does not write allocation projections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-063 |
+| Title | The ledger poster does not write allocation projections |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-026 independent review |
+| Category | Database |
+| Affected subsystem | Escrow |
+| Current state | `postJournal` rewrites `escrows.funded_amount`, `released_amount`, and `refunded_amount` from the ledger. The deferred check also requires each allocation's `funded_amount`, `released_amount`, and `refunded_amount` to match that allocation's ledger net. The service does not update those allocation columns. |
+| Evidence / problem | A journal that changes an allocation net aborts at commit with `allocation projections must equal the ledger`. Escrow and allocation projections cannot drift. A later funding journal that posts `allocated_to_milestone` has to update the allocation rows in the same transaction. |
+| Suggested improvement | When a later item posts an allocation movement, write the allocation projections from the same ledger sums inside `postJournal` before commit. |
+| Expected benefit | E02 and release journals can commit through the one poster. |
+| Risk of doing nothing | Today's net-zero journals do not touch allocations, so they commit. A later caller that forgets the allocation update cannot commit a drifting total. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A later item that posts an allocation movement. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None. The deferred check still rejects drift. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the first journal that moves an allocation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
+| Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
+| Resolution | — |
+
+### ENG-IMP-064 The created-escrow guard watches only three projections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-064 |
+| Title | The created-escrow guard watches only three projections |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-026 independent review |
+| Category | Security |
+| Affected subsystem | Escrow |
+| Current state | `postJournal` rejects a `created` escrow journal whose funded, released, or refunded projection would become nonzero. `projectionDelta` does not include `adjustment`, `chargeback`, `payout_initiated`, `payout_paid`, `refund_paid`, or a fee whose source is `EXTERNAL_BUYER`. `reverses_entry_id` is not required to reference the same escrow. |
+| Evidence / problem | An adjustment can leave a balance in an account while `funded_amount` stays 0. Escrow §9.1 and §10.1 define confirmed funds as those three projections, so this does not leave a `created` escrow holding confirmed funds. |
+| Suggested improvement | When a later command posts those entry types, require the verified fact that §13.2 names for the type, and require `reverses_entry_id` to belong to the same escrow. |
+| Expected benefit | Account movements that are not confirmed-fund projections still wait for their own authorizing fact. |
+| Risk of doing nothing | The internal service can post a net-zero or non-projection entry. There is no HTTP route. A `created` escrow still cannot show a nonzero funded, released, or refunded total. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The command that is allowed to post that entry type. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None beyond the disclosed internal service. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the first command that posts an adjustment, chargeback, payout, or buyer-sourced fee |
+| Status | PROPOSED |
+| Related GitHub Issue | [#28](https://github.com/xela-ash/music_app/issues/28) |
+| Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1957,3 +2017,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.20 | 2026-10-01 | Added `ENG-IMP-060` (PROPOSED) from the MVP-019 review: the concurrent start test does not resubmit the losing key. Not authorized. | Engineering |
 | 0.7.21 | 2026-10-01 | Added `ENG-IMP-061` (PROPOSED) from the MVP-024 review: escrow audit rows keep amount and currency in the hash. Not authorized. The money cross-reference now records the BIGINT escrow columns. | Engineering |
 | 0.7.22 | 2026-10-01 | Added `ENG-IMP-062` (PROPOSED): the application role still owns `escrow_ledger`. Not authorized. The ledger cross-reference now records the append-only BIGINT journal. | Engineering |
+| 0.7.23 | 2026-10-01 | Added `ENG-IMP-063` and `ENG-IMP-064` (both PROPOSED) from the MVP-026 review. Neither is authorized. | Engineering |
