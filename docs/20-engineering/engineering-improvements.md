@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.25 |
+| Version | 0.7.26 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2049,7 +2049,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 |---|---|
 | `backend/Index.js` and `frontend/src/App.tsx` are single-module tiers | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle); backend: MVP-001 |
 | No automated tests or CI | MVP-002, MVP-004 |
-| Unauthenticated `POST /users`, `POST /profiles`, `GET /users` | `SEC-001` / MVP-005; `SEC-AUTHZ-003`, `SEC-AUTH-008` |
+| `POST /users` and `POST /profiles` are removed. `GET /users` stays unauthenticated. | `SEC-001` / MVP-005; `SEC-AUTH-008` |
 | Open CORS, no rate limiting, no JWT algorithm allowlist, weak secret accepted | `SEC-AUTH-004`, `SEC-AUTH-005`, `SEC-AUTH-009`, `SEC-AUTH-006` ([Authentication](../02-users-roles-permissions/authentication.md)) |
 | Account status was not re-checked on protected routes | Current `requireAuth` routes reload `users.status` in MVP-006. `SEC-AUTH-002` stays in `authentication.md` until Product/Architecture updates that document. |
 | JWT in `localStorage` | `SEC-USERS-005`; [Authentication §19.3](../02-users-roles-permissions/authentication.md#193-browser-token-delivery--target-vs-current) |
@@ -2110,3 +2110,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.23 | 2026-10-01 | Added `ENG-IMP-063` and `ENG-IMP-064` (both PROPOSED) from the MVP-026 review. Neither is authorized. | Engineering |
 | 0.7.24 | 2026-10-01 | Added `ENG-IMP-065` and `ENG-IMP-066` (both PROPOSED) from MVP-029. Neither is authorized. | Engineering |
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
+| 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |

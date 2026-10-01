@@ -10,8 +10,8 @@ const {
 } = require("./harness");
 const { withMilestoneTerms } = require("./milestone-fixture");
 
-// MVP-002 smoke suite for the twelve currently implemented routes.
-// Assertions preserve the MVP-001 request/response snapshot.
+// MVP-002 smoke suite for the implemented routes.
+// POST /users and POST /profiles are removed (MVP-005). Signup is the creation path.
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -150,96 +150,67 @@ describe("MVP-002 implemented route smoke suite", { concurrency: 1, timeout: 300
     assert.deepEqual(response.json, { db: "connected", result: { ok: 1 } });
   });
 
-  it("POST /users rejects a body with neither email nor phone", async () => {
-    const response = await request("POST", "/users", { body: {} });
-    assert.equal(response.status, 400);
-    assert.deepEqual(response.json, { error: "Either email or phone_e164 is required" });
+  it("POST /users and POST /profiles are removed for every client", async () => {
+    const unauthenticatedUser = await request("POST", "/users", {
+      body: { email: `${nextId("legacy")}@example.com`, status: "active" },
+    });
+    assert.equal(unauthenticatedUser.status, 404);
+
+    const unauthenticatedProfile = await request("POST", "/profiles", {
+      body: {
+        user_id: "00000000-0000-4000-8000-000000000000",
+        ...profileInput(nextId("legacy-profile")),
+      },
+    });
+    assert.equal(unauthenticatedProfile.status, 404);
+
+    const missingUserBody = await request("POST", "/users");
+    assert.equal(missingUserBody.status, 404);
+
+    const missingProfileBody = await request("POST", "/profiles");
+    assert.equal(missingProfileBody.status, 404);
+
+    const signedUp = await signup(nextId("legacy-auth"));
+    const session = await login(signedUp.email);
+    const authenticatedUser = await request("POST", "/users", {
+      token: `Bearer ${session.token}`,
+      body: { email: `${nextId("legacy-auth-user")}@example.com` },
+    });
+    assert.equal(authenticatedUser.status, 404);
+
+    const authenticatedProfile = await request("POST", "/profiles", {
+      token: `Bearer ${session.token}`,
+      body: {
+        user_id: signedUp.user.id,
+        ...profileInput(nextId("legacy-auth-profile")),
+      },
+    });
+    assert.equal(authenticatedProfile.status, 404);
   });
 
-  it("POST /users rejects a missing JSON body", async () => {
-    const response = await request("POST", "/users");
-    assert.equal(response.status, 500);
-    assert.deepEqual(response.json, { error: "Internal server error" });
-  });
-
-  it("POST /users rejects malformed JSON without the application error shape", async () => {
-    const response = await request("POST", "/users", { raw: "{" });
+  it("malformed JSON on POST /auth/signup is rejected by the body parser", async () => {
+    const response = await request("POST", "/auth/signup", { raw: "{" });
     assert.equal(response.status, 400);
     assert.equal(response.json, null);
     assert.match(response.contentType, /text\/html/);
   });
 
-  it("POST /users and GET /users keep the current user payload", async () => {
-    const email = `${nextId("user")}@example.com`;
-    const created = await request("POST", "/users", {
-      body: { email, phone_e164: null, status: "active" },
-    });
-    assert.equal(created.status, 201);
-    assert.deepEqual(normalize(created.json), {
+  it("GET /users lists a user created by POST /auth/signup", async () => {
+    const tag = nextId("listed");
+    const signedUp = await signup(tag);
+    const listed = await request("GET", "/users");
+    assert.equal(listed.status, 200);
+    assert.ok(Array.isArray(listed.json.users));
+    assert.equal(listed.json.users[0].email, signedUp.email);
+    assert.deepEqual(Object.keys(listed.json), ["users"]);
+    assert.deepEqual(normalize(listed.json.users[0]), {
       id: "<uuid>",
       external_id: "<external_id>",
-      email,
+      email: signedUp.email,
       phone_e164: null,
       status: "active",
       created_at: "<timestamp>",
     });
-    assert.match(created.json.external_id, /^usr_[0-9a-f]{20}$/);
-
-    const duplicate = await request("POST", "/users", { body: { email } });
-    assert.equal(duplicate.status, 409);
-    assert.equal(duplicate.json.error, "Unique constraint violation");
-    assert.equal(typeof duplicate.json.detail, "string");
-
-    const listed = await request("GET", "/users");
-    assert.equal(listed.status, 200);
-    assert.ok(Array.isArray(listed.json.users));
-    assert.equal(listed.json.users[0].email, email);
-    assert.deepEqual(Object.keys(listed.json), ["users"]);
-  });
-
-  it("POST /profiles validates required fields and returns the inserted row", async () => {
-    const missing = await request("POST", "/profiles", { body: {} });
-    assert.equal(missing.status, 400);
-    assert.deepEqual(missing.json, { error: "user_id is required" });
-
-    const email = `${nextId("profile-user")}@example.com`;
-    const user = await request("POST", "/users", { body: { email } });
-    assert.equal(user.status, 201);
-    const tag = nextId("profile");
-    const created = await request("POST", "/profiles", {
-      body: { user_id: user.json.id, ...profileInput(tag) },
-    });
-    assert.equal(created.status, 201);
-    assert.deepEqual(normalize(created.json), {
-      id: "<uuid>",
-      external_id: "<external_id>",
-      user_id: "<uuid>",
-      handle: `${tag}-handle`,
-      first_name: "Ada",
-      last_name: "Lovelace",
-      artist_name: `${tag} Artist`,
-      artist_name_is_legal_name: false,
-      display_name: `${tag} Display`,
-      genres: ["classical"],
-      city: "Chennai",
-      country: "IN",
-      bio: "characterization",
-      profile_photo_asset_id: null,
-      dob: null,
-      created_at: "<timestamp>",
-      updated_at: "<timestamp>",
-    });
-    assert.match(created.json.external_id, /^prf_[0-9a-f]{20}$/);
-
-    const unknownUser = await request("POST", "/profiles", {
-      body: {
-        user_id: "00000000-0000-4000-8000-000000000000",
-        ...profileInput(nextId("missing-user")),
-      },
-    });
-    assert.equal(unknownUser.status, 400);
-    assert.equal(unknownUser.json.error, "Foreign key violation");
-    assert.equal(typeof unknownUser.json.detail, "string");
   });
 
   it("POST /auth/signup validates input and returns user plus profile", async () => {

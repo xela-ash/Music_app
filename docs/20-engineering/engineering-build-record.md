@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.19.1 |
+| Version | 0.20.0 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -119,7 +119,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Implementation status | Partially Implemented. Route handlers are split by domain. Product behavior is unchanged from the single-module baseline. |
 | Entry points | `npm start` → `node Index.js`; `npm run dev` → `node --watch Index.js`; `npm run migrate` → `node db/migrate.js`; `npm test` → `node --test --test-concurrency=1` over the files in `backend/test/` listed in [Testing](#420-testing) |
 | Important files | `backend/Index.js` (composition root, health routes, listen on port 4000), `backend/src/{auth,users,profiles,projects,milestones,notifications,messaging}/{routes,service,repository}.js`, `backend/src/projects/transition-rules.js`, `backend/src/projects/transition-service.js`, `backend/src/projects/transition-repository.js`, `backend/src/projects/amendment-rules.js`, `backend/src/projects/amendment-service.js`, `backend/src/projects/amendment-repository.js`, `backend/src/notifications/` (topic classification, in-app adapter, and rules), `backend/src/messaging/rules.js`, `backend/src/escrow/service.js`, `backend/src/escrow/repository.js`, `backend/src/escrow/ledger-service.js`, `backend/src/escrow/ledger-repository.js`, `backend/src/escrow/ledger-rules.js`, `backend/src/escrow/refund-service.js`, `backend/src/escrow/refund-rules.js`, `backend/src/infrastructure/` (shared idempotency, outbox, and inbox helpers; see [§4.22](#422-idempotency-outbox-and-inbox)), `backend/db/db.js` (pg `Pool`, loads `dotenv`), `backend/db/migrate.js` |
-| API routes | `GET /`, `GET /db-health`, `POST /users`, `GET /users`, `POST /profiles`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/propose`, `POST /projects/:projectId/seek-seller`, `POST /projects/:projectId/cancel`, `POST /projects/:projectId/start`, `POST /projects/:projectId/archive`, `POST /projects/:projectId/restore`, `POST /projects/:projectId/invitations`, `GET /projects/:projectId/invitations/:invitationId`, `POST /projects/:projectId/invitations/:invitationId/accept`, `POST /projects/:projectId/invitations/:invitationId/decline`, `POST /projects/:projectId/invitations/:invitationId/withdraw`, `POST /projects/:projectId/lock-milestones`, `GET /notifications`, `GET /notifications/:externalId`, `POST /notifications/:externalId/mark-read`, `POST /projects/:projectExternalId/messages`, `GET /projects/:projectExternalId/messages`, `POST /projects/:projectExternalId/messages/:messageExternalId/tombstone`, `POST /projects/:projectId/amendments`, `POST /projects/:projectId/amendments/:amendmentId/accept`, `POST /projects/:projectId/amendments/:amendmentId/reject`, `POST /projects/:projectId/amendments/:amendmentId/withdraw`, `POST /projects/:projectId/funding-intent` |
+| API routes | `GET /`, `GET /db-health`, `GET /users`, `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `GET /profiles`, `POST /projects`, `GET /projects`, `POST /projects/:projectId/propose`, `POST /projects/:projectId/seek-seller`, `POST /projects/:projectId/cancel`, `POST /projects/:projectId/start`, `POST /projects/:projectId/archive`, `POST /projects/:projectId/restore`, `POST /projects/:projectId/invitations`, `GET /projects/:projectId/invitations/:invitationId`, `POST /projects/:projectId/invitations/:invitationId/accept`, `POST /projects/:projectId/invitations/:invitationId/decline`, `POST /projects/:projectId/invitations/:invitationId/withdraw`, `POST /projects/:projectId/lock-milestones`, `GET /notifications`, `GET /notifications/:externalId`, `POST /notifications/:externalId/mark-read`, `POST /projects/:projectExternalId/messages`, `GET /projects/:projectExternalId/messages`, `POST /projects/:projectExternalId/messages/:messageExternalId/tombstone`, `POST /projects/:projectId/amendments`, `POST /projects/:projectId/amendments/:amendmentId/accept`, `POST /projects/:projectId/amendments/:amendmentId/reject`, `POST /projects/:projectId/amendments/:amendmentId/withdraw`, `POST /projects/:projectId/funding-intent` |
 | Services/modules | One routes/service/repository triplet per existing domain. `requireAuth` is exported from `backend/src/auth/routes.js`. Health checks stay on the composition root. Helpers: `makeExternalId`, `makeProfileExternalId`, `makeProjectExternalId`, `makeMilestoneExternalId`, `validateMilestonesInput`, and constants `SAFE_PROJECT_FIELDS`, `SAFE_PROJECT_FIELDS_JOINED`, `SAFE_MILESTONE_FIELDS`, `POSTGRES_INT_MAX`, `PROJECT_CURRENCY`, `UUID_PATTERN`. |
 | External dependencies | `express` 5.2.1, `pg` 8.16.3, `jsonwebtoken` 9.0.3, `bcryptjs` 3.0.3, `cors` 2.8.5, `dotenv` 17.2.3 (locked versions). No dependency was added for MVP-001. |
 | How it works | CommonJS. `Index.js` loads `backend/db/db.js` before it loads `backend/src/auth/service.js`, which reads `JWT_SECRET` and exits if that value is blank. Global middleware is still `cors()` then `express.json()`. Each domain route calls one service operation. Services keep the previous validation, transaction boundaries, and PostgreSQL error mapping. Repositories run the previous parameterized SQL. `Index.js` exports `app` and listens on hardcoded port 4000 only when it is the main module. The test harness imports that export and listens on an ephemeral port. |
@@ -128,7 +128,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Operational considerations | Logs only through `console.log`/`console.error`. There is no error-handling middleware. Run `npm install` before starting. |
 | Known limitations | No central error handler ([ENG-IMP-007](engineering-improvements.md#eng-imp-007-no-central-error-handling-unhandled-and-body-parse-errors-reach-expresss-default-handler)). Implicit config loading ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). Duplicated transaction handling ([ENG-IMP-006](engineering-improvements.md#eng-imp-006-transaction-boilerplate-is-duplicated-and-rollback-can-mask-the-original-error)). No lint ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)). |
 | Engineering decisions | [EDR-001](#edr-001-backend-module-layout). [EDR-003](#edr-003-test-runners-and-database-fixture) for the test entry point. [EDR-004](#edr-004-shared-idempotency-outbox-and-inbox-model) for `backend/src/infrastructure/`. Baseline choices remain in Section 5. |
-| Last materially changed | MVP-029 (2026-10-01): internal refund-instruction consumer. No new HTTP route. |
+| Last materially changed | MVP-005 (2026-10-01): removed `POST /users` and `POST /profiles`. |
 
 ### 4.4 Frontend application
 
@@ -169,10 +169,10 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Implementation status | Partially Implemented. `authorize()` decides project create, list, lock, seller invitation commands, in-app notification list, read, and mark-read, and conversation read, send, and tombstone. There are no roles tables. Invitation commands write `project_audit_events`. Notification commands write `notification_audit_events`. Messaging commands write `messaging_audit_events`. |
 | Entry points | `backend/src/authorization/authorize.js`. `createProject` and `listProjects` call it. `lockMilestones` calls it after `SELECT … FOR UPDATE`. |
 | Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, all `/projects` routes, all `/notifications` routes, and the messaging routes under `/projects/:projectExternalId/messages`. Account status is enforced only in `requireAuth` (`BR-AUTHZ-005`). `project.create` denies self-dealing with `400` and an ineligible seller with `404`, and the inserted buyer is `obligations.buyerUserId`. `GET /projects` runs the participant `whereSql` from `authorize`: the buyer, or an active seller participant. `seller_user_id` alone is not access (`BR-AUTHZ-032`). Invite, withdraw, accept, decline, and review each have an action. A non-buyer invite and a non-invitee accept or decline return a concealing `404`. Invite no longer rejects a non-draft project before the idempotency store; the transition service rejects an unready proposal inside the handler. Propose, seek-seller, cancel, start, archive, and restore conceal a caller who is neither the buyer nor the active seller with `404`, then `commitTransition` checks the edge's actor. Lock-milestones is unchanged. `notification.list` returns `recipientUserId` and the list query is scoped to that user. Read and mark-read of another user's delivery, or of a missing id, return the same `404`. `conversation.read` and `conversation.send` allow the live Buyer or the active accepted Seller and conceal everyone else with `404`. `message.tombstone` allows only that message's sender; another live participant receives `403`. |
-| Known limitations | `POST /users`, `GET /users`, and `POST /profiles` are unauthenticated (`SEC-001`, `SEC-AUTHZ-003`; MVP-005). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). `POST /projects` still stores `seller_user_id` before acceptance (`ENG-IMP-032`). There are no role tables (MVP-008). An unknown action fails closed with `403`. |
+| Known limitations | `GET /users` is unauthenticated (`SEC-AUTH-008`). `POST /users` and `POST /profiles` are removed (`SEC-001`). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). `POST /projects` still stores `seller_user_id` before acceptance (`ENG-IMP-032`). There are no role tables (MVP-008). An unknown action fails closed with `403`. |
 | Engineering decisions | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) |
 | Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule, including notification list, read, and mark-read, and conversation read, send, and tombstone). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. Notification HTTP coverage is in `backend/test/notifications.http.test.js`. Messaging HTTP coverage is in `backend/test/messages.http.test.js`. |
-| Last materially changed | MVP-015 (2026-09-30) |
+| Last materially changed | MVP-005 (2026-10-01) |
 
 ### 4.7 Users, profiles, and discovery
 
@@ -181,10 +181,11 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Canonical specification | [users.md](../02-users-roles-permissions/users.md), [profiles.md](../02-users-roles-permissions/profiles.md), [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace) (Marketplace) |
 | Implementation status | Partially Implemented |
 | Database tables | `users` (001: `user_status` enum `active`/`suspended`/`deleted`, `CITEXT` unique email, unique `phone_e164`, `users_email_or_phone_present`); `profiles` (002: one per user, `CITEXT` unique `handle`, `genres TEXT[]`, `profile_photo_asset_id UUID` without FK) |
-| API routes | `POST /users`, `GET /users`, `POST /profiles` (legacy direct creation), `GET /profiles` (authenticated, explicit columns excluding `dob`, server-side search, newest-first page of at most 100) |
+| API routes | `GET /users` (unauthenticated list), `GET /profiles` (authenticated, explicit columns excluding `dob`, server-side search, newest-first page of at most 100). `POST /users` and `POST /profiles` are removed. `POST /auth/signup` creates the user, profile, and credential. |
 | Frontend components | `DiscoverScreen` (sends the search box to `GET /profiles` as `name`, `handle`, `genre`, `city`, and `country`), `ProfileCard`, `ProfileDetailScreen` (shows initials when no photo is set) |
-| Known limitations | No profile edit or settings routes. Profile visibility and lifecycle columns do not exist, so search cannot yet scope to public active Profiles (`REQ-PROFILE-005`). `POST /profiles` and signup return `RETURNING *`. Leading-wildcard search has no index (`ENG-IMP-030`). Supplied search dimensions are OR-combined (`ENG-IMP-031`). |
-| Engineering decisions | [EDR-008](#edr-008-server-side-profile-search) |
+| Known limitations | No profile edit or settings routes. Profile visibility and lifecycle columns do not exist, so search cannot yet scope to public active Profiles (`REQ-PROFILE-005`). Signup returns `RETURNING *`. Leading-wildcard search has no index (`ENG-IMP-030`). Supplied search dimensions are OR-combined (`ENG-IMP-031`). `GET /users` stays unauthenticated (`SEC-AUTH-008`). |
+| Engineering decisions | [EDR-008](#edr-008-server-side-profile-search). [EDR-025](#edr-025-remove-the-legacy-creation-routes) |
+| Last materially changed | MVP-005 (2026-10-01) |
 
 ### 4.8 Identity verification
 
@@ -763,6 +764,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | The MVP-029 commit on `cursor/mvp-029-refund-execution-255b` |
 | Status | ACTIVE |
 
+### EDR-025 Remove the legacy creation routes
+
+| Field | Value |
+|---|---|
+| ID | EDR-025 |
+| Date | 2026-10-01 |
+| Issue | MVP-005 / GitHub issue #7 |
+| Decision | Remove `POST /users` and `POST /profiles`. `POST /auth/signup` is the only production user, profile, and credential creation path. Do not gate the removed routes and do not keep an internal HTTP bypass. |
+| Context | Product decision D01 (2026-10-01). `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, and `SEC-PROFILE-002`. Issue #7 still says the decision is blocked. `users.md` 1.2.2 and `authentication.md` 1.2.1 record removal, and the specification wins over the stale issue text. `GET /users` was not named for removal and stays a separate defect (`SEC-AUTH-008`). Signup already inserts the user, profile, and credential through the repositories. |
+| Options considered | (1) Require authentication and an Administrator role on the existing routes. No Administrator exists until MVP-008, and D01 forbids a public bypass and a gated production path. (2) Document the routes as internal-only while leaving them mounted. An unauthenticated client could still call them. (3) Leave `createUser` and `createProfile` exported after the routes are gone. Those functions accept a client owner and status and are the bypass. (4) Chosen: unregister both POST handlers, delete the unused service functions, and keep repository inserts that signup already uses. |
+| Chosen approach | `users/routes.js` keeps `GET /users`. `profiles/routes.js` keeps authenticated `GET /profiles`. Neither router registers a POST. The service functions that inserted from a client body are deleted. Smoke tests create users through `POST /auth/signup` and assert `404` for both removed routes, with and without a logged-in non-admin token. A malformed JSON body is asserted on `POST /auth/signup`, because the global parser rejects it before routing. |
+| Why | The acceptance criterion is that neither route is reachable by an unauthenticated, non-admin client. Removing the handlers makes every client, including an authenticated one, receive `404`. Signup remains the credentialed creation path. |
+| Trade-offs | `GET /users` stays unauthenticated. Express still returns `400` HTML for malformed JSON on any path, including a path that has no route. Signup still returns the full profile row. There is no migration. |
+| Affected components | `backend/src/users/routes.js`, `backend/src/users/service.js`, `backend/src/profiles/routes.js`, `backend/src/profiles/service.js`, `backend/test/routes.smoke.test.js` |
+| Reversal / migration considerations | No migration. Restoring either POST handler would reopen `SEC-001`. |
+| Related specification IDs | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` |
+| Related PR / commit | The MVP-005 commit on `cursor/mvp-005-remove-legacy-routes-255b` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -786,6 +806,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-019](#edr-019-funding-intent-creates-the-escrow) | Funding intent creates the escrow | ACTIVE | 2026-10-01 |
 | [EDR-020](#edr-020-ledger-posting-is-internal-and-append-only) | Ledger posting is internal and append-only | ACTIVE | 2026-10-01 |
 | [EDR-021](#edr-021-refund-execution-is-an-internal-instruction) | Refund execution is an internal instruction | ACTIVE | 2026-10-01 |
+| [EDR-025](#edr-025-remove-the-legacy-creation-routes) | Remove the legacy creation routes | ACTIVE | 2026-10-01 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -833,6 +854,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-026 review / GitHub issue #28 | Recorded two non-blocking review notes. The poster does not write allocation projections. The created-escrow guard watches funded, released, and refunded only. Neither change is implemented. | Documentation | None | None | None | None | None | EDR-020 | `ENG-IMP-063`, `ENG-IMP-064` | #94 | The review-note commit on `cursor/mvp-026-ledger-posting-255b` |
 | 2026-10-01 | MVP-029 / GitHub issue #31 | An internal refund instruction posts `refunded_to_buyer` and rejects any amount that would make cumulative refunds exceed captured funding. No payment, no `refund_paid`, and no product `funded` transition. | Escrow, testing | None | None | None | `REQ-ESCROW-010`, `BR-ESCROW-011`, `BR-ESCROW-017`, `BR-ESCROW-018`, `INT-ESCROW-008`, `AUD-ESCROW-004` | `backend/test/refund-rules.test.js`, `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-065`, `ENG-IMP-066` | The MVP-029 pull request | The MVP-029 commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
+| 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | The MVP-005 pull request | The MVP-005 commit on `cursor/mvp-005-remove-legacy-routes-255b` |
 
 ## 8. Version history
 
@@ -872,3 +894,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.18.1 | 2026-10-01 | Recorded the MVP-026 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.19.0 | 2026-10-01 | Recorded MVP-029: internal refund execution against captured funding, and EDR-021. Sections 4.3, 4.13, 4.20, and 4.22. | Engineering |
 | 0.19.1 | 2026-10-01 | Recorded the MVP-029 review repair: E05 closure also writes `AUD-ESCROW-002`. | Engineering |
+| 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
