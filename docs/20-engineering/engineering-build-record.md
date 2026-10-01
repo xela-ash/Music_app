@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.16.0 |
+| Version | 0.16.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -766,6 +766,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-018 / GitHub issue #20 | M01–M17 run through one transition service. A direct state write is rejected. A stale version has no side effect. A mismatched fact is quarantined. M05 keeps the submission reference distinct from the event id. | Milestones, projects, database, testing | 018 | No new public route. Create writes the M01 transition. Milestone responses include `version`. | None | `REQ-PROJECTS-027`, `BR-PROJECTS-037`, `BR-PROJECTS-047`, `BR-PROJECTS-052`, `SEC-PROJECTS-021`, `SEC-PROJECTS-028`, `DATA-PROJECTS-010` | `backend/test/milestone-transitions.test.js`, `backend/test/routes.smoke.test.js` | EDR-017 | `ENG-IMP-054` | Branch `cursor/mvp-018-milestone-state-machine-255b` | The MVP-018 commit on that branch |
 | 2026-10-01 | MVP-018 review record / GitHub issue #20 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-055`, `ENG-IMP-056`, `ENG-IMP-057`, `ENG-IMP-058`, `ENG-IMP-059` | Branch `cursor/mvp-018-milestone-state-machine-255b` | The review-record commit on that branch |
 | 2026-10-01 | MVP-019 / GitHub issue #21 | A milestone starts only when every predecessor is resolved and no other milestone is active. The seller account must be active. The work-start audit records the predecessor set. | Milestones, testing | None | No new public route | None | `REQ-PROJECTS-028`, `BR-PROJECTS-039`, `BR-PROJECTS-040`, `AUD-PROJECTS-010` | `backend/test/milestone-activation.test.js` | EDR-018 | None | Branch `cursor/mvp-019-milestone-activation-255b` | The MVP-019 commit on that branch |
+| 2026-10-01 | MVP-019 review record / GitHub issue #21 | Recorded the review's non-blocking observation. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-060` | Branch `cursor/mvp-019-milestone-activation-255b` | The review-record commit on that branch |
 
 ## 8. Version history
 
@@ -798,3 +799,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.15.0 | 2026-10-01 | Recorded MVP-018: the milestone state machine, transition history, and EDR-017. Sections 4.11, 4.19, 4.20, and 4.22. | Engineering |
 | 0.15.1 | 2026-10-01 | Recorded the MVP-018 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.16.0 | 2026-10-01 | Recorded MVP-019: the Section 13.2 activation predicate on milestone start, including the live account-status check and EDR-018. Sections 4.11 and 4.20. | Engineering |
+| 0.16.1 | 2026-10-01 | Recorded the MVP-019 review's non-blocking improvement. No application behavior changed. | Engineering |
