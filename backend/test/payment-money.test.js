@@ -30,6 +30,7 @@ describe("MVP-025 payment amounts", () => {
       "x-webhook-timestamp": timestamp,
     });
     assert.equal(verified.ok, true);
+    assert.equal(verified.event.outcome, "succeeded");
     assert.equal(verified.event.amountMinor, "125050");
     assert.equal(verified.event.currency, "INR");
     const forged = cashfree.verifyWebhookSignature(raw, {
@@ -37,5 +38,13 @@ describe("MVP-025 payment amounts", () => {
       "x-webhook-timestamp": timestamp,
     });
     assert.equal(forged.ok, false);
+    const unknown = Buffer.from('{"type":"PAYMENT_USER_DROPPED_WEBHOOK"}');
+    const unknownSignature = crypto.createHmac("sha256", "secret_test_value").update(timestamp + unknown.toString("utf8")).digest("base64");
+    const ignored = cashfree.verifyWebhookSignature(unknown, {
+      "x-webhook-signature": unknownSignature,
+      "x-webhook-timestamp": timestamp,
+    });
+    assert.equal(ignored.ok, true);
+    assert.equal(ignored.event.outcome, "ignored");
   });
 });

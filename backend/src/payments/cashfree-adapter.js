@@ -32,9 +32,17 @@ function orderBody(providerReference, amountMinor, exponent, currency) {
   return `{"order_id":${JSON.stringify(providerReference)},"order_amount":${amount},"order_currency":${JSON.stringify(currency)}}`;
 }
 
-async function createFundingIntent({ amountMinor, exponent, currency, idempotencyKey }) {
+function allocateReference() {
+  return `ord_${crypto.randomBytes(12).toString("hex")}`;
+}
+
+async function createFundingIntent({ providerReference, amountMinor, exponent, currency, idempotencyKey }) {
   const config = configuration();
-  const providerReference = `ord_${crypto.randomBytes(12).toString("hex")}`;
+  if (typeof providerReference !== "string" || providerReference.length === 0) {
+    const error = new Error("payment provider did not accept the order");
+    error.code = "payment_provider_rejected";
+    throw error;
+  }
   const body = orderBody(providerReference, amountMinor, exponent, currency);
   const response = await fetch(`${config.baseUrl}/orders`, {
     method: "POST",
@@ -100,7 +108,7 @@ function verifyWebhookSignature(rawBody, headers) {
   try {
     parsed = JSON.parse(rawBody.toString("utf8"));
   } catch {
-    return { ok: false };
+    return { ok: true, event: { outcome: "ignored", eventId: null } };
   }
   const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : null;
   const order = data && data.order ? data.order : null;
@@ -116,21 +124,23 @@ function verifyWebhookSignature(rawBody, headers) {
     ? String(payment.cf_payment_id)
     : null;
   const eventType = typeof parsed.type === "string" ? parsed.type : "";
-  if (!providerReference || !amountToken || !currency || !paymentId) {
-    return { ok: false };
-  }
-  const amountMinor = decimalTokenToMinor(amountToken, currency === "INR" ? 2 : -1);
-  if (amountMinor === null) {
-    return { ok: false };
-  }
+  const outcome = eventType === "PAYMENT_SUCCESS_WEBHOOK"
+    ? "succeeded"
+    : eventType === "PAYMENT_FAILED_WEBHOOK"
+      ? "failed"
+      : "ignored";
+  const amountMinor = amountToken === null
+    ? null
+    : decimalTokenToMinor(amountToken, currency === "INR" ? 2 : -1);
   const occurredAt = payment && typeof payment.payment_time === "string" ? payment.payment_time : null;
   return {
     ok: true,
     event: {
-      eventId: `${eventType}:${paymentId}`,
+      outcome,
+      eventId: paymentId ? `${eventType}:${paymentId}` : eventType || null,
       type: eventType,
       providerReference,
-      amountMinor: amountMinor.toString(),
+      amountMinor: amountMinor === null ? null : amountMinor.toString(),
       currency,
       occurredAt,
     },
@@ -146,6 +156,7 @@ module.exports = {
   capabilities: CAPABILITIES,
   API_VERSION,
   orderBody,
+  allocateReference,
   createFundingIntent,
   capturePayment,
   createRefund,

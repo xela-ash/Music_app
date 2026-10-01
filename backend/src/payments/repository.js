@@ -47,26 +47,26 @@ function insertFundingPayment(db, values) {
   return db.query(
     `INSERT INTO payments (
        external_id, project_id, escrow_id, payer_user_id, amount, currency,
-       currency_exponent, provider, status, type, idempotency_key, continuation, expires_at
+       currency_exponent, provider, provider_payment_id, status, type,
+       idempotency_key, continuation, expires_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'created', 'escrow_fund', $9, '{}'::jsonb, $10)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'created', 'escrow_fund', $10, '{}'::jsonb, $11)
      RETURNING id, external_id, status, amount, currency, currency_exponent, provider,
                provider_payment_id, continuation, expires_at, idempotency_key`,
     values
   );
 }
 
-function storeProviderReference(db, paymentId, providerReference, continuation, status) {
+function storeProviderContinuation(db, paymentId, continuation, status) {
   return db.query(
     `UPDATE payments
-     SET provider_payment_id = $2,
-         continuation = $3::jsonb,
-         status = $4,
+     SET continuation = $2::jsonb,
+         status = $3,
          updated_at = now()
      WHERE id = $1 AND status = 'created'
      RETURNING id, external_id, status, amount, currency, currency_exponent, provider,
                provider_payment_id, continuation, expires_at, idempotency_key`,
-    [paymentId, providerReference, JSON.stringify(continuation), status]
+    [paymentId, JSON.stringify(continuation), status]
   );
 }
 
@@ -135,7 +135,7 @@ module.exports = {
   lockPaymentByKey,
   lockOpenFundingPayment,
   insertFundingPayment,
-  storeProviderReference,
+  storeProviderContinuation,
   cancelPayment,
   lockPaymentByProviderReference,
   markPayment,

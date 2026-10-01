@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const { ensureMigrated, resetApplicationData, startServer, closeServer, stopPool } = require("./harness");
 const pool = require("../db/db");
 const { withMilestoneTerms } = require("./milestone-fixture");
-const { sign } = require("../src/payments/mock-adapter");
+const { sign, resetCreateFaults } = require("../src/payments/mock-adapter");
 
 let baseUrl = "";
 let server;
@@ -169,6 +169,7 @@ function webhook(event) {
 
 describe("MVP-025 funding confirmation", { concurrency: 1, timeout: 30000 }, () => {
   before(async () => {
+    process.env.MOCK_PAYMENT_ASSERT_COMMITTED = "1";
     ensureMigrated();
     await resetApplicationData();
     const started = await startServer();
@@ -257,6 +258,13 @@ describe("MVP-025 funding confirmation", { concurrency: 1, timeout: 30000 }, () 
       headers: { "x-musicapp-signature": "forged" },
     });
     assert.equal(forged.status, 401);
+    const signedUnknown = Buffer.from("{}");
+    const ignored = await request("POST", "/payments/webhooks/mock", {
+      raw: signedUnknown,
+      headers: { "x-musicapp-signature": sign(signedUnknown) },
+    });
+    assert.equal(ignored.status, 200, ignored.text);
+    assert.equal(ignored.json.outcome, "ignored");
     const unchanged = await pool.query(
       "SELECT status FROM payments WHERE external_id = $1",
       [payment.external_id]
@@ -381,6 +389,45 @@ describe("MVP-025 funding confirmation", { concurrency: 1, timeout: 30000 }, () 
     assert.equal(first.status, 200, first.text);
     assert.equal(second.status, 200, second.text);
     assert.equal(second.json.payment.external_id, first.json.payment.external_id);
+    const count = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM payments WHERE project_id = $1",
+      [agreed.project.id]
+    );
+    assert.equal(count.rows[0].count, 1);
+  });
+
+  it("keeps the same provider reference when the provider result is unknown", async () => {
+    const agreed = await agreeProject([550]);
+    const intent = await request("POST", `/projects/${agreed.project.id}/funding-intent`, {
+      token: agreed.buyer.token,
+      idempotencyKey: nextId("intent"),
+      body: { expected_version: agreed.stored.version },
+    });
+    assert.equal(intent.status, 200, intent.text);
+    const version = await pool.query("SELECT version FROM projects WHERE id = $1", [agreed.project.id]);
+    const key = nextId("pay");
+    process.env.MOCK_PAYMENT_UNCERTAIN_ONCE = "1";
+    resetCreateFaults();
+    const uncertain = await request("POST", `/projects/${agreed.project.id}/funding-payments`, {
+      token: agreed.buyer.token,
+      idempotencyKey: key,
+      body: { expected_version: version.rows[0].version },
+    });
+    delete process.env.MOCK_PAYMENT_UNCERTAIN_ONCE;
+    assert.equal(uncertain.status, 503, uncertain.text);
+    const pending = await pool.query(
+      "SELECT status, provider_payment_id FROM payments WHERE project_id = $1",
+      [agreed.project.id]
+    );
+    assert.equal(pending.rows.length, 1);
+    assert.equal(pending.rows[0].status, "created");
+    const retry = await request("POST", `/projects/${agreed.project.id}/funding-payments`, {
+      token: agreed.buyer.token,
+      idempotencyKey: key,
+      body: { expected_version: version.rows[0].version },
+    });
+    assert.equal(retry.status, 200, retry.text);
+    assert.equal(retry.json.payment.continuation.provider_reference, pending.rows[0].provider_payment_id);
     const count = await pool.query(
       "SELECT COUNT(*)::int AS count FROM payments WHERE project_id = $1",
       [agreed.project.id]

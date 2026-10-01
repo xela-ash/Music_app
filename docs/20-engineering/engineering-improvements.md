@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.28 |
+| Version | 0.7.29 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2051,9 +2051,9 @@ Copy this template for each new entry:
 | Identified by | MVP-025 implementation |
 | Category | Payments |
 | Affected subsystem | Payments |
-| Current state | `createFundingPayment` calls the selected adapter inside the transaction that locks the project and the escrow. The mock returns in process. The Cashfree adapter performs HTTP before that transaction commits. |
-| Evidence / problem | A slow or hung provider call keeps the row locks. Splitting the call from the commit can leave a created provider order without a local payment row. |
-| Suggested improvement | Create the provider order with a short lock, persist the reference, then confirm funding from the webhook without holding the lock across HTTP. |
+| Current state | The funding payment and its provider reference commit before `createFundingIntent`. An uncertain provider result leaves the row `created`. The same idempotency key retries that reference. |
+| Evidence / problem | The first draft called the provider inside the open transaction. A commit failure after a successful provider call would have rolled back the only local copy of the order id. |
+| Suggested improvement | Implemented in the MVP-025 review repair: persist the reference, commit, then call the provider. |
 | Expected benefit | Provider latency does not block other project commands. |
 | Risk of doing nothing | The mock path used by tests does not call the network. A live Cashfree create holds the locks for the HTTP round trip. |
 | Implementation risk | Medium |
@@ -2066,10 +2066,10 @@ Copy this template for each new entry:
 | Performance impact | Live creates hold project and escrow locks for the provider round trip. |
 | Priority suggestion | Medium |
 | Recommended timing | Before production Cashfree activation |
-| Status | PROPOSED |
+| Status | IMPLEMENTED |
 | Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
 | Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
-| Resolution | — |
+| Resolution | The review repair commits the payment reference before the provider call. |
 
 ### ENG-IMP-080 Expired funding attempts are not cancelled by a clock
 
@@ -2096,6 +2096,66 @@ Copy this template for each new entry:
 | Performance impact | None until a sweep exists. |
 | Priority suggestion | Low |
 | Recommended timing | If operations need expired rows to leave the open status without a new attempt |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-081 Funding confirmation locks the project after the payment
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-081 |
+| Title | Funding confirmation locks the project after the payment |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The webhook locks the payment and the escrow, then `applyJournal` locks the project. Another command that already holds the project lock can deadlock. PostgreSQL aborts one transaction. |
+| Evidence / problem | The review of pull request #103. Balances stay consistent because the aborted transaction rolls back. |
+| Suggested improvement | Lock the project before the payment when the webhook confirms funding. |
+| Expected benefit | Concurrent project commands fail with a conflict instead of a deadlock abort. |
+| Risk of doing nothing | One of the two transactions is aborted and can be retried. Money is not applied twice. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a lock-order rewrite. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | A deadlock abort retries one command. |
+| Priority suggestion | Low |
+| Recommended timing | With a later funding concurrency pass |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-082 Funding confirmation does not enqueue AllocationFunded
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-082 |
+| Title | Funding confirmation does not enqueue AllocationFunded |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding confirmation enqueues `EscrowFunded` and applies M02 in the same transaction. It does not enqueue `AllocationFunded`. |
+| Evidence / problem | The review of pull request #103. Milestone rows still reach `funded`. |
+| Suggested improvement | Enqueue `AllocationFunded` with the project id and term version when a later consumer needs that event. |
+| Expected benefit | A downstream consumer can see each allocation funding without reading the milestone table. |
+| Risk of doing nothing | The milestone transition is already applied. No consumer reads `AllocationFunded` today. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | An outbox consumer. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the outbox dispatcher |
 | Status | PROPOSED |
 | Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
 | Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
@@ -2233,3 +2293,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. `ENG-IMP-084` and `ENG-IMP-085` are already on main. | Engineering |
+| 0.7.29 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
