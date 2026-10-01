@@ -26,6 +26,7 @@ const APPLICATION_TABLES = [
   "escrow_allocations",
   "payments",
   "escrows",
+  "escrow_fee_snapshots",
   "project_audit_events",
   "project_amendments",
   "project_state_transitions",

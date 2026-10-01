@@ -4,6 +4,7 @@ const service = require("./service");
 const invitations = require("./invitation-service");
 const transitions = require("./transition-service");
 const amendments = require("./amendment-service");
+const escrow = require("../escrow/service");
 
 const router = express.Router();
 
@@ -165,6 +166,16 @@ router.post("/projects/:projectId/amendments/:amendmentId/withdraw", requireAuth
   const result = await amendments.withdrawAmendment(
     req.params.projectId,
     req.params.amendmentId,
+    req.body,
+    req.auth.sub,
+    req.get("Idempotency-Key")
+  );
+  res.status(result.status).json(result.body);
+});
+
+router.post("/projects/:projectId/funding-intent", requireAuth, async (req, res) => {
+  const result = await escrow.createFundingIntent(
+    req.params.projectId,
     req.body,
     req.auth.sub,
     req.get("Idempotency-Key")

@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.20 |
+| Version | 0.7.21 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1831,6 +1831,36 @@ Copy this template for each new entry:
 | Related PR | [#90](https://github.com/xela-ash/music_app/pull/90) |
 | Resolution | — |
 
+### ENG-IMP-061 Escrow audit rows do not store amount and currency as columns
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-061 |
+| Title | Escrow audit rows do not store amount and currency as columns |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-024 independent review |
+| Category | Database |
+| Affected subsystem | Escrow |
+| Current state | `AUD-ESCROW-001` is a `project_audit_events` row. Amount, currency, exponent, and the escrow external id are inside `change_hash`. The escrow and allocation rows store the figures. |
+| Evidence / problem | Escrow §23.1 says the audit record identifies amount and currency. The hash is not queryable as those fields. `project_audit_events` has no amount or currency columns. |
+| Suggested improvement | When an escrow audit table or an additive audit column is specified, store the amount and currency beside the hash. Do not weaken the hash. |
+| Expected benefit | An auditor can read the amount without reversing the hash. |
+| Risk of doing nothing | The escrow row and the hash still carry the figures. The command's evidence is not lost. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A specified escrow audit layout. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | Additive columns or a new table, only after the layout is specified |
+| Security impact | None. The hash already covers the figures. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a later escrow audit item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#26](https://github.com/xela-ash/Music_app/issues/26) |
+| Related PR | [#92](https://github.com/xela-ash/music_app/pull/92) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1845,7 +1875,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 | JWT in `localStorage` | `SEC-USERS-005`; [Authentication §19.3](../02-users-roles-permissions/authentication.md#193-browser-token-delivery--target-vs-current) |
 | `err.detail` echoed in error responses | [Authentication §22](../02-users-roles-permissions/authentication.md#22-failure-handling) |
 | `RETURNING *` returns full Profile rows | [Profiles](../02-users-roles-permissions/profiles.md) findings |
-| Money in 32-bit `INT`, unrestricted `currency TEXT` | `REQ-ESCROW-003` ([Escrow §7](../06-payments-escrow/escrow.md#7-currency-and-money-representation)); MVP-024 |
+| Escrow and allocation amounts are `BIGINT` minor units with `INR` exponent 2. `projects.price_amount`, `payments`, and `escrow_ledger` remain 32-bit. | `REQ-ESCROW-003`; `ENG-IMP-050`; MVP-026 owns the ledger |
 | `escrow_ledger` not append-only; financial `ON DELETE CASCADE` | [Escrow §13](../06-payments-escrow/escrow.md#13-ledger-architecture), [§24](../06-payments-escrow/escrow.md#24-target-data-model); MVP-026 |
 | No `updated_at` maintenance trigger | [Milestones §26](../05-projects-milestones/milestones.md#26-target-data-model), [Projects §26](../05-projects-milestones/projects.md#26-target-data-model) |
 | `GET /profiles` search is server-side and still paged at 100 rows. Public/active scoping is not applied because those columns do not exist. | [System Architecture §10.4](../01-foundation/system-architecture.md#104-marketplace); MVP-013; `REQ-PROFILE-005` |
@@ -1895,3 +1925,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.18 | 2026-10-01 | Added `ENG-IMP-054` (PROPOSED): revision reason codes and the detail bound stay unspecified. Not authorized. | Engineering |
 | 0.7.19 | 2026-10-01 | Added `ENG-IMP-055` through `ENG-IMP-059` (all PROPOSED) from the MVP-018 review. None are authorized. | Engineering |
 | 0.7.20 | 2026-10-01 | Added `ENG-IMP-060` (PROPOSED) from the MVP-019 review: the concurrent start test does not resubmit the losing key. Not authorized. | Engineering |
+| 0.7.21 | 2026-10-01 | Added `ENG-IMP-061` (PROPOSED) from the MVP-024 review: escrow audit rows keep amount and currency in the hash. Not authorized. The money cross-reference now records the BIGINT escrow columns. | Engineering |
