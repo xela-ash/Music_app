@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.21.0 |
+| Version | 0.21.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -877,6 +877,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-008 / GitHub issue #10 | First Administrator is a non-public CLI bootstrap of one existing active user, refused once any active Administrator exists. `authorize()` reads the live assignment. Governed grant and revoke fail closed until step-up assurance exists. | Authorization, database, testing | 023 | No public bootstrap route | None | `SEC-ROLE-001`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `AUD-ROLE-001` | `backend/test/roles.test.js`, `backend/test/authorize.test.js` | EDR-026 | `ENG-IMP-086` | #106 | `13f1678` on `cursor/mvp-008-admin-bootstrap-255b` |
+| 2026-10-01 | MVP-008 review / GitHub issue #10 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-087`, `ENG-IMP-088` | #106 | The review-record commit on `cursor/mvp-008-admin-bootstrap-255b` |
 
 ## 8. Version history
 
@@ -919,3 +920,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
 | 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.21.0 | 2026-10-01 | Recorded MVP-008: first-Administrator CLI bootstrap, live role decisions, and EDR-026. Sections 4.6 and 4.19. `EDR-022` through `EDR-024` remain reserved by unmerged pull requests. | Engineering |
+| 0.21.1 | 2026-10-01 | Recorded the MVP-008 review's non-blocking improvements. No application behavior changed. | Engineering |
