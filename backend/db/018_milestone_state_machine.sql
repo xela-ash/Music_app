@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS milestone_state_transitions (
   actor_type TEXT NOT NULL,
   actor_id TEXT NOT NULL,
   source_fact_id TEXT,
+  submission_ref TEXT,
   precondition_version INTEGER NOT NULL,
   outcome TEXT NOT NULL,
   reason_code TEXT,
@@ -84,9 +85,27 @@ CREATE TABLE IF NOT EXISTS milestone_state_transitions (
     CHECK (source_state IS NOT NULL OR target_state = 'planned')
 );
 
+ALTER TABLE milestone_state_transitions
+  ADD COLUMN IF NOT EXISTS submission_ref TEXT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'milestone_state_transitions_submission_length'
+  ) THEN
+    ALTER TABLE milestone_state_transitions
+      ADD CONSTRAINT milestone_state_transitions_submission_length
+      CHECK (submission_ref IS NULL OR length(submission_ref) BETWEEN 1 AND 255);
+  END IF;
+END $$;
+
 CREATE UNIQUE INDEX IF NOT EXISTS milestone_state_transitions_source_fact_unique
   ON milestone_state_transitions (source_fact_id)
   WHERE source_fact_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS milestone_state_transitions_submission_unique
+  ON milestone_state_transitions (submission_ref)
+  WHERE submission_ref IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS milestone_state_transitions_milestone_time_idx
   ON milestone_state_transitions (milestone_id, created_at);
@@ -191,6 +210,15 @@ BEGIN
     (OLD.status = 'open' AND NEW.status IN ('answered', 'withdrawn_by_dispute'))
     OR OLD.status = NEW.status
   ) THEN
+    RAISE EXCEPTION 'milestone_revision_requests are append-only';
+  END IF;
+  IF NEW.answering_submission_ref IS DISTINCT FROM OLD.answering_submission_ref
+    AND NOT (
+      OLD.status = 'open'
+      AND NEW.status = 'answered'
+      AND OLD.answering_submission_ref IS NULL
+    )
+  THEN
     RAISE EXCEPTION 'milestone_revision_requests are append-only';
   END IF;
   RETURN NEW;

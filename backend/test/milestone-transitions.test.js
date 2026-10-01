@@ -238,20 +238,44 @@ describe("MVP-018 milestone transitions M01–M17", { concurrency: 1, timeout: 1
     const delivered = await move(milestoneId, "delivery.ready", { type: "system", id: "system" }, money("evt-deliver-1", { submission_ref: "sub-1", ready: true, safe: true }), 3);
     assert.equal(delivered.status, 200, JSON.stringify(delivered.body));
     assert.equal(delivered.body.milestone.state, "delivered");
+    const quarantined = await pool.query(
+      `SELECT outcome FROM project_audit_events
+       WHERE action = 'delivery.ready' AND outcome = 'quarantined'`
+    );
+    assert.equal(quarantined.rows.length, 1);
+    const inbox = await pool.query(
+      "SELECT result FROM inbox_events WHERE event_id = 'sub-bad'"
+    );
+    assert.equal(inbox.rows[0].result, "quarantined");
     const deliveryRow = await pool.query(
-      `SELECT source_fact_id FROM milestone_state_transitions
+      `SELECT source_fact_id, submission_ref FROM milestone_state_transitions
        WHERE milestone_id = $1 AND trigger_type = 'delivery.ready'`,
       [milestoneId]
     );
-    assert.deepEqual(deliveryRow.rows.map((row) => row.source_fact_id), ["sub-1"]);
+    assert.equal(deliveryRow.rows.length, 1);
+    assert.equal(deliveryRow.rows[0].source_fact_id, "evt-deliver-1");
+    assert.equal(deliveryRow.rows[0].submission_ref, "sub-1");
+    const repeated = await move(milestoneId, "delivery.ready", { type: "system", id: "system" }, money("evt-deliver-again", { submission_ref: "sub-1", ready: true, safe: true }), 4);
+    assert.equal(repeated.status, 200, JSON.stringify(repeated.body));
+    assert.equal(repeated.body.duplicate, true);
+    assert.equal(delivered.body.milestone.state, "delivered");
 
     const blank = await move(milestoneId, "delivery.request_revision", { type: "user", id: buyer.userId }, { key: "rev-blank", submission_ref: "sub-1", reason_code: "", detail: "louder" }, 4);
     assert.equal(blank.status, 409);
-    const revised = await move(milestoneId, "delivery.request_revision", { type: "user", id: buyer.userId }, { key: "rev-1", submission_ref: "sub-1", reason_code: "mix", detail: "louder" }, 4);
+    const revised = await move(milestoneId, "delivery.request_revision", { type: "user", id: buyer.userId }, { key: "sub-1", submission_ref: "sub-1", reason_code: "mix", detail: "louder" }, 4);
     assert.equal(revised.status, 200, JSON.stringify(revised.body));
     assert.equal(revised.body.milestone.state, "in_progress");
     const resubmitted = await move(milestoneId, "delivery.ready", { type: "system", id: "system" }, money("evt-deliver-2", { submission_ref: "sub-2", ready: true, safe: true }), 5);
     assert.equal(resubmitted.status, 200, JSON.stringify(resubmitted.body));
+    await assert.rejects(
+      pool.query(
+        `UPDATE milestone_revision_requests
+         SET answering_submission_ref = 'rewritten'
+         WHERE milestone_id = $1 AND status = 'answered'`,
+        [milestoneId]
+      ),
+      /append-only/
+    );
     const exhausted = await move(milestoneId, "delivery.request_revision", { type: "user", id: buyer.userId }, { key: "rev-2", submission_ref: "sub-2", reason_code: "mix", detail: "again" }, 6);
     assert.equal(exhausted.status, 409);
     assert.equal(exhausted.body.error, "Revision allowance is exhausted");
@@ -370,6 +394,38 @@ describe("MVP-018 milestone transitions M01–M17", { concurrency: 1, timeout: 1
     const restored = await move(held.milestoneId, "dispute.resolve", { type: "system", id: "system" }, { event_id: "hold-right", resume_state: "funded" }, moved.body.milestone.version);
     assert.equal(restored.status, 200, JSON.stringify(restored.body));
     assert.equal(restored.body.milestone.state, "funded");
+
+    const unagreed = await fetch(`${baseUrl}/projects`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${buyer.token}`,
+      },
+      body: JSON.stringify({
+        seller_user_id: seller.userId,
+        title: "Frozen plan",
+        requirements: "Stems",
+        price_amount: 100,
+        delivery_days: 7,
+        revision_limit: 0,
+        milestones: [{
+          title: "Only",
+          amount: 100,
+          due_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          revision_allowance: 0,
+          deliverable_definition: {
+            required_deliverables: ["final_master_wav"],
+            other_description: null,
+          },
+        }],
+      }),
+    });
+    const unagreedJson = await unagreed.json();
+    assert.equal(unagreed.status, 201);
+    moved = await move(unagreedJson.milestones[0].id, "milestone.suspend", { type: "system", id: "system" }, { event_id: "sus-draft", reason: "MODERATION" }, 1);
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.equal(moved.body.milestone.state, "suspended");
+    assert.equal(moved.body.milestone.resume_state, "planned");
 
     const draft = await fetch(`${baseUrl}/projects`, {
       method: "POST",

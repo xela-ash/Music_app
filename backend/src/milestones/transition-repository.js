@@ -76,14 +76,24 @@ function activeSibling(db, projectId, milestoneId) {
 
 function latestDelivery(db, milestoneId) {
   return db.query(
-    `SELECT source_fact_id
+    `SELECT submission_ref
      FROM milestone_state_transitions
      WHERE milestone_id = $1
        AND trigger_type = 'delivery.ready'
-       AND outcome = 'succeeded'
+       AND submission_ref IS NOT NULL
      ORDER BY created_at DESC
      LIMIT 1`,
     [milestoneId]
+  );
+}
+
+function deliveryBySubmission(db, submissionRef) {
+  return db.query(
+    `SELECT milestone_id
+     FROM milestone_state_transitions
+     WHERE submission_ref = $1
+     LIMIT 1`,
+    [submissionRef]
   );
 }
 
@@ -107,10 +117,10 @@ function insertTransition(db, values) {
   return db.query(
     `INSERT INTO milestone_state_transitions (
        external_id, milestone_id, source_state, target_state, trigger_type,
-       actor_type, actor_id, source_fact_id, precondition_version, outcome,
+       actor_type, actor_id, source_fact_id, submission_ref, precondition_version, outcome,
        reason_code, term_version
      )
-     VALUES ($1, $2, $3::milestone_state, $4::milestone_state, $5, $6, $7, $8, $9, 'succeeded', $10, $11)`,
+     VALUES ($1, $2, $3::milestone_state, $4::milestone_state, $5, $6, $7, $8, $9, $10, 'succeeded', $11, $12)`,
     values
   );
 }
@@ -214,6 +224,7 @@ function recordCreation(db, milestone, actorId) {
     "user",
     actorId,
     null,
+    null,
     milestone.version,
     null,
     null,
@@ -226,6 +237,7 @@ module.exports = {
   answerOpenRevision,
   applyState,
   approvalCount,
+  deliveryBySubmission,
   hexId,
   insertApproval,
   insertRevision,

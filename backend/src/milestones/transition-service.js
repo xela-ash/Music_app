@@ -73,6 +73,7 @@ async function writeAudit(client, { project, milestone, actorType, actorId, acti
       milestone_id: milestone.external_id,
       source,
       target,
+      submission_ref: action.submissionRef || null,
     }),
   ]);
 }
@@ -143,7 +144,7 @@ async function preconditionFailure(client, { project, milestone, edge, actorType
   if (INTERRUPTED_PROJECT.has(project.state) && edge.id !== "M10" && edge.id !== "M11" && edge.id !== "M13" && edge.id !== "M14") {
     return rejected("Invalid milestone transition");
   }
-  if (milestone.terms_status !== "agreed" && edge.id !== "M01" && edge.id !== "M15") {
+  if (milestone.terms_status !== "agreed" && !["M01", "M12", "M13", "M14", "M15"].includes(edge.id)) {
     return rejected("Milestone terms are not agreed");
   }
 
@@ -189,7 +190,7 @@ async function preconditionFailure(client, { project, milestone, edge, actorType
   if (edge.id === "M06" || edge.id === "M07") {
     const latest = await repository.latestDelivery(client, milestone.id);
     const submission = text(facts.submission_ref, 255);
-    if (!latest.rows[0] || !submission || latest.rows[0].source_fact_id !== submission) {
+    if (!latest.rows[0] || !submission || latest.rows[0].submission_ref !== submission) {
       return rejected("Submission reference is not current");
     }
   }
@@ -295,7 +296,7 @@ async function commitEdge(client, { project, milestone, edge, actorType, actorId
   // M05's unique transition key is the submission reference. The inbox still
   // deduplicates the event id, so a later revision or approval can name the
   // submission without knowing that event id.
-  const recordedFactId = edge.id === "M05" ? text(facts.submission_ref, 255) : sourceFact;
+  const submissionRef = edge.id === "M05" ? text(facts.submission_ref, 255) : null;
   if (edge.id === "M06") {
     const count = await repository.revisionCount(client, milestone.id);
     await repository.insertRevision(client, [
@@ -349,7 +350,8 @@ async function commitEdge(client, { project, milestone, edge, actorType, actorId
     edge.action,
     actorType,
     actorId,
-    recordedFactId,
+    sourceFact,
+    submissionRef,
     milestone.version,
     edge.id === "M09" ? "DISPUTE" : edge.id === "M12" ? facts.reason : edge.id === "M03" && target === "suspended" ? "ADMIN_RISK" : null,
     milestone.current_term_version,
@@ -359,7 +361,12 @@ async function commitEdge(client, { project, milestone, edge, actorType, actorId
     milestone: next,
     actorType,
     actorId,
-    action: { ...edge, edgeId: edge.id, sourceFactId: sourceFact },
+    action: {
+      ...edge,
+      edgeId: edge.id,
+      sourceFactId: sourceFact,
+      submissionRef: text(facts.submission_ref, 255),
+    },
     outcome: "succeeded",
     source: milestone.state,
     target,
@@ -390,6 +397,36 @@ async function commitEdge(client, { project, milestone, edge, actorType, actorId
 }
 
 async function applyInside(client, command, project, milestone) {
+  const facts = command.facts || {};
+  if (command.action === "delivery.ready") {
+    const submission = text(facts.submission_ref, 255);
+    if (submission) {
+      const existing = await repository.deliveryBySubmission(client, submission);
+      if (existing.rows[0]) {
+        const sameMilestone = existing.rows[0].milestone_id === milestone.id;
+        await writeAudit(client, {
+          project,
+          milestone,
+          actorType: command.actorType,
+          actorId: command.actorId,
+          action: {
+            action: "delivery.ready",
+            edgeId: "M05",
+            sourceFactId: text(facts.event_id, 255),
+            submissionRef: submission,
+          },
+          outcome: sameMilestone ? "duplicate" : "quarantined",
+          source: milestone.state,
+          target: null,
+          reason: sameMilestone ? null : "mismatch",
+        });
+        if (sameMilestone) {
+          return { status: 200, body: { duplicate: true } };
+        }
+        return rejected("Milestone fact does not match", true);
+      }
+    }
+  }
   if (milestone.version !== command.expectedVersion) {
     return rejected("Milestone version is stale");
   }
@@ -397,7 +434,6 @@ async function applyInside(client, command, project, milestone) {
   if (!edge) {
     return rejected("Invalid milestone transition");
   }
-  const facts = command.facts || {};
   const failure = await preconditionFailure(client, {
     project,
     milestone,
@@ -407,6 +443,24 @@ async function applyInside(client, command, project, milestone) {
     facts,
   });
   if (failure) {
+    if (failure.quarantine) {
+      await writeAudit(client, {
+        project,
+        milestone,
+        actorType: command.actorType,
+        actorId: command.actorId,
+        action: {
+          ...edge,
+          edgeId: edge.id,
+          sourceFactId: text(facts.event_id, 255),
+          submissionRef: text(facts.submission_ref, 255),
+        },
+        outcome: "quarantined",
+        source: milestone.state,
+        target: null,
+        reason: "mismatch",
+      });
+    }
     return failure;
   }
   const sourceFactId = command.actorType === "system" ? text(facts.event_id, 255) : text(command.idempotencyKey, 255);
@@ -501,6 +555,12 @@ async function applyMilestoneTransition(command) {
     }
     if (error.code === "23505" && error.constraint === "project_milestones_one_active") {
       return rejected("Another milestone is already active");
+    }
+    if (error.code === "23505" && error.constraint === "milestone_state_transitions_submission_unique") {
+      return { status: 200, body: { duplicate: true } };
+    }
+    if (error.code === "23505") {
+      return rejected("Milestone fact does not match");
     }
     if (error.status) {
       return { status: error.status, body: error.body || { error: error.message } };
