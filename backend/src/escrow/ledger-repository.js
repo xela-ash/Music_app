@@ -6,7 +6,7 @@ function makeLedgerExternalId() {
 
 function lockEscrow(db, escrowId) {
   return db.query(
-    `SELECT id, project_id, status, currency, currency_exponent,
+    `SELECT id, external_id, project_id, status, currency, currency_exponent,
             funded_amount, released_amount, refunded_amount, version
      FROM escrows
      WHERE id = $1
@@ -84,6 +84,56 @@ function ledgerTotals(db, escrowId) {
   );
 }
 
+function lockAllocationDetails(db, escrowId) {
+  return db.query(
+    `SELECT allocation.id, allocation.external_id, allocation.milestone_id,
+            allocation.allocation_status, allocation.allocated_amount,
+            allocation.funded_amount, allocation.released_amount,
+            allocation.refunded_amount, allocation.term_version,
+            milestone.external_id AS milestone_external_id
+     FROM escrow_allocations allocation
+     JOIN project_milestones milestone ON milestone.id = allocation.milestone_id
+     WHERE allocation.escrow_id = $1
+     ORDER BY milestone.milestone_no
+     FOR UPDATE OF allocation`,
+    [escrowId]
+  );
+}
+
+function writeAllocationRefund(db, allocationId, refundedAmount, status) {
+  return db.query(
+    `UPDATE escrow_allocations
+     SET refunded_amount = $2,
+         allocation_status = $3,
+         version = version + 1
+     WHERE id = $1
+     RETURNING id, external_id, refunded_amount, allocation_status, funded_amount, released_amount`,
+    [allocationId, refundedAmount, status]
+  );
+}
+
+function countUnsettledAllocations(db, escrowId) {
+  return db.query(
+    `SELECT COUNT(*)::int AS open_count
+     FROM escrow_allocations
+     WHERE escrow_id = $1
+       AND allocation_status NOT IN ('released', 'refunded', 'cancelled', 'superseded')`,
+    [escrowId]
+  );
+}
+
+function closeEscrowRefunded(db, escrowId) {
+  return db.query(
+    `UPDATE escrows
+     SET status = 'refunded',
+         closed_at = clock_timestamp(),
+         version = version + 1
+     WHERE id = $1 AND status = 'funded'
+     RETURNING status, version, refunded_amount, released_amount`,
+    [escrowId]
+  );
+}
+
 function writeProjections(db, escrowId, funded, released, refunded) {
   return db.query(
     `UPDATE escrows
@@ -102,6 +152,10 @@ module.exports = {
   lockEscrow,
   lockProject,
   lockAllocations,
+  lockAllocationDetails,
+  writeAllocationRefund,
+  countUnsettledAllocations,
+  closeEscrowRefunded,
   nextSequence,
   insertEntry,
   ledgerTotals,
