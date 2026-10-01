@@ -1,5 +1,8 @@
 const { describe, it, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const {
   ensureMigrated,
   resetApplicationData,
@@ -9,6 +12,8 @@ const {
 } = require("./harness");
 const pool = require("../db/db");
 const { formatAmount } = require("../src/money/amount");
+const { proposalHash } = require("../src/projects/invitation-rules");
+const transitionRepository = require("../src/projects/transition-repository");
 
 let baseUrl = "";
 let server;
@@ -77,6 +82,88 @@ async function signupAndLogin(tag) {
   });
   assert.equal(loggedIn.status, 200, loggedIn.text);
   return { userId: created.json.user.id, token: loggedIn.json.token };
+}
+
+function hexId(prefix) {
+  return `${prefix}_${crypto.randomBytes(10).toString("hex")}`;
+}
+
+function migrationFunction(filename) {
+  const sql = fs.readFileSync(path.join(__dirname, "../db", filename), "utf8");
+  const start = sql.indexOf("CREATE OR REPLACE FUNCTION protect_locked_milestones()");
+  const end = sql.indexOf("$$ LANGUAGE plpgsql;", start);
+  return sql.slice(start, end);
+}
+
+async function seedProposedWithoutSnapshots(buyer, seller, { incomplete, state }) {
+  const created = await request("POST", "/projects", {
+    token: buyer.token,
+    body: projectBody(seller.userId, {
+      title: "Master",
+      amount: 125050,
+      due_at: futureIso(30),
+      revision_allowance: 0,
+      deliverable_definition: {
+        required_deliverables: ["final_master_wav"],
+        other_description: null,
+      },
+    }),
+  });
+  assert.equal(created.status, 201, created.text);
+  const projectId = created.json.project.id;
+  const milestoneId = created.json.milestones[0].id;
+  const proposal = await transitionRepository.insertProposalVersion(pool, projectId, hexId("ptv"));
+  const proposalVersion = proposal.rows[0].version_number;
+  await pool.query(
+    "UPDATE projects SET state = $2::project_state, proposal_version = $3 WHERE id = $1",
+    [projectId, state, proposalVersion]
+  );
+  if (incomplete) {
+    await pool.query(
+      `UPDATE project_milestones
+       SET revision_allowance = NULL, deliverable_definition = NULL
+       WHERE id = $1`,
+      [milestoneId]
+    );
+  }
+  const project = await pool.query(
+    `SELECT title, requirements, price_amount, currency, delivery_days, revision_limit, version
+     FROM projects WHERE id = $1`,
+    [projectId]
+  );
+  const milestones = await pool.query(
+    `SELECT milestone_no, title, description, deliverable_definition, revision_allowance,
+            amount, currency, currency_exponent, due_at
+     FROM project_milestones
+     WHERE project_id = $1
+     ORDER BY milestone_no`,
+    [projectId]
+  );
+  const externalId = hexId("inv");
+  if (state === "seller_invited") {
+    await pool.query(
+      `INSERT INTO project_invitations (
+         external_id, project_id, inviter_user_id, invitee_user_id,
+         proposal_version, proposal_hash, expires_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, clock_timestamp() + interval '7 days')`,
+      [
+        externalId,
+        projectId,
+        buyer.userId,
+        seller.userId,
+        proposalVersion,
+        proposalHash(project.rows[0], milestones.rows),
+      ]
+    );
+  }
+  return {
+    projectId,
+    milestoneId,
+    externalId,
+    proposalVersion,
+    version: project.rows[0].version,
+  };
 }
 
 function projectBody(sellerUserId, milestone) {
@@ -305,5 +392,166 @@ describe("MVP-017 milestone term snapshots", { concurrency: 1, timeout: 30000 },
       agreedAudit.rows.map((row) => row.action),
       ["milestone_terms_frozen", "milestone_terms_agreed"]
     );
+  });
+
+  it("keeps agreed terms complete and rejects a later incomplete freeze", async () => {
+    const migration016 = fs.readFileSync(path.join(__dirname, "../db/016_milestone_term_versions.sql"), "utf8");
+    const backfill = migration016.indexOf("SET terms_status = 'frozen'");
+    const replacement = migration016.indexOf("CREATE OR REPLACE FUNCTION protect_locked_milestones()");
+    assert.ok(backfill > 0 && backfill < replacement);
+    assert.equal(migration016.includes("project_milestones_frozen_terms_complete"), false);
+    const migration017 = fs.readFileSync(path.join(__dirname, "../db/017_milestone_terms_repair.sql"), "utf8");
+    assert.match(migration017, /DROP CONSTRAINT IF EXISTS project_milestones_frozen_terms_complete/);
+    assert.equal(migrationFunction("016_milestone_term_versions.sql"), migrationFunction("017_milestone_terms_repair.sql"));
+
+    const constraints = await pool.query(
+      `SELECT conname
+       FROM pg_constraint
+       WHERE conname IN (
+         'project_milestones_frozen_terms_complete',
+         'project_milestones_agreed_terms_complete'
+       )`
+    );
+    assert.deepEqual(
+      constraints.rows.map((row) => row.conname),
+      ["project_milestones_agreed_terms_complete"]
+    );
+    const definition = await pool.query(
+      `SELECT pg_get_functiondef(proname::regproc) AS def
+       FROM pg_proc
+       WHERE proname = 'protect_locked_milestones'`
+    );
+    assert.match(definition.rows[0].def, /Milestone terms are incomplete/);
+  });
+
+  it("refuses to lock a milestone that has no revision allowance", async () => {
+    const buyer = await signupAndLogin(nextId("buyer"));
+    const seller = await signupAndLogin(nextId("seller"));
+    const created = await request("POST", "/projects", {
+      token: buyer.token,
+      body: projectBody(seller.userId, {
+        title: "Master",
+        amount: 100,
+        due_at: futureIso(30),
+        revision_allowance: 0,
+        deliverable_definition: {
+          required_deliverables: ["lyrics"],
+          other_description: null,
+        },
+      }),
+    });
+    assert.equal(created.status, 201, created.text);
+    await pool.query(
+      "UPDATE project_milestones SET revision_allowance = NULL WHERE id = $1",
+      [created.json.milestones[0].id]
+    );
+    const locked = await request("POST", `/projects/${created.json.project.id}/lock-milestones`, {
+      token: buyer.token,
+    });
+    assert.equal(locked.status, 400, locked.text);
+    assert.equal(
+      locked.json.error,
+      "Each milestone must include a revision allowance and a catalogue selection"
+    );
+    const stored = await pool.query(
+      "SELECT milestones_locked_at FROM projects WHERE id = $1",
+      [created.json.project.id]
+    );
+    assert.equal(stored.rows[0].milestones_locked_at, null);
+  });
+
+  it("does not invite a proposal whose revision allowance is missing", async () => {
+    const buyer = await signupAndLogin(nextId("buyer"));
+    const seller = await signupAndLogin(nextId("seller"));
+    const seeded = await seedProposedWithoutSnapshots(buyer, seller, {
+      incomplete: true,
+      state: "proposed",
+    });
+    const invited = await request("POST", `/projects/${seeded.projectId}/invitations`, {
+      token: buyer.token,
+      idempotencyKey: nextId("invite"),
+      body: {
+        invitee_user_id: seller.userId,
+        expires_at: futureIso(7),
+        expected_version: seeded.version,
+      },
+    });
+    assert.equal(invited.status, 409, invited.text);
+    assert.equal(invited.json.error, "Proposal is not ready for invitation");
+  });
+
+  it("accepts a proposal that has complete live terms and no milestone snapshots", async () => {
+    const buyer = await signupAndLogin(nextId("buyer"));
+    const seller = await signupAndLogin(nextId("seller"));
+    const seeded = await seedProposedWithoutSnapshots(buyer, seller, {
+      incomplete: false,
+      state: "seller_invited",
+    });
+    const accepted = await request(
+      "POST",
+      `/projects/${seeded.projectId}/invitations/${seeded.externalId}/accept`,
+      {
+        token: seller.token,
+        idempotencyKey: nextId("accept"),
+        body: {
+          expected_version: seeded.version,
+          expected_proposal_version: seeded.proposalVersion,
+        },
+      }
+    );
+    assert.equal(accepted.status, 200, accepted.text);
+    const snapshots = await pool.query(
+      `SELECT kind FROM milestone_term_versions WHERE milestone_id = $1 ORDER BY kind`,
+      [seeded.milestoneId]
+    );
+    assert.deepEqual(
+      snapshots.rows.map((row) => row.kind),
+      ["agreed", "proposal"]
+    );
+    const live = await pool.query(
+      "SELECT terms_status FROM project_milestones WHERE id = $1",
+      [seeded.milestoneId]
+    );
+    assert.equal(live.rows[0].terms_status, "agreed");
+  });
+
+  it("returns 409 when acceptance has no snapshot and the live terms are incomplete", async () => {
+    const buyer = await signupAndLogin(nextId("buyer"));
+    const seller = await signupAndLogin(nextId("seller"));
+    const seeded = await seedProposedWithoutSnapshots(buyer, seller, {
+      incomplete: true,
+      state: "seller_invited",
+    });
+    const accepted = await request(
+      "POST",
+      `/projects/${seeded.projectId}/invitations/${seeded.externalId}/accept`,
+      {
+        token: seller.token,
+        idempotencyKey: nextId("accept"),
+        body: {
+          expected_version: seeded.version,
+          expected_proposal_version: seeded.proposalVersion,
+        },
+      }
+    );
+    assert.equal(accepted.status, 409, accepted.text);
+    assert.equal(accepted.json.error, "Proposal is not ready");
+    const agreed = await pool.query(
+      `SELECT COUNT(*)::int AS count
+       FROM project_term_versions
+       WHERE project_id = $1 AND represented_state = 'agreed'`,
+      [seeded.projectId]
+    );
+    assert.equal(agreed.rows[0].count, 0);
+    const snapshots = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM milestone_term_versions WHERE milestone_id = $1",
+      [seeded.milestoneId]
+    );
+    assert.equal(snapshots.rows[0].count, 0);
+    const invitation = await pool.query(
+      "SELECT status FROM project_invitations WHERE external_id = $1",
+      [seeded.externalId]
+    );
+    assert.equal(invitation.rows[0].status, "pending");
   });
 });

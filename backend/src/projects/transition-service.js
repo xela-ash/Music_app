@@ -209,11 +209,8 @@ async function preconditionFailure(client, project, edge, actor) {
   return null;
 }
 
-async function captureMilestoneSnapshots(client, project, termVersion) {
+async function insertLiveProposalSnapshots(client, project, termVersion) {
   const milestones = await repository.milestoneSnapshotRows(client, project.id);
-  if (milestones.rows.length === 0) {
-    return false;
-  }
   for (const milestone of milestones.rows) {
     await repository.insertMilestoneSnapshot(client, [
       repository.makeMilestoneTermExternalId(),
@@ -231,8 +228,42 @@ async function captureMilestoneSnapshots(client, project, termVersion) {
       milestone.due_at,
     ]);
   }
+  return milestones.rows.length;
+}
+
+async function captureMilestoneSnapshots(client, project, termVersion) {
+  const count = await insertLiveProposalSnapshots(client, project, termVersion);
+  if (count === 0) {
+    return false;
+  }
   const updated = await repository.setMilestoneTermsStatus(client, project.id, "draft", "frozen", termVersion);
-  return updated.rowCount === milestones.rows.length;
+  return updated.rowCount === count;
+}
+
+async function ensureProposalSnapshots(client, project) {
+  const existing = await repository.proposalMilestoneSnapshots(client, project.id, project.proposal_version);
+  if (existing.rows.length > 0) {
+    return true;
+  }
+  const milestones = await milestonesRepository.listMilestonesForProject(client, project.id);
+  if (!assertSnapshotReady(milestones.rows, project).ok) {
+    return false;
+  }
+  const count = await insertLiveProposalSnapshots(client, project, project.proposal_version);
+  if (count === 0) {
+    return false;
+  }
+  const updated = await repository.setMilestoneTermsStatus(client, project.id, "draft", "frozen", project.proposal_version);
+  if (updated.rowCount === count) {
+    return true;
+  }
+  const frozen = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM project_milestones
+     WHERE project_id = $1 AND terms_status IN ('frozen', 'agreed')`,
+    [project.id]
+  );
+  return frozen.rows[0].count === count;
 }
 
 async function captureAgreedMilestoneSnapshots(client, project, proposalVersion, agreedVersion) {
@@ -288,6 +319,10 @@ async function commitTransition(client, { project, action, targetState, actorTyp
     }
   }
   if (edge.effect === "freeze_agreed") {
+    const ready = await ensureProposalSnapshots(client, project);
+    if (!ready) {
+      return notReady(409);
+    }
     const inserted = await repository.insertAgreedVersion(
       client,
       project.id,
@@ -301,7 +336,7 @@ async function commitTransition(client, { project, action, targetState, actorTyp
     agreedTermVersion = termVersion.version_number;
     const captured = await captureAgreedMilestoneSnapshots(client, project, project.proposal_version, agreedTermVersion);
     if (!captured) {
-      throw new Error("Milestone agreed snapshot was not captured");
+      return notReady(409);
     }
   }
 

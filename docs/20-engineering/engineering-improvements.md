@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.15 |
+| Version | 0.7.16 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1528,7 +1528,7 @@ Copy this template for each new entry:
 | Recommended timing | The financial item that widens live money columns |
 | Status | PROPOSED |
 | Related GitHub Issue | [#19](https://github.com/xela-ash/Music_app/issues/19) |
-| Related PR | — |
+| Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
 | Resolution | — |
 
 ### ENG-IMP-051 The milestone lock trigger does not lock the project row
@@ -1558,7 +1558,7 @@ Copy this template for each new entry:
 | Recommended timing | A later milestone-edit or concurrency item |
 | Status | PROPOSED |
 | Related GitHub Issue | [#19](https://github.com/xela-ash/Music_app/issues/19) |
-| Related PR | — |
+| Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
@@ -1620,3 +1620,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.13 | 2026-09-30 | Added `ENG-IMP-047` and `ENG-IMP-048` (PROPOSED) from the MVP-016 review. Neither is authorized. | Engineering |
 | 0.7.14 | 2026-09-30 | Added `ENG-IMP-049` (PROPOSED): a later matching snapshot can move the agreed pointer without an amendment. Not authorized. | Engineering |
 | 0.7.15 | 2026-10-01 | Added `ENG-IMP-050` and `ENG-IMP-051` (both PROPOSED): the 32-bit project total still caps milestone lines, and the lock trigger does not lock the project row. Neither is authorized. | Engineering |
+| 0.7.16 | 2026-10-01 | Recorded pull request #86 on `ENG-IMP-050` and `ENG-IMP-051`. Neither is authorized. | Engineering |

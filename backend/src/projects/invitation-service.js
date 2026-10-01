@@ -299,7 +299,8 @@ async function inviteSeller(projectId, body, actorUserId, idempotencyKeyHeader) 
           project.currency !== "INR" ||
           project.price_amount <= 0 ||
           readiness.milestone_count < 1 ||
-          readiness.deadlines_future !== true
+          readiness.deadlines_future !== true ||
+          readiness.terms_complete !== true
         ) {
           return { status: 409, body: { error: "Proposal is not ready for invitation" } };
         }

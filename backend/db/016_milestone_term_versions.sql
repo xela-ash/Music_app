@@ -32,6 +32,11 @@ END $$;
 ALTER TABLE project_milestones
   ALTER COLUMN currency_exponent SET NOT NULL;
 
+-- Locked plans become frozen while the migration 008 trigger is still installed.
+-- That trigger does not know terms_status. Do not require revision_allowance
+-- or deliverable_definition here: Section 26.2 forbids inventing them.
+-- The replacement trigger below rejects a later draft-to-frozen move that
+-- omits those fields.
 UPDATE project_milestones AS milestone
 SET terms_status = 'frozen'
 FROM projects AS project
@@ -70,12 +75,12 @@ BEGIN
       CHECK (current_term_version IS NULL OR current_term_version > 0);
   END IF;
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'project_milestones_frozen_terms_complete'
+    SELECT 1 FROM pg_constraint WHERE conname = 'project_milestones_agreed_terms_complete'
   ) THEN
     ALTER TABLE project_milestones
-      ADD CONSTRAINT project_milestones_frozen_terms_complete
+      ADD CONSTRAINT project_milestones_agreed_terms_complete
       CHECK (
-        terms_status = 'draft'
+        terms_status <> 'agreed'
         OR (revision_allowance IS NOT NULL AND deliverable_definition IS NOT NULL)
       );
   END IF;
@@ -210,6 +215,11 @@ BEGIN
         OR (OLD.terms_status = 'frozen' AND NEW.terms_status = 'agreed')
       ) THEN
         RAISE EXCEPTION 'Milestone terms status cannot move backward';
+      END IF;
+      IF OLD.terms_status = 'draft' AND NEW.terms_status = 'frozen' THEN
+        IF NEW.revision_allowance IS NULL OR NEW.deliverable_definition IS NULL THEN
+          RAISE EXCEPTION 'Milestone terms are incomplete';
+        END IF;
       END IF;
     ELSIF NEW.current_term_version IS DISTINCT FROM OLD.current_term_version THEN
       RAISE EXCEPTION 'Project milestones are locked and cannot be changed';

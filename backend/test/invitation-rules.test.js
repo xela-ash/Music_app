@@ -58,4 +58,13 @@ describe("proposal hash", () => {
     const edited = [{ ...milestones[0], amount: 90 }];
     assert.notEqual(proposalHash(project, milestones), proposalHash(project, edited));
   });
+
+  it("does not treat a missing revision allowance or exponent as zero", () => {
+    const missingAllowance = [{ ...milestones[0], revision_allowance: null }];
+    const zeroAllowance = [{ ...milestones[0], revision_allowance: 0 }];
+    assert.notEqual(proposalHash(project, missingAllowance), proposalHash(project, zeroAllowance));
+    const missingExponent = [{ ...milestones[0], currency_exponent: null }];
+    const exponentTwo = [{ ...milestones[0], currency_exponent: 2 }];
+    assert.notEqual(proposalHash(project, missingExponent), proposalHash(project, exponentTwo));
+  });
 });

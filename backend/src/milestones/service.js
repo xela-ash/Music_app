@@ -1,6 +1,6 @@
 const pool = require("../../db/db");
 const repository = require("./repository");
-const { validateDeliverableDefinition } = require("./catalogue");
+const { assertSnapshotReady, validateDeliverableDefinition } = require("./catalogue");
 const projectsRepository = require("../projects/repository");
 const { PROJECT_LOCK_MILESTONES, authorize } = require("../authorization/authorize");
 
@@ -144,6 +144,14 @@ async function lockMilestones(projectId, actorUserId) {
     if (milestones.length === 0) {
       await client.query("ROLLBACK");
       return { status: 400, body: { error: "Project must have at least one milestone before locking" } };
+    }
+
+    if (!assertSnapshotReady(milestones, project).ok) {
+      await client.query("ROLLBACK");
+      return {
+        status: 400,
+        body: { error: "Each milestone must include a revision allowance and a catalogue selection" },
+      };
     }
 
     let milestoneTotal = 0;

@@ -52,7 +52,13 @@ function proposalIsReady(db, projectId) {
   return db.query(
     `SELECT
        COUNT(*)::int AS milestone_count,
-       COALESCE(bool_and(due_at IS NOT NULL AND due_at > clock_timestamp()), false) AS deadlines_future
+       COALESCE(bool_and(due_at IS NOT NULL AND due_at > clock_timestamp()), false) AS deadlines_future,
+       COALESCE(bool_and(
+         revision_allowance IS NOT NULL
+         AND deliverable_definition IS NOT NULL
+         AND jsonb_typeof(deliverable_definition -> 'required_deliverables') = 'array'
+         AND jsonb_array_length(deliverable_definition -> 'required_deliverables') > 0
+       ), false) AS terms_complete
      FROM project_milestones
      WHERE project_id = $1`,
     [projectId]
