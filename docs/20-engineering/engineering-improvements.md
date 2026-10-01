@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.23 |
+| Version | 0.7.25 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1951,6 +1951,96 @@ Copy this template for each new entry:
 | Related PR | [#94](https://github.com/xela-ash/music_app/pull/94) |
 | Resolution | — |
 
+### ENG-IMP-065 Refund execution does not see holds or the unallocated pool
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-065 |
+| Title | Refund execution does not see holds or the unallocated pool |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-029 implementation |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | `executeRefundInstruction` refunds one `funded` allocation. The refundable formula accepts a held amount, and the service passes zero. A missing allocation id is rejected. |
+| Evidence / problem | Escrow §15 allows a refund of the unallocated pool and excludes held funds. `DATA-ESCROW-004` is not built, so no hold row can exist. The MVP-026 projection adds `refunded_amount` only for `refunded_to_buyer` whose source is `ESCROW_ALLOCATION`. A pool refund would not increase that projection, so the cumulative bound would not see it. |
+| Suggested improvement | When holds exist, subtract the open hold from the refundable amount and return 409 for held funds. When the projection counts an unallocated refund, accept a pool instruction up to that balance. |
+| Expected benefit | The consumer matches both refund paths in §15 without letting a pool refund escape the captured-funding bound. |
+| Risk of doing nothing | Allocation refunds stay inside captured funding. A pool or hold case cannot be executed until a later item adds the store and the projection. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | A hold table and a projection change. This entry does not authorize either. |
+| Product behavior impact | No product rule is changed. The unallocated and held paths stay unbuilt. |
+| Specification impact | No |
+| Migration impact | A later projection change needs a new migration. |
+| Security impact | The deferred check still rejects an allocation total the ledger does not support. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the first hold or unallocated-refund item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#31](https://github.com/xela-ash/Music_app/issues/31) |
+| Related PR | The MVP-029 pull request |
+| Resolution | — |
+
+### ENG-IMP-066 The refund journal does not reference a funding Payment
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-066 |
+| Title | The refund journal does not reference a funding Payment |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-029 implementation |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | The refund decision moves `ESCROW_ALLOCATION` to `REFUND_IN_TRANSIT` and leaves `payment_id` null. Captured funding is the escrow `funded_amount` projection. |
+| Evidence / problem | `BR-ESCROW-017` also requires the original funding Payment. Funding intent does not insert a payment, and MVP-025 owns the provider adapter. Inventing a payment row would select a capture the provider has not confirmed. |
+| Suggested improvement | When a verified funding Payment exists, require the refund instruction to name that payment and reject a cumulative refund above its captured amount. |
+| Expected benefit | The payment-level bound in `BR-ESCROW-017` is enforced in addition to the ledger projection. |
+| Risk of doing nothing | The ledger bound still stops a refund above `funded_amount`. `refund_paid` and the provider destination stay with Payments. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | MVP-025. This entry does not authorize a provider or a payment insert. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None until a payment link is added |
+| Security impact | None beyond the disclosed null payment reference. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the funding Payment |
+| Status | PROPOSED |
+| Related GitHub Issue | [#31](https://github.com/xela-ash/Music_app/issues/31) |
+| Related PR | The MVP-029 pull request |
+| Resolution | — |
+
+### ENG-IMP-067 A settled allocation with a release stays funded
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-067 |
+| Title | A settled allocation with a release stays funded |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-029 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | A refund that brings `released_amount + refunded_amount` to `funded_amount` sets `allocation_status` to `refunded` only when `released_amount` is zero. Any positive released amount leaves the allocation `funded`. |
+| Evidence / problem | Escrow §11.3 says a fully settled allocation is `released` when any amount reached the Seller. No release writer sets `released_amount` today, so this branch does not run. |
+| Suggested improvement | When a later release item settles an allocation that already has a release, set `allocation_status` to `released`. |
+| Expected benefit | The stored allocation state matches §11.3 once a release amount exists. |
+| Risk of doing nothing | Refund-only settlement still becomes `refunded`. A mixed release-and-refund settlement is not produced by the current services. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A release journal. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the release item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#31](https://github.com/xela-ash/Music_app/issues/31) |
+| Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2018,3 +2108,5 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.21 | 2026-10-01 | Added `ENG-IMP-061` (PROPOSED) from the MVP-024 review: escrow audit rows keep amount and currency in the hash. Not authorized. The money cross-reference now records the BIGINT escrow columns. | Engineering |
 | 0.7.22 | 2026-10-01 | Added `ENG-IMP-062` (PROPOSED): the application role still owns `escrow_ledger`. Not authorized. The ledger cross-reference now records the append-only BIGINT journal. | Engineering |
 | 0.7.23 | 2026-10-01 | Added `ENG-IMP-063` and `ENG-IMP-064` (both PROPOSED) from the MVP-026 review. Neither is authorized. | Engineering |
+| 0.7.24 | 2026-10-01 | Added `ENG-IMP-065` and `ENG-IMP-066` (both PROPOSED) from MVP-029. Neither is authorized. | Engineering |
+| 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
