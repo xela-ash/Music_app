@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Notifications (governed `NOTIFICATIONS` token) |
 | Status | Proposed |
-| Version | 0.1.2 |
+| Version | 0.1.3 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Notifications product architecture and verified current repository comparison |
@@ -33,7 +33,7 @@ This document is canonical for:
 - preference evaluation, mandatory-versus-configurable classification, and retry/deduplication/idempotency;
 - Notifications' authorization, concurrency, target logical data, interfaces, events, operations, security findings, and migration guidance.
 
-This document deliberately does not define Project, Milestone, Deliverable, Escrow, Payment, Rating, Messaging, or Dispute identity or lifecycle; it consumes their trusted events and does not decide whether one occurred. It does not define User Settings' own storage and resolution architecture ([user-settings.md](../03-identity-profiles-verification/user-settings.md)), only the notification-specific contract that document already deferred here. It does not select a payment, email, push, or SMS provider.
+This document deliberately does not define Project, Milestone, Deliverable, Escrow, Payment, Rating, Messaging, or Dispute identity or lifecycle; it consumes their trusted events and does not decide whether one occurred. It does not define User Settings' own storage and resolution architecture ([user-settings.md](../03-identity-profiles-verification/user-settings.md)), only the notification-specific contract that document already deferred here. Resend is the selected email provider (EQ1, 2026-10-01). Push and SMS are out of MVP (EQ2). The adapter stays provider-neutral.
 
 ## 3. Governance, structure, status, and authority
 
@@ -163,7 +163,7 @@ flowchart TB
 | Push | Future/conditional ("if adopted"), per the same section | None found | Not Implemented |
 | SMS | Future/conditional, per [User Settings Section 11.1](../03-identity-profiles-verification/user-settings.md#111-notification-matrix) ("SMS" column exists but every row reads "No" or "Optional with separate consent") | None found | Not Implemented |
 
-This document does not claim push or SMS as MVP-supported; both remain explicitly conditional on a future product and provider decision (Open Question EQ2, Section 21.3), consistent with Foundation's own "if adopted" framing.
+Push and SMS are out of MVP (EQ2, resolved 2026-10-01). MVP channels are in-app and transactional email. The architecture may stay extensible. This matches Foundation's "if adopted" framing for any later channel.
 
 ### 7.2 Channel adapter contract
 
@@ -291,7 +291,7 @@ sequenceDiagram
 | Trigger a Notification Intent | Trusted producer identity (the owning domain) | Signed channel, verified event, version dedupe | Not Implemented |
 | Read own in-app notifications | The recipient only | Live account status | Not Implemented |
 | Mark own notification read | The recipient only | Live account status | Not Implemented |
-| Read another user's notifications | No one, by default | No exception in MVP; a future support/administrative read is Open Question EQ5 | Not Implemented |
+| Read another user's notifications | No one | No Administrator or Support exception in MVP (EQ5, resolved 2026-10-01). A User sees only their own history | Not Implemented |
 | Configure own notification preferences | The account owner, through User Settings | Delegated to [User Settings Section 11](../03-identity-profiles-verification/user-settings.md#11-notification-preferences); Notifications enforces, does not store, the preference itself | Not Implemented |
 | Operate retry/reconciliation jobs | Service/System capability | Least-privilege, workload-authenticated | Not Implemented |
 
@@ -437,9 +437,9 @@ flowchart LR
 2. Trusted event-ingestion contract (`INT-NOTIFICATIONS-001`) with signed-channel verification.
 3. Topic matrix enforcement and preference evaluation (Section 8), integrated with User Settings.
 4. In-app channel adapter and read/mark-read routes (Section 10).
-5. Email channel adapter, once a provider is selected (Open Question EQ1).
+5. Email channel adapter for Resend, behind the provider-neutral adapter, with a mock adapter for tests (EQ1, resolved 2026-10-01).
 6. Retry and deduplication logic (Sections 9, 12).
-7. Push and SMS channel adapters, if and when Product adopts them (Open Question EQ2).
+7. Push and SMS stay out of MVP (EQ2, resolved 2026-10-01). Do not integrate them in this plan.
 8. Authorization: recipient-only read/mark-read enforcement (Section 11).
 9. Audit/events (`AUD-NOTIFICATIONS-001`/`002`, provisional `EVT-NOTIFICATIONS-001`–`003`).
 10. Operations: retry-exhaustion alerting, reconciliation job (`OPS-NOTIFICATIONS-001`/`002`).
@@ -538,4 +538,5 @@ Note (Governance Section 21): this document links forward into Milestones Sectio
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Notifications domain specification: ownership resolved to the `NOTIFICATIONS` token under `docs/10-notifications/`, verified empty and identifier-collision-free before authoring; adopted User Settings Section 11's existing topic/preference contract as canonical and extended it with topics this specification batch introduced (Buyer non-response intervention, Dispute placeholders, Rating availability); Notification Intent / Delivery Attempt delivery model; provider-neutral channel adapter architecture covering in-app and email as MVP-target channels with push/SMS explicitly conditional; preference evaluation, retry, deduplication, and in-app read-state privacy; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
 | 0.1.1 | 2026-09-25 | Section 8.1: corrected the "Dispute opened / response required / resolved" topic row's Source domain cell to reference the now-canonical [`disputes.md`](../09-moderation-trust-safety/disputes.md), removing the "blocked pending Governance ownership decision" language now that `BLOCKER-1` is resolved. No topic classification, channel, or default was changed. | Product and Architecture |
+| 0.1.3 | 2026-10-01 | Aligned the scope, channel section, authorization row, and implementation steps with resolved EQ1, EQ2, and EQ5. | Product |
 | 0.1.2 | 2026-10-01 | Recorded Resend, in-app and email only, a three-attempt maximum, no digest, no cross-user history, and the classes for Buyer non-response, Dispute lifecycle, and Rating availability. EQ6 stays open. | Product |

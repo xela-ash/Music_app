@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Projects |
 | Status | Approved |
-| Version | 1.1.3 |
+| Version | 1.1.4 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-30 |
 | Applies To | Target Projects product architecture and verified current repository comparison |
@@ -217,7 +217,7 @@ Seller discovery returns an authorized, minimal Profile projection; it never gra
 
 Acceptance MUST run in one transaction that locks the invitation and Project, verifies the authenticated invitee, live active status, expiry, pending status, proposal version, absence of an accepted Seller, and any applicable eligibility gate, then marks the invitation accepted, inserts the Seller participant, snapshots accepted terms, and advances the Project. Duplicate acceptance by the same actor and same idempotency key returns the original result. A competing or stale acceptance returns a safe `409`.
 
-Seller identity verification approval is not required merely to review or accept the relationship. Before funding can become releasable or payout-capable, the Verification-owned live payout gate MUST pass. Whether a higher-risk category requires verification before acceptance is an open policy question.
+Seller identity verification is not required for proposal creation, Seller acceptance, or Buyer funding (decided 2026-10-01). It is required at the release and payout boundary. The live payout gate MUST pass before Seller payout. MVP defines no higher-risk category that moves verification earlier.
 
 ### 8.2 Seller invitation matrix
 
@@ -758,7 +758,7 @@ Submission, revision allowances, review deadlines, acceptance, rejection, replac
 
 ## 20. Escrow and payment relationship
 
-A Project becomes fundable only after Seller acceptance, an agreed term version, at least one locked/reconciled Milestone, live Buyer eligibility, required Seller payout verification policy, supported currency, no active hold/dispute, and an idempotent funding intent. The Project references at most one active Escrow aggregate in MVP; Escrow allocations map obligations to Milestones.
+A Project becomes fundable only after Seller acceptance, an agreed term version, at least one locked/reconciled Milestone, live Buyer eligibility, supported currency, no active hold/dispute, and an idempotent funding intent. Seller Identity Verification is not a funding condition. It is required at release and payout. The Project references at most one active Escrow aggregate in MVP; Escrow allocations map obligations to Milestones.
 
 Escrow remains a separate state machine. Projects requests funding orchestration and consumes authenticated, idempotent facts such as funding confirmed, allocation released, refund confirmed, or dispute freeze. It never accepts a client-declared funded/released/refunded state. Payment attempts, provider identities, ledger entries, fees, reconciliation, chargebacks, and custody are outside Projects.
 
@@ -1432,4 +1432,5 @@ Validation scripts and Git checks are execution evidence for the repository chan
 | 1.1.0 | 2026-09-30 | MINOR: recorded [ADR-001](../99-appendices/adr/ADR-001-project-term-versions.md). Added `DATA-PROJECTS-018` `project_term_versions` and `BR-PROJECTS-081`. One immutable sequence per Project holds both proposal and agreed snapshots. Milestone terms stay on Milestones. No engagement-model field and no shared multi-project sequence. | Product and Architecture |
 | 1.1.1 | 2026-09-30 | Repository status for `DATA-PROJECTS-005`, `DATA-PROJECTS-018`, `BR-PROJECTS-081`, and the Section 9.1 fields the transition service now writes. No target rule changed. | Product and Architecture |
 | 1.1.2 | 2026-09-30 | Repository status for Section 15, `DATA-PROJECTS-004`, `INT-PROJECTS-008`, `BR-PROJECTS-017`, and the amendment rows in Sections 13 and 30. No target rule changed. | Product and Architecture |
+| 1.1.4 | 2026-10-01 | Aligned Section 8.1 and Section 20 with the recorded rule that Seller verification is not a funding or acceptance condition. | Product |
 | 1.1.3 | 2026-10-01 | Recorded Seller verification at release/payout only, mutual partial-performance compensation, the 10% Seller commission, and no supplemental funding. Dispute adjudication and chargeback recovery beyond the affected transaction stay open. | Product |

@@ -6,7 +6,7 @@
 | Type | Specification (SPEC) |
 | Domain | Ratings and Reputation (governed `RATINGS` token) |
 | Status | Proposed |
-| Version | 0.1.1 |
+| Version | 0.1.2 |
 | Owner | Product and Architecture |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Target Ratings and Reputation product architecture and verified current repository comparison |
@@ -72,7 +72,7 @@ The complete specification tree was searched before assigning identifiers. `BR-R
 | RR2 | Projects Section 11.1; Milestones Section 19.1; Escrow Section 14.1 | Projects requires "both required Ratings exist, or a future Ratings policy supplies an approved timeout/waiver outcome" for its own Completed label, while Milestones and Escrow already independently guarantee release never waits on Ratings | Not a contradiction: two different facts. This document supplies the named timeout/waiver policy (Section 11) without touching release eligibility, which it does not have the authority to change and does not attempt to. |
 | RR3 | Assets Section 7.2 | The "Review Evidence" Asset purpose lists its owner domain as "**Unresolved — Ratings or Moderation**" | Resolved here: Review Evidence is owned by Ratings, exercised jointly with a future Moderation case exactly as Deliverables resolved the equivalent Dispute/Deliverable question ([Deliverables Section 3.3](../05-projects-milestones/deliverables.md#33-reconciliation-items), item DR1). See Section 13.2. No change to Assets' text is proposed; updating its "Unresolved" wording to "Ratings" is recorded as documentation debt, not a blocker. |
 | RR4 | System Architecture Section 10.9 | "Completing a rating produces an event, and Projects — not Ratings — consumes that event... `buyer_rated`/`seller_rated` are therefore Projects' own lifecycle checkpoints, not a state owned or written by the Ratings domain" | Adopted exactly. Ratings never writes Project state; it emits a completion fact per direction that Projects consumes (Section 11). |
-| RR5 | Foundation `REQ-FOUNDATION-007`; this document's rating scale | No rating scale (1–5 stars, 1–10, thumbs, or otherwise) is established anywhere in existing specifications or the repository | Not invented. The score field is a bounded integer whose exact range is Open Question EQ1 (Section 25.3). |
+| RR5 | Foundation `REQ-FOUNDATION-007`; this document's rating scale | Resolved 2026-10-01 (EQ1): whole integers from 1 through 5. No half-stars | The score field uses that scale. It is immutable after submission. |
 
 The implementation labels in this document mean:
 
@@ -174,7 +174,7 @@ flowchart TD
 | `direction` | `BUYER_TO_SELLER` or `SELLER_TO_BUYER` | Stored | Immutable | Not Implemented |
 | `rater_user_id` | The submitting party, verified live at write time | Stored | Immutable | Not Implemented |
 | `ratee_user_id` | The rated party, verified live at write time | Stored | Immutable | Not Implemented |
-| `score` | Bounded integer; exact scale is Open Question EQ1 (Section 25.3) | Stored | Immutable | Not Implemented |
+| `score` | Whole integer from 1 through 5 (EQ1, 2026-10-01). No half-stars | Stored | Immutable | Not Implemented |
 | `review_text` | Optional, bounded, restricted text | Stored | Immutable | Not Implemented |
 | `submitted_at` | Server-assigned timestamp; never client-supplied | Stored | Immutable | Not Implemented |
 | `idempotency_key` | Caller-supplied key bound to rater, Project, and direction | Stored, unique | Immutable | Not Implemented |
@@ -294,7 +294,7 @@ flowchart TD
 | `recency` | MVP shows submission-time ordering only; no decay weighting or recency-adjusted score is computed | Not computed | Not Implemented |
 | `last_recomputed_at` | Timestamp of the last rebuild | Stored | Not Implemented |
 
-Advanced ranking, category-based sub-scores, or decay/weighting algorithms are explicitly out of MVP scope and are not invented here (Open Question EQ3, Section 25.3), consistent with the instruction to keep reputation conservative.
+Advanced ranking, category sub-scores, decay, and recency weighting are out of MVP (EQ3 and EQ4, resolved for MVP on 2026-10-01). Reputation uses the governed overall 1–5 Rating only.
 
 ```mermaid
 flowchart LR
@@ -528,7 +528,7 @@ flowchart LR
 | Target area | Status | Evidence | Next contract boundary |
 | --- | --- | --- | --- |
 | Rating identity and submission | Not Implemented | No table | Sections 6–8 |
-| Rating scale | Not Implemented; scale value Open Question | No table | Section 9 |
+| Rating scale | Not Implemented; scale is whole integers 1 through 5 (EQ1) | No table | Section 9 |
 | Publication and moderation | Not Implemented | No table | Sections 10, 13 |
 | Ratings Pending / completion fact | Not Implemented | Enum-only project state | Section 11 |
 | Reputation projection | Not Implemented | No table | Section 12 |
@@ -539,7 +539,7 @@ flowchart LR
 
 ## 23. Future architecture
 
-Ratings' future architecture exchanges facts with Projects through the same outbox/inbox pattern already established for Milestones and Escrow ([Deliverables Section 25](../05-projects-milestones/deliverables.md#25-future-architecture)), deployable inside the same application or as a separate service without changing the eligibility/completion-fact contract of Sections 6 and 11. Future work includes: a possible split into a dedicated Reputation document if scoring or ranking complexity grows (Open Question EQ9); category-based sub-scores (communication, quality, timeliness) once Product defines them (Open Question EQ4); and recency-weighted or decayed reputation, deliberately deferred for MVP (Open Question EQ3).
+Ratings' future architecture exchanges facts with Projects through the same outbox/inbox pattern already established for Milestones and Escrow ([Deliverables Section 25](../05-projects-milestones/deliverables.md#25-future-architecture)), deployable inside the same application or as a separate service without changing the eligibility/completion-fact contract of Sections 6 and 11. A possible split into a dedicated Reputation document stays open (EQ9). Category sub-scores and recency-weighted or decayed reputation are out of MVP (EQ3 and EQ4, resolved 2026-10-01).
 
 ```mermaid
 flowchart TB
@@ -557,11 +557,11 @@ flowchart TB
 
 Documentation only; this stage does not modify application code or migrations.
 
-1. Rating schema (`ratings` table) and configured scale bounds (once Product decides EQ1).
+1. Rating schema (`ratings` table) with score bounds 1 through 5 (EQ1, resolved 2026-10-01).
 2. Eligibility-fact consumption from Projects.
 3. Submission workflow (both directions), idempotency, atomic transaction.
 4. Publication-status workflow and its authorization capability.
-5. Rating-completion-fact schema and resolution sweep (`OPS-RATINGS-001`), once the collection-window duration is configured (EQ2).
+5. Rating-completion-fact schema and resolution sweep (`OPS-RATINGS-001`) using the 14-calendar-day window (EQ2, resolved 2026-10-01).
 6. Reputation-aggregate schema and synchronous recompute.
 7. Review Evidence Asset-purpose binding (Section 13.2), once the Moderation domain exists.
 8. Authorization: relationship-based resolution order of Section 15.2.
@@ -578,7 +578,7 @@ Documentation only; this stage does not modify application code or migrations.
 | Fabricated eligibility | A naive implementation could accept a client-declared eligibility rather than verifying Projects' own fact |
 | Reputation manipulation | Coordinated or self-dealing scoring without a Moderation domain to detect it |
 | Stale aggregate | A naive projection updated asynchronously could display incorrect reputation |
-| Completion-fact deadlock | Without a resolved collection-window duration (EQ2), a Project could show Ratings Pending indefinitely, even though this never blocks money |
+| Completion-fact deadlock | The collection window is 14 calendar days (EQ2). Expiry resolves the direction as `WAIVED_TIMEOUT`. Ratings never block money |
 | Evidence loss | A naive moderation implementation could hard-delete a Rating rather than marking it `REMOVED` |
 | Missing tests | No automated coverage exists to catch regressions in any of the above once implementation begins |
 
@@ -656,4 +656,5 @@ This document was validated against Governance's structural requirements before 
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Ratings and Reputation domain specification: ownership resolved to the `RATINGS` token under `docs/08-ratings-reputation/`, taking over `BR-RATINGS-001` and the Ratings-owned content of `REQ-FOUNDATION-007`; one-Rating-per-direction-per-Project model; eligibility, submission, publication, and moderation contracts; the Ratings completion fact resolving Projects' deferred timeout/waiver policy without gating Escrow release; conservative MVP reputation projection; resolved Assets' "Review Evidence" purpose ownership; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
+| 0.1.2 | 2026-10-01 | Aligned the reconciliation row, score field, reputation section, repository status, future architecture, implementation steps, and risk row with resolved EQ1–EQ4. | Product |
 | 0.1.1 | 2026-10-01 | Recorded the 1–5 whole-star scale, the 14-calendar-day collection window, and the MVP limit to the overall Rating. EQ5–EQ9 stay open. | Product |
