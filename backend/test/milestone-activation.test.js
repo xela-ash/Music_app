@@ -366,7 +366,9 @@ describe("MVP-019 milestone activation", { concurrency: 1, timeout: 120000 }, ()
     }));
     const outbox = await pool.query(
       `SELECT event_type FROM outbox_messages
-       WHERE event_type = 'EVT-PROJECTS-009' AND aggregate_id = $1`,
+       WHERE event_type = 'EVT-PROJECTS-009'
+         AND aggregate_id = $1
+         AND payload->>'trigger_type' = 'milestone.start'`,
       [milestone.external_id]
     );
     assert.equal(outbox.rows.length, 1);
@@ -534,7 +536,9 @@ describe("MVP-019 milestone activation", { concurrency: 1, timeout: 120000 }, ()
     assert.equal(strangerStart.status, 409);
     assert.equal(strangerStart.body.error, "Invalid milestone transition");
     await pool.query(
-      "UPDATE project_participants SET status = 'ended' WHERE project_id = $1 AND user_id = $2",
+      `UPDATE project_participants
+       SET status = 'ended', ended_at = clock_timestamp()
+       WHERE project_id = $1 AND user_id = $2`,
       [projectId, seller.userId]
     );
     const ended = await move(
@@ -547,7 +551,9 @@ describe("MVP-019 milestone activation", { concurrency: 1, timeout: 120000 }, ()
     assert.equal(ended.status, 409);
     assert.equal(ended.body.error, "Invalid milestone transition");
     await pool.query(
-      "UPDATE project_participants SET status = 'active' WHERE project_id = $1 AND user_id = $2",
+      `UPDATE project_participants
+       SET status = 'active', ended_at = NULL
+       WHERE project_id = $1 AND user_id = $2`,
       [projectId, seller.userId]
     );
     for (const status of ["suspended", "deleted"]) {
