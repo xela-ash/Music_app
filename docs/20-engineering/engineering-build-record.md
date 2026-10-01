@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.21.0 |
+| Version | 0.21.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -883,6 +883,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-010 / GitHub issue #12 | Upload sessions enforce the §7.3 decimal limits, pixel cap, and Project quota, then a mock scan can mark the local object Ready. Cloudflare R2 is the selected production adapter and fails closed without credentials. | Assets, authorization, database, testing | 021 | Upload-session create, content, part, grant, complete, and read | None | `SEC-ASSET-001`, `SEC-ASSET-003`, `SEC-ASSET-011`, `AUD-ASSET-001` | `backend/test/asset-limits.test.js`, `backend/test/asset-storage.test.js`, `backend/test/asset-ingest.http.test.js`, `backend/test/asset-constraints.test.js` | EDR-022 | `ENG-IMP-068`, `ENG-IMP-069`, `ENG-IMP-070`, `ENG-IMP-071` | The MVP-010 pull request | The MVP-010 commit on `cursor/mvp-010-asset-ingest-255b` |
+| 2026-10-01 | MVP-010 review / GitHub issue #12 | Expired reservations leave the Project quota. A profile upload without verified PNG or JPEG dimensions is rejected. The R2 grant uses the remaining session time. | Assets, testing | None | None | None | `BR-ASSET-010` | `backend/test/asset-ingest.http.test.js`, `backend/test/asset-storage.test.js` | EDR-022 | `ENG-IMP-072`, `ENG-IMP-073`, `ENG-IMP-074` | [#98](https://github.com/xela-ash/music_app/pull/98) | The review-repair commit on `cursor/mvp-010-asset-ingest-255b` |
 
 ## 8. Version history
 
@@ -925,3 +926,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
 | 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.21.0 | 2026-10-01 | Recorded MVP-010: asset upload sessions, decimal §7.3 limits, the local adapter, the Cloudflare R2 adapter, and EDR-022. Sections 4.6, 4.7, and 4.9. | Engineering |
+| 0.21.1 | 2026-10-01 | Recorded the MVP-010 review repair: expired reservations leave the Project quota, unverified profile images stay rejected, and the R2 grant uses the remaining session time. | Engineering |

@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.28 |
+| Version | 0.7.29 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2161,6 +2161,96 @@ Copy this template for each new entry:
 | Related PR | The MVP-010 pull request |
 | Resolution | — |
 
+### ENG-IMP-072 Upload completion does not re-check the live project relationship
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-072 |
+| Title | Upload completion does not re-check the live project relationship |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | Create checks the live profile owner or the live buyer or active seller. Write, complete, grant, and read allow the session uploader. `requireAuth` still re-checks account status. |
+| Evidence / problem | Assets §13.2 gate 15 asks for a fresh relationship check before Ready. The binding row is also inserted when the session is created, before the scan gate. |
+| Suggested improvement | Re-authorize the live relationship inside complete, and move the binding insert to the Ready transition. |
+| Expected benefit | A participant who loses access after create cannot finish the upload. |
+| Risk of doing nothing | The uploader recorded at create can still complete. Account status is still checked. |
+| Implementation risk | Medium |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | The completion path trusts the uploader recorded at create. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the next asset authorization change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
+### ENG-IMP-073 Completion does not evaluate the duration helper
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-073 |
+| Title | Completion does not evaluate the duration helper |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | `AUDIO_DURATION_CEILING_MS` and `VIDEO_DURATION_CEILING_MS` are null. The limit unit test locks those constants. Completion stores `duration_ms` as null and does not call `durationExceedsCeiling`. |
+| Evidence / problem | The approved decision is that no ceiling exists. The helper is unused, so a later non-null constant would not be enforced until completion calls it. |
+| Suggested improvement | Call the helper when a detector supplies `duration_ms`. Keep the null ceilings. |
+| Expected benefit | A future approved ceiling is enforced in one place. |
+| Risk of doing nothing | The current null ceilings cannot reject a duration. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a duration ceiling. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | If a duration detector is added |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
+### ENG-IMP-074 Asset audit update rejection is not asserted
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-074 |
+| Title | Asset audit update rejection is not asserted |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | `asset_audit_events` is append-only. The constraint test deletes a row and updates a Ready asset. It does not attempt an audit `UPDATE`. |
+| Evidence / problem | A trigger edit that still rejects `DELETE` but allows `UPDATE` would pass the current test. |
+| Suggested improvement | Assert that an audit `UPDATE` raises. |
+| Expected benefit | The append-only rule is covered for both mutation kinds. |
+| Risk of doing nothing | `DELETE` coverage remains. `UPDATE` is enforced by the same trigger and is untested. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a behavior change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the next asset constraint test |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2293,3 +2383,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-068` through `ENG-IMP-071` (all PROPOSED) from MVP-010. None are authorized. | Engineering |
+| 0.7.29 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
