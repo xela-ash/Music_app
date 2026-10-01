@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.17 |
+| Version | 0.7.18 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1621,6 +1621,36 @@ Copy this template for each new entry:
 | Related PR | [#86](https://github.com/xela-ash/music_app/pull/86) |
 | Resolution | — |
 
+### ENG-IMP-054 Revision reason codes and detail bound are unspecified
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-054 |
+| Title | Revision reason codes and detail bound are unspecified |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-018 implementation |
+| Category | Backend |
+| Affected subsystem | Milestones |
+| Current state | M06 stores any non-blank `reason_code` and `detail`. Blank values are rejected. There is no allowlist and no character maximum. |
+| Evidence / problem | Milestones §17.1 says the reason-code list is a product decision and that the detail is bounded. It names neither the codes nor the bound. |
+| Suggested improvement | When Product records the code list and the bound, enforce both on M06 and reject anything outside them. |
+| Expected benefit | Revision requests match the decided vocabulary and size. |
+| Risk of doing nothing | Buyers can submit any non-blank code and any length of detail that the database accepts. |
+| Implementation risk | Low, once the specification names the list and the bound |
+| Estimated scope | S |
+| Dependencies | A product decision recorded in Milestones §17.1 |
+| Product behavior impact | Yes. The list and the bound change what a Buyer may submit. They are not chosen here. |
+| Specification impact | Yes. The owning specification has to name them before enforcement. |
+| Migration impact | None until a bound is specified |
+| Security impact | None until the bound is specified. Detail text is already kept off the audit and outbox payloads. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | After Product records the §17.1 code list and detail bound |
+| Status | PROPOSED |
+| Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
+| Related PR | — |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -1682,3 +1712,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.15 | 2026-10-01 | Added `ENG-IMP-050` and `ENG-IMP-051` (both PROPOSED): the 32-bit project total still caps milestone lines, and the lock trigger does not lock the project row. Neither is authorized. | Engineering |
 | 0.7.16 | 2026-10-01 | Recorded pull request #86 on `ENG-IMP-050` and `ENG-IMP-051`. Neither is authorized. | Engineering |
 | 0.7.17 | 2026-10-01 | Added `ENG-IMP-052` and `ENG-IMP-053` (both PROPOSED) from the MVP-017 review. Neither is authorized. | Engineering |
+| 0.7.18 | 2026-10-01 | Added `ENG-IMP-054` (PROPOSED): revision reason codes and the detail bound stay unspecified. Not authorized. | Engineering |

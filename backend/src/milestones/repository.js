@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const SAFE_MILESTONE_FIELDS = `
   id, external_id, project_id, milestone_no, title, description,
   deliverable_definition, revision_allowance, amount, currency, currency_exponent,
-  due_at, state, terms_status, current_term_version, created_at, updated_at
+  due_at, state, terms_status, current_term_version, version, created_at, updated_at
 `;
 
 function makeMilestoneExternalId() {
@@ -20,6 +20,7 @@ function presentMilestone(row) {
     currency_exponent: Number(row.currency_exponent),
     revision_allowance: row.revision_allowance === null ? null : Number(row.revision_allowance),
     current_term_version: row.current_term_version === null ? null : Number(row.current_term_version),
+    version: row.version === null || row.version === undefined ? row.version : Number(row.version),
   };
 }
 

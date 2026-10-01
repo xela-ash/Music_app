@@ -1,6 +1,7 @@
 const pool = require("../../db/db");
 const repository = require("./repository");
 const milestonesRepository = require("../milestones/repository");
+const milestonesTransition = require("../milestones/transition-service");
 const { POSTGRES_INT_MAX, validateMilestonesInput } = require("../milestones/service");
 const { PROJECT_CREATE, PROJECT_LIST, authorize } = require("../authorization/authorize");
 
@@ -137,7 +138,14 @@ async function createProject(body, actorUserId) {
         milestone.due_at,
       ]);
 
-      insertedMilestones.push(milestoneResult.rows[0]);
+      const inserted = milestoneResult.rows[0];
+      await milestonesTransition.recordMilestoneCreated(
+        client,
+        inserted,
+        project.buyer_user_id,
+        project.id
+      );
+      insertedMilestones.push(inserted);
     }
 
     await client.query("COMMIT");
