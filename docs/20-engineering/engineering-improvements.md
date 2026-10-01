@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.18 |
+| Version | 0.7.19 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -1648,7 +1648,157 @@ Copy this template for each new entry:
 | Recommended timing | After Product records the §17.1 code list and detail bound |
 | Status | PROPOSED |
 | Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
-| Related PR | — |
+| Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
+| Resolution | — |
+
+### ENG-IMP-055 Milestone transition tests do not cover every source and outcome
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-055 |
+| Title | Milestone transition tests do not cover every source and outcome |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-018 independent review |
+| Category | Testing |
+| Affected subsystem | Milestones |
+| Current state | `backend/test/milestone-transitions.test.js` walks one successful path for each of M01–M17. It does not execute every source state of M03, M09, M11, M12, and M14, and it does not read `interruption_reason` on the post-start reversal. |
+| Evidence / problem | Those edges have more than one legal source or outcome. The cases that do run assert status and the resulting state. |
+| Suggested improvement | Add one case per remaining source and outcome, and assert `interruption_reason` for the post-start reversal. |
+| Expected benefit | A later edit of one source list fails a test. |
+| Risk of doing nothing | The service and the database edge list still reject unlisted pairs. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | None |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later milestone-test item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
+| Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
+| Resolution | — |
+
+### ENG-IMP-056 The state trigger does not bind a resume exit to the stored state
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-056 |
+| Title | The state trigger does not bind a resume exit to the stored state |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-018 independent review |
+| Category | Database |
+| Affected subsystem | Milestones |
+| Current state | `protect_milestone_state` allows any listed exit from `disputed` or `suspended`. M10 and M13 in the service restore the stored `resume_state`. |
+| Evidence / problem | A session that sets `musicapp.milestone_transition` could update a disputed row to another listed state. |
+| Suggested improvement | Reject a non-terminal exit from `disputed` or `suspended` unless the new state equals `resume_state`. Keep terminal resolution exits in the trigger. |
+| Expected benefit | The database guard matches the service for resume. |
+| Risk of doing nothing | The service is the only writer that sets the session flag. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | None |
+| Specification impact | No |
+| Migration impact | Function replace only |
+| Security impact | Low. It narrows a session-flag bypass. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later milestone-transition item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
+| Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
+| Resolution | — |
+
+### ENG-IMP-057 Resume does not recheck funding or submission facts
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-057 |
+| Title | Resume does not recheck funding or submission facts |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-018 independent review |
+| Category | Backend |
+| Affected subsystem | Milestones |
+| Current state | M10 and M13 restore the stored `resume_state` when the resolution names that state. They do not re-read the funding fact or the latest submission. |
+| Evidence / problem | Milestones §12.1 says live facts revalidate on resume. It does not list which facts. The one-active index still rejects a second `in_progress` or `delivered` row. |
+| Suggested improvement | When the specification lists the facts that must be revalidated, check those facts before restoring. |
+| Expected benefit | A resume cannot restore a state whose funding or submission fact is no longer valid. |
+| Risk of doing nothing | Resume still requires the stored state, and this item does not invent the fact list. |
+| Implementation risk | Medium, until the fact list is specified |
+| Estimated scope | M |
+| Dependencies | A specification list of the live facts |
+| Product behavior impact | Yes, once the fact list is chosen. It is not chosen here. |
+| Specification impact | Yes. The owning specification has to name the facts first. |
+| Migration impact | None |
+| Security impact | None until the facts are specified |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | After the specification names the resume facts |
+| Status | PROPOSED |
+| Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
+| Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
+| Resolution | — |
+
+### ENG-IMP-058 Escrow facts are not re-identified against the milestone
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-058 |
+| Title | Escrow facts are not re-identified against the milestone |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-018 independent review |
+| Category | Backend |
+| Affected subsystem | Milestones |
+| Current state | `applyMilestoneTransition` receives the project and milestone ids from its caller. A system fact is matched on amount, currency, exponent, and term version. It is not required to carry the project and milestone external ids. |
+| Evidence / problem | `REQ-PROJECTS-029` says a funding, release, or refund fact must match the Project and the Milestone. A caller that passes the wrong row can apply a fact whose money matches that row. |
+| Suggested improvement | When the escrow consumer exists, require the fact to name the project and milestone external ids and quarantine a mismatch. |
+| Expected benefit | A mis-routed fact cannot fund or release a different milestone with the same amount. |
+| Risk of doing nothing | There is no public escrow consumer yet. MVP-024 is the funding-intent item. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The escrow fact consumer |
+| Product behavior impact | None until that consumer exists |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | Medium once a consumer routes facts |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | The first escrow fact consumer |
+| Status | PROPOSED |
+| Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
+| Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
+| Resolution | — |
+
+### ENG-IMP-059 Interruption events and superseded milestones are incomplete
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-059 |
+| Title | Interruption events and superseded milestones are incomplete |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-018 independent review |
+| Category | Backend |
+| Affected subsystem | Milestones |
+| Current state | Post-start M03 writes `EVT-PROJECTS-009` and enters `suspended`. It does not write `EVT-PROJECTS-013`. M15 sets `cancelled_at`. It does not mark the milestone superseded. There is no `superseded_in_term_version` column. |
+| Evidence / problem | `EVT-PROJECTS-013` is defined as an interruption opened or cleared. M15 says to mark a milestone superseded when an amendment removes it. This item's M15 path is unfunded cancellation, not an amendment. |
+| Suggested improvement | Emit `EVT-PROJECTS-013` when M03 suspends and when an interruption clears. Add superseded marking only when an amendment-removal fact exists. |
+| Expected benefit | Interruption consumers see the post-start reversal. Amendment removal can mark the row superseded without inventing that fact now. |
+| Risk of doing nothing | State, audit, and `EVT-PROJECTS-009` still record the reversal and the cancellation. |
+| Implementation risk | Low for the event. The superseded column waits on the amendment fact. |
+| Estimated scope | S |
+| Dependencies | None for the event. An amendment-removal fact for the column. |
+| Product behavior impact | None for the event. The superseded column changes evidence once the amendment fact exists. |
+| Specification impact | No |
+| Migration impact | None for the event |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later interruption or amendment item |
+| Status | PROPOSED |
+| Related GitHub Issue | [#20](https://github.com/xela-ash/Music_app/issues/20) |
+| Related PR | [#88](https://github.com/xela-ash/music_app/pull/88) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
@@ -1713,3 +1863,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.16 | 2026-10-01 | Recorded pull request #86 on `ENG-IMP-050` and `ENG-IMP-051`. Neither is authorized. | Engineering |
 | 0.7.17 | 2026-10-01 | Added `ENG-IMP-052` and `ENG-IMP-053` (both PROPOSED) from the MVP-017 review. Neither is authorized. | Engineering |
 | 0.7.18 | 2026-10-01 | Added `ENG-IMP-054` (PROPOSED): revision reason codes and the detail bound stay unspecified. Not authorized. | Engineering |
+| 0.7.19 | 2026-10-01 | Added `ENG-IMP-055` through `ENG-IMP-059` (all PROPOSED) from the MVP-018 review. None are authorized. | Engineering |

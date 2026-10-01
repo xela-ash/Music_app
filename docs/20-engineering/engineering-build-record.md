@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.15.0 |
+| Version | 0.15.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -744,6 +744,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-017 review / GitHub issue #19 | Agreed rows must have complete terms. A frozen historical row may not. Lock and a later draft-to-frozen update reject a missing allowance or catalogue selection. Acceptance of a proposal with no milestone snapshots returns 409 when the live terms are incomplete, and captures them when they are complete. A missing allowance stays null in the invitation hash. | Milestones, projects, database, testing | 017 | Lock of incomplete terms is `400`. Acceptance without a capturable snapshot is `409`. An incomplete proposal cannot be invited. | None | `BR-PROJECTS-034`, `BR-PROJECTS-036`, `DATA-PROJECTS-009` | `backend/test/milestone-terms.http.test.js`, `backend/test/invitation-rules.test.js` | EDR-016 | None | #86 | The review-repair commit on `cursor/mvp-017-milestone-term-versions-255b` |
 | 2026-10-01 | MVP-017 review record / GitHub issue #19 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-052`, `ENG-IMP-053` | #86 | The review-record commit on `cursor/mvp-017-milestone-term-versions-255b` |
 | 2026-10-01 | MVP-018 / GitHub issue #20 | M01–M17 run through one transition service. A direct state write is rejected. A stale version has no side effect. A mismatched fact is quarantined. M05 keeps the submission reference distinct from the event id. | Milestones, projects, database, testing | 018 | No new public route. Create writes the M01 transition. Milestone responses include `version`. | None | `REQ-PROJECTS-027`, `BR-PROJECTS-037`, `BR-PROJECTS-047`, `BR-PROJECTS-052`, `SEC-PROJECTS-021`, `SEC-PROJECTS-028`, `DATA-PROJECTS-010` | `backend/test/milestone-transitions.test.js`, `backend/test/routes.smoke.test.js` | EDR-017 | `ENG-IMP-054` | Branch `cursor/mvp-018-milestone-state-machine-255b` | The MVP-018 commit on that branch |
+| 2026-10-01 | MVP-018 review record / GitHub issue #20 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-055`, `ENG-IMP-056`, `ENG-IMP-057`, `ENG-IMP-058`, `ENG-IMP-059` | Branch `cursor/mvp-018-milestone-state-machine-255b` | The review-record commit on that branch |
 
 ## 8. Version history
 
@@ -774,3 +775,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.14.1 | 2026-10-01 | Recorded the MVP-017 review repair: migration 017, the agreed-only completeness check, and acceptance that does not invent a missing snapshot. | Engineering |
 | 0.14.2 | 2026-10-01 | Recorded the MVP-017 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.15.0 | 2026-10-01 | Recorded MVP-018: the milestone state machine, transition history, and EDR-017. Sections 4.11, 4.19, 4.20, and 4.22. | Engineering |
+| 0.15.1 | 2026-10-01 | Recorded the MVP-018 review's non-blocking improvements. No application behavior changed. | Engineering |
