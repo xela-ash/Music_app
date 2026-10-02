@@ -16,6 +16,16 @@ const repository = require("./repository");
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FUNDABLE_STATES = new Set(["accepted", "awaiting_funding"]);
 const EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+function fundingAttemptExpired(payment) {
+  if (!payment || payment.status === "succeeded" || payment.status === "failed") {
+    return false;
+  }
+  if (payment.status === "cancelled") {
+    return true;
+  }
+  return Boolean(payment.expires_at) && new Date(payment.expires_at).getTime() <= Date.now();
+}
 const CLIENT_MONEY_MESSAGE = "Funding amount and currency are taken from the agreed terms";
 
 function concealed() {
@@ -235,7 +245,7 @@ async function prepareFundingPayment(client, projectId, expectedVersion, actorUs
     requestHash: hashRequest({ expected_version: expectedVersion }),
   });
   if (claim.outcome === "replay") {
-    if (currentExpired) {
+    if (currentExpired || fundingAttemptExpired(current)) {
       return { response: { status: 409, body: { error: "Funding attempt expired" } } };
     }
     return { response: { status: claim.response.status, body: claim.response.body } };
@@ -251,7 +261,7 @@ async function prepareFundingPayment(client, projectId, expectedVersion, actorUs
         response: { status: 409, body: { error: "A request with this Idempotency-Key is still in progress" } },
       };
     }
-    if (currentExpired) {
+    if (currentExpired || fundingAttemptExpired(current)) {
       return { response: { status: 409, body: { error: "Funding attempt expired" } } };
     }
     if (current.status === "created") {

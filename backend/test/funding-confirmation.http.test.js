@@ -394,6 +394,14 @@ describe("MVP-025 funding confirmation", { concurrency: 1, timeout: 30000 }, () 
     assert.equal(stored.rows[0].status, "cancelled");
     const project = await pool.query("SELECT state FROM projects WHERE id = $1", [agreed.project.id]);
     assert.notEqual(project.rows[0].state, "cancelled");
+    const again = await request("POST", `/projects/${agreed.project.id}/funding-payments`, {
+      token: agreed.buyer.token,
+      idempotencyKey: keyRow.rows[0].idempotency_key,
+      body: { expected_version: version.rows[0].version },
+    });
+    assert.equal(again.status, 409, again.text);
+    assert.equal(again.json.error, "Funding attempt expired");
+    assert.equal(again.json.payment, undefined);
   });
 
   it("replays the same funding payment idempotency key", async () => {
