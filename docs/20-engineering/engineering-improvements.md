@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.29 |
+| Version | 0.7.32 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2041,6 +2041,156 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-079 The Cashfree order call holds the funding transaction
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-079 |
+| Title | The Cashfree order call holds the funding transaction |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 implementation |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The funding payment and its provider reference commit before `createFundingIntent`. An uncertain provider result leaves the row `created`. The same idempotency key retries that reference. |
+| Evidence / problem | The first draft called the provider inside the open transaction. A commit failure after a successful provider call would have rolled back the only local copy of the order id. |
+| Suggested improvement | Implemented in the MVP-025 review repair: persist the reference, commit, then call the provider. |
+| Expected benefit | Provider latency does not block other project commands. |
+| Risk of doing nothing | The mock path used by tests does not call the network. A live Cashfree create holds the locks for the HTTP round trip. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | A live Cashfree credential. This entry does not authorize a second funding path. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | Live creates hold project and escrow locks for the provider round trip. |
+| Priority suggestion | Medium |
+| Recommended timing | Before production Cashfree activation |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | The review repair commits the payment reference before the provider call. |
+
+### ENG-IMP-080 Expired funding attempts are not cancelled by a clock
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-080 |
+| Title | Expired funding attempts are not cancelled by a clock |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 implementation |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | A funding payment expires 24 hours after creation. The next create cancels an expired open attempt so a new idempotency key can proceed. A webhook for an expired attempt cancels it and does not fund. No process scans for expiry on its own. |
+| Evidence / problem | Until one of those commands runs, the row stays in its open status even though its `expires_at` is past. D13 does not require a scheduler. |
+| Suggested improvement | Add an operational expiry sweep only if a later specification requires attempts to leave the open status without a buyer or provider call. |
+| Expected benefit | Open-payment reports would not show an attempt that can no longer fund. |
+| Risk of doing nothing | A later buyer create still cancels the expired row and can start a new attempt. The accepted project is not cancelled. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a scheduler. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None until a sweep exists. |
+| Priority suggestion | Low |
+| Recommended timing | If operations need expired rows to leave the open status without a new attempt |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-081 Funding confirmation locks the project after the payment
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-081 |
+| Title | Funding confirmation locks the project after the payment |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The webhook locks the payment and the escrow, then `applyJournal` locks the project. Another command that already holds the project lock can deadlock. PostgreSQL aborts one transaction. |
+| Evidence / problem | The review of pull request #103. Balances stay consistent because the aborted transaction rolls back. |
+| Suggested improvement | Lock the project before the payment when the webhook confirms funding. |
+| Expected benefit | Concurrent project commands fail with a conflict instead of a deadlock abort. |
+| Risk of doing nothing | One of the two transactions is aborted and can be retried. Money is not applied twice. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a lock-order rewrite. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | A deadlock abort retries one command. |
+| Priority suggestion | Low |
+| Recommended timing | With a later funding concurrency pass |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-082 Funding confirmation does not enqueue AllocationFunded
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-082 |
+| Title | Funding confirmation does not enqueue AllocationFunded |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding confirmation enqueues `EscrowFunded` and applies M02 in the same transaction. It does not enqueue `AllocationFunded`. |
+| Evidence / problem | The review of pull request #103. Milestone rows still reach `funded`. |
+| Suggested improvement | Enqueue `AllocationFunded` with the project id and term version when a later consumer needs that event. |
+| Expected benefit | A downstream consumer can see each allocation funding without reading the milestone table. |
+| Risk of doing nothing | The milestone transition is already applied. No consumer reads `AllocationFunded` today. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | An outbox consumer. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the outbox dispatcher |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-083 A Cashfree 5xx marks the funding attempt failed
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-083 |
+| Title | A Cashfree 5xx marks the funding attempt failed |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | `createFundingIntent` throws `payment_provider_rejected` for every non-OK HTTP response. The service then marks the payment `failed` and completes the idempotency key. A network throw stays `payment_provider_uncertain` and leaves the row `created`. |
+| Evidence / problem | The re-review of pull request #103. A provider 5xx can mean the order was not created, or that the result was lost. Marking it failed prevents the same key from retrying that reference. |
+| Suggested improvement | Treat HTTP 5xx like an uncertain result: leave the payment `created` and let the same idempotency key retry. |
+| Expected benefit | A transient provider error does not burn the order reference. |
+| Risk of doing nothing | The buyer can start a new idempotency key after a failed attempt. No live Cashfree call exists yet. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A live Cashfree credential. This entry does not authorize a retry-policy change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before production Cashfree activation |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | HTTP 5xx from Cashfree is `payment_provider_uncertain`. The payment stays `created` and the same idempotency key can retry. |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2191,6 +2341,36 @@ Copy this template for each new entry:
 | Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
 | Resolution | — |
 
+### ENG-IMP-089 Cashfree order creation omits customer_details
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-089 |
+| Title | Cashfree order creation omits customer_details |
+| Date identified | 2026-10-02 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The Cashfree order body sends `order_id`, `order_amount`, and `order_currency`. |
+| Evidence / problem | Cashfree API version `2023-08-01` documents `customer_details.customer_id` and `customer_details.customer_phone` as required. This repository has no phone number to send, and inventing one is not authorized. |
+| Suggested improvement | When a specified customer identifier and phone source exist, include them. Do not invent a phone number. |
+| Expected benefit | A configured Cashfree call can create an order. |
+| Risk of doing nothing | Live activation fails until the body matches the provider contract. Mock tests do not call Cashfree. |
+| Implementation risk | Low once the phone source is specified |
+| Estimated scope | S |
+| Dependencies | A specified phone source. This entry does not authorize inventing one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | A phone number must not be logged |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before production Cashfree activation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2262,5 +2442,8 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
-| 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. `ENG-IMP-068` through `ENG-IMP-083` stay reserved by unmerged pull requests. | Engineering |
+| 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. | Engineering |
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
+| 0.7.30 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
+| 0.7.31 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
+| 0.7.32 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
