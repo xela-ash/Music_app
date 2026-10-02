@@ -227,6 +227,8 @@ function reservedPartBytes() {
   return 0n;
 }
 
+function claimPartBudget() {}
+
 function assemblyReady() {
   return false;
 }
@@ -257,6 +259,7 @@ module.exports = {
   reserveObject,
   writePart,
   reservedPartBytes,
+  claimPartBudget,
   assemblyReady,
   completeMultipart,
   inspect,

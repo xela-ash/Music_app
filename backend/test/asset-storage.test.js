@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const r2 = require("../src/assets/r2-storage");
+const local = require("../src/assets/local-storage");
 const storage = require("../src/assets/storage");
 
 const SECRET = "r2-secret-value-not-a-credential";
@@ -26,6 +27,15 @@ function withR2Env(fn) {
       r2.setTransportForTests(null);
     });
 }
+
+test("a claimed part holds its budget before the bytes are stored", () => {
+  delete process.env.ASSET_STORAGE_PROVIDER;
+  const reserved = local.reserveObject();
+  local.claimPartBudget(reserved.key, 1, 5n);
+  assert.equal(local.reservedPartBytes(reserved.key, 2), 5n);
+  assert.equal(local.reservedPartBytes(reserved.key, 1), 0n);
+  local.abortObject(reserved.key);
+});
 
 test("local storage stays ready without R2 credentials", () => {
   delete process.env.ASSET_STORAGE_PROVIDER;

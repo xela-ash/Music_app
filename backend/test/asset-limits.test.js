@@ -96,6 +96,13 @@ describe("asset upload limits", () => {
     assert.equal(archive.code, "archive_not_allowed");
     const daw = assessObjectPrefix(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]), { allowArchive: true });
     assert.equal(daw.ok, true);
+    const pdf = assessObjectPrefix(Buffer.from("%PDF-1.7"), { allowArchive: false });
+    assert.equal(pdf.ok, false);
+    assert.equal(pdf.code, "active_content");
+    const office = assessObjectPrefix(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), { allowArchive: false });
+    assert.equal(office.ok, false);
+    const macho = assessObjectPrefix(Buffer.from([0xfe, 0xed, 0xfa, 0xce]), { allowArchive: false });
+    assert.equal(macho.ok, false);
     assert.equal(durationExceedsCeiling(86_400_000), false);
   });
 });

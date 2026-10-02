@@ -13,6 +13,24 @@ function crc32(buffer) {
   return (~c) >>> 0;
 }
 
+function looksLikeDeniedDocument(buffer) {
+  if (buffer.length >= 4 && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+    return true;
+  }
+  if (buffer.length >= 8
+    && buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0) {
+    return true;
+  }
+  if (buffer.length >= 4) {
+    const magic = buffer.readUInt32BE(0);
+    if (magic === 0xfeedface || magic === 0xfeedfacf || magic === 0xcafebabe
+      || magic === 0xcefaedfe || magic === 0xcffaedfe) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function looksLikeZip(buffer) {
   return buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b
     && (buffer[2] === 0x03 || buffer[2] === 0x05 || buffer[2] === 0x07);
@@ -137,7 +155,7 @@ function assessObjectPrefix(buffer, { allowArchive }) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     return { ok: false, code: "malformed_object", error: "Upload is empty" };
   }
-  if (looksLikeActiveContent(buffer)) {
+  if (looksLikeActiveContent(buffer) || looksLikeDeniedDocument(buffer)) {
     return { ok: false, code: "active_content", error: "This file type is not allowed" };
   }
   const image = assessImage(buffer);

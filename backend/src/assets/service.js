@@ -325,16 +325,18 @@ async function writeSessionBytes(externalId, actorId, partNumber, source) {
     const number = partNumber === null ? 1 : partNumber;
     const already = await storage.reservedPartBytes(session.staging_key, number);
     const declared = BigInt(session.declared_size_bytes);
-    if (already > declared) {
+    if (already >= declared) {
       return fail(413, "File exceeds the purpose byte limit", "purpose_byte_limit");
     }
+    const budget = declared - already;
+    storage.claimPartBudget(session.staging_key, number, budget);
     await repository.markUploading(client, session.id, session.asset_id);
     return {
       status: 200,
       body: {
         key: session.staging_key,
         partNumber: number,
-        budget: declared - already,
+        budget,
       },
       commit: true,
     };
@@ -392,6 +394,10 @@ async function completeUploadSession(externalId, body, actorId, idempotencyKey) 
         const view = await repository.publicSession(client, session.id);
         return { status: 200, body: { upload_session: sessionView(view) } };
       }
+      const relationship = await liveUploadDecision(client, session, actorId);
+      if (!relationship.allowed) {
+        return { status: relationship.status, body: { error: relationship.error, code: "binding_stale" } };
+      }
       const assembled = await storage.completeMultipart(session.staging_key);
       if (!assembled.ok) {
         return { status: 422, body: { error: assembled.error, code: assembled.code } };
@@ -430,6 +436,15 @@ async function completeUploadSession(externalId, body, actorId, idempotencyKey) 
       const prefix = await storage.readPrefix(session.staging_key, 65536);
       const inspected = assessObjectPrefix(prefix, { allowArchive: session.purpose === "daw_project_archive" });
       const profileImage = session.purpose === "profile_avatar" || session.purpose === "profile_cover";
+      const mediaPurpose = session.purpose === "audio_preview_reference"
+        || session.purpose === "final_audio_deliverable"
+        || session.purpose === "stem_or_individual_track"
+        || session.purpose === "video_reference_media";
+      if (inspected.ok && mediaPurpose && !inspected.opaqueArchive && inspected.mime === "application/octet-stream") {
+        inspected.ok = false;
+        inspected.code = "unrecognized_media";
+        inspected.error = "File type could not be verified";
+      }
       if (inspected.ok && profileImage && (inspected.mime !== "image/png" && inspected.mime !== "image/jpeg" || !inspected.width || !inspected.height)) {
         inspected.ok = false;
         inspected.code = "unverified_image_dimensions";
@@ -526,6 +541,27 @@ async function completeUploadSession(externalId, body, actorId, idempotencyKey) 
       body: outcome.body,
       commit: outcome.status < 500,
     };
+  });
+}
+
+async function liveUploadDecision(client, session, actorId) {
+  if (session.binding_type === "profile") {
+    const profile = await repository.findProfileForUser(client, actorId);
+    if (!profile || profile.id !== session.profile_id) {
+      return { allowed: false, status: 404, error: "Profile not found" };
+    }
+    return authorize({ id: actorId }, ASSET_UPLOAD, {
+      binding: "profile",
+      profileId: profile.id,
+      profileUserId: profile.user_id,
+    });
+  }
+  const project = await repository.lockProjectById(client, session.project_id);
+  return authorize({ id: actorId }, ASSET_UPLOAD, project && {
+    binding: "project",
+    projectId: project.id,
+    buyerUserId: project.buyer_user_id,
+    activeSellerUserId: project.active_seller_user_id,
   });
 }
 

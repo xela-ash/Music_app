@@ -43,7 +43,7 @@ function reserveObject() {
   const key = crypto.randomBytes(16).toString("hex");
   const generation = crypto.randomBytes(8).toString("hex");
   fs.mkdirSync(objectDir(key), { recursive: true });
-  writeManifest(key, { generation, parts: {}, final: null });
+  writeManifest(key, { generation, parts: {}, claims: {}, final: null });
   return {
     provider: PROVIDER_KEY,
     bucket: BUCKET,
@@ -58,14 +58,39 @@ function partPath(key, partNumber) {
 
 function reservedPartBytes(key, exceptPartNumber) {
   const manifest = readManifest(key);
+  const claims = manifest.claims || {};
   let total = 0n;
-  for (const [part, meta] of Object.entries(manifest.parts)) {
+  const parts = new Set([
+    ...Object.keys(manifest.parts),
+    ...Object.keys(claims),
+  ]);
+  for (const part of parts) {
     if (Number(part) === exceptPartNumber) {
       continue;
     }
-    total += BigInt(meta.size);
+    if (manifest.parts[part]) {
+      total += BigInt(manifest.parts[part].size);
+    } else {
+      total += BigInt(claims[part]);
+    }
   }
   return total;
+}
+
+function claimPartBudget(key, partNumber, budget) {
+  const manifest = readManifest(key);
+  manifest.claims = manifest.claims || {};
+  manifest.claims[String(partNumber)] = budget.toString();
+  writeManifest(key, manifest);
+}
+
+function releaseClaim(key, partNumber) {
+  const manifest = readManifest(key);
+  if (!manifest.claims || manifest.claims[String(partNumber)] === undefined) {
+    return;
+  }
+  delete manifest.claims[String(partNumber)];
+  writeManifest(key, manifest);
 }
 
 function writePart(key, partNumber, source, maxPartBytes) {
@@ -121,6 +146,7 @@ function writePart(key, partNumber, source, maxPartBytes) {
         file.removeAllListeners("error");
         file.destroy();
         fs.rm(partial, { force: true }, () => {
+          releaseClaim(key, partNumber);
           finish({ ok: false, code: "purpose_byte_limit", error: "File exceeds the purpose byte limit" });
         });
         return;
@@ -132,6 +158,9 @@ function writePart(key, partNumber, source, maxPartBytes) {
           size: total.toString(),
           checksum: hash.digest("hex"),
         };
+        if (manifest.claims) {
+          delete manifest.claims[String(partNumber)];
+        }
         manifest.final = null;
         writeManifest(key, manifest);
         finish({ ok: true, size: total, checksum: manifest.parts[String(partNumber)].checksum });
@@ -235,6 +264,7 @@ module.exports = {
   storageRoot,
   reserveObject,
   reservedPartBytes,
+  claimPartBudget,
   assemblyReady,
   writePart,
   completeMultipart,

@@ -2186,10 +2186,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | Medium |
 | Recommended timing | With the next asset authorization change |
-| Status | PROPOSED |
+| Status | IMPLEMENTED |
 | Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
 | Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
-| Resolution | — |
+| Resolution | Completion re-reads the live profile or the live buyer or active seller and does not mark the asset Ready when that relationship is gone. |
 
 ### ENG-IMP-073 Completion does not evaluate the duration helper
 

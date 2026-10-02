@@ -30,12 +30,27 @@ async function lockProjectByExternalId(client, externalId) {
   return result.rows[0] ?? null;
 }
 
+async function lockProjectById(client, projectId) {
+  const result = await client.query(
+    `SELECT p.id, p.external_id, p.buyer_user_id,
+            (SELECT pp.user_id
+             FROM project_participants pp
+             WHERE pp.project_id = p.id AND pp.category = 'seller' AND pp.status = 'active'
+             LIMIT 1) AS active_seller_user_id
+     FROM projects p
+     WHERE p.id = $1
+     FOR UPDATE`,
+    [projectId]
+  );
+  return result.rows[0] ?? null;
+}
+
 async function projectReservedBytes(client, projectId) {
   const result = await client.query(
     `SELECT COALESCE(SUM(
         CASE
           WHEN a.state = 'expired' THEN 0
-          WHEN s.state = 'sealed' AND a.size_bytes IS NOT NULL THEN a.size_bytes
+          WHEN s.state = 'sealed' AND a.size_bytes IS NOT NULL THEN LEAST(a.size_bytes, s.max_size_bytes)
           WHEN s.state IN ('created', 'uploading') AND s.expires_at > clock_timestamp() THEN s.declared_size_bytes
           ELSE 0
         END
@@ -247,6 +262,7 @@ module.exports = {
   newExternalId,
   findProfileForUser,
   lockProjectByExternalId,
+  lockProjectById,
   projectReservedBytes,
   insertOriginalAsset,
   insertSession,

@@ -469,6 +469,100 @@ describe("asset ingest", () => {
     assert.equal(conflict.status, 409);
   });
 
+  it("does not mark unrecognized audio Ready and does not finish after the project relationship ends", async () => {
+    const { buyer, seller, project } = await createProject();
+    const lyrics = Buffer.from("lyrics and chords\n");
+    const audio = await openSession(buyer.token, {
+      purpose: "final_audio_deliverable",
+      declared_size_bytes: lyrics.length,
+      filename: "mix.bin",
+      declared_mime_type: "application/octet-stream",
+      project_id: project.external_id,
+    });
+    assert.equal(audio.status, 201, audio.text);
+    const audioId = audio.json.upload_session.external_id;
+    const audioPart = await request("PUT", `/asset-upload-sessions/${audioId}/parts/1`, {
+      token: buyer.token,
+      raw: lyrics,
+    });
+    assert.equal(audioPart.status, 200, audioPart.text);
+    const audioDone = await request("POST", `/asset-upload-sessions/${audioId}/complete`, {
+      token: buyer.token,
+      idempotencyKey: nextId("audio"),
+      body: {},
+    });
+    assert.equal(audioDone.status, 415, audioDone.text);
+    assert.equal(audioDone.json.code, "unrecognized_media");
+    assert.notEqual(audioDone.json.upload_session.asset_state, "ready");
+
+    const proposed = await request("POST", `/projects/${project.id}/propose`, {
+      token: buyer.token,
+      idempotencyKey: nextId("propose"),
+      body: { expected_version: project.version },
+    });
+    assert.equal(proposed.status, 200, proposed.text);
+    const invited = await request("POST", `/projects/${project.id}/invitations`, {
+      token: buyer.token,
+      idempotencyKey: nextId("invite"),
+      body: {
+        invitee_user_id: seller.userId,
+        expires_at: futureIso(7),
+        expected_version: proposed.json.project.version,
+      },
+    });
+    assert.equal(invited.status, 201, invited.text);
+    const accepted = await request(
+      "POST",
+      `/projects/${project.id}/invitations/${invited.json.invitation.external_id}/accept`,
+      {
+        token: seller.token,
+        idempotencyKey: nextId("accept"),
+        body: {
+          expected_version: invited.json.invitation.project_version,
+          expected_proposal_version: invited.json.invitation.proposal_version,
+        },
+      },
+    );
+    assert.equal(accepted.status, 200, accepted.text);
+    const notes = Buffer.from("session notes\n");
+    const opened = await openSession(seller.token, {
+      purpose: "other_project_file",
+      declared_size_bytes: notes.length,
+      filename: "notes.txt",
+      declared_mime_type: "text/plain",
+      project_id: project.external_id,
+    });
+    assert.equal(opened.status, 201, opened.text);
+    const sessionId = opened.json.upload_session.external_id;
+    const part = await request("PUT", `/asset-upload-sessions/${sessionId}/parts/1`, {
+      token: seller.token,
+      raw: notes,
+    });
+    assert.equal(part.status, 200, part.text);
+    await pool.query(
+      `UPDATE project_participants
+       SET status = 'ended', ended_at = clock_timestamp()
+       WHERE user_id = $1 AND category = 'seller'
+         AND project_id = (SELECT id FROM projects WHERE external_id = $2)`,
+      [seller.userId, project.external_id]
+    );
+    const completed = await request("POST", `/asset-upload-sessions/${sessionId}/complete`, {
+      token: seller.token,
+      idempotencyKey: nextId("stale"),
+      body: {},
+    });
+    assert.equal(completed.status, 404);
+    assert.equal(completed.json.code, "binding_stale");
+    const stored = await pool.query(
+      `SELECT a.state
+       FROM assets a
+       JOIN asset_upload_sessions s ON s.asset_id = a.id
+       WHERE s.external_id = $1`,
+      [sessionId]
+    );
+    assert.notEqual(stored.rows[0].state, "ready");
+  });
+
   it("rejects an unapproved purpose and does not invent a portfolio limit", async () => {
     const user = await signupAndLogin(nextId("purpose"));
     const denied = await openSession(user.token, {

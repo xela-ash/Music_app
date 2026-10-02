@@ -37,6 +37,12 @@ function reservedPartBytes(key, exceptPartNumber) {
   return current().reservedPartBytes(key, exceptPartNumber);
 }
 
+function claimPartBudget(key, partNumber, budget) {
+  if (typeof current().claimPartBudget === "function") {
+    current().claimPartBudget(key, partNumber, budget);
+  }
+}
+
 function assemblyReady(key) {
   return current().assemblyReady(key);
 }
@@ -74,6 +80,7 @@ module.exports = {
   readiness,
   reserveObject,
   reservedPartBytes,
+  claimPartBudget,
   assemblyReady,
   writePart,
   completeMultipart,
