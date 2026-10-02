@@ -6,7 +6,7 @@
 | Type | Standard (STD) — engineering practice, not product behavior |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.1.1 |
+| Version | 0.1.2 |
 | Last Reviewed | 2026-09-25 |
 | Applies To | Every human engineer and AI agent (Claude, Cursor, or other) changing code, schema, configuration, or tests in this repository |
 | Supersedes / Superseded By | None |
@@ -254,7 +254,7 @@ Do not write a target directory into the build record until it exists.
 
 ### 10.2 Responses
 
-- Return explicit column projections. Never use `RETURNING *` or `SELECT *` in new code: `SAFE_PROJECT_FIELDS`/`SAFE_MILESTONE_FIELDS` are the model. Existing `RETURNING *` in `POST /profiles` and signup is a known field-exposure finding ([Profiles](../02-users-roles-permissions/profiles.md)), not a pattern to copy.
+- Return explicit column projections. Never use `RETURNING *` or `SELECT *` in new code: `SAFE_PROJECT_FIELDS`/`SAFE_MILESTONE_FIELDS` are the model. Existing `RETURNING *` in signup is a known field-exposure finding ([Profiles](../02-users-roles-permissions/profiles.md)), not a pattern to copy.
 - Filter sensitive fields per [Authorization §22](../02-users-roles-permissions/authorization.md#22-field-level-authorization). Never return password hashes, token material, verification document internals, or another user's private contact data.
 - Keep response shapes stable. The existing success shapes wrap resources in named keys (`{ project, milestones }`, `{ profiles: [...] }`), and new endpoints follow that style.
 
@@ -279,7 +279,7 @@ Canonical `SEC-*` findings in each domain specification remain authoritative. Th
 | Area | Standard | Current evidence |
 |---|---|---|
 | Authentication | Only the shared middleware authenticates. Verify tokens for signature, issuer, audience, and algorithm. Target: short-lived access tokens and server-tracked refresh ([Authentication §12–§14](../02-users-roles-permissions/authentication.md#12-access-tokens)). | `requireAuth` checks issuer and audience. There is no algorithm allowlist (`SEC-AUTH-009`) and no revocation. |
-| Authorization | Deny by default. Decide on the server with live data, one `authorize()` path (MVP-007), and least privilege for every role and credential. | Inline checks. `POST /users`, `GET /users`, `POST /profiles` are unauthenticated (`SEC-001`, `SEC-AUTHZ-003`). |
+| Authorization | Deny by default. Decide on the server with live data, one `authorize()` path (MVP-007), and least privilege for every role and credential. | Inline checks. `GET /users` is unauthenticated (`SEC-AUTH-008`). `POST /users` and `POST /profiles` are removed (`SEC-001`). |
 | IDOR | Relationship-scoped queries or concealing `404` (Section 10.1). | Lock-milestones and `GET /projects` follow this. |
 | Secrets | Secrets come from the environment only. Never commit them, log them, or put them in docs. `.env.example` shows the shape with blank secret values. Fail fast when a required secret is missing. | `JWT_SECRET` fails fast when blank. Weak values are not rejected (`SEC-AUTH-006`). DB settings silently fall back to defaults ([ENG-IMP-005](engineering-improvements.md#eng-imp-005-configuration-is-loaded-implicitly-and-silently-falls-back-to-defaults)). |
 | Environment variables | Read and validate all configuration in one place at startup. No silent production fallbacks. | Read in two files, with order-dependent `dotenv` loading (ENG-IMP-005). |
@@ -455,5 +455,6 @@ This handbook changes only through an approved change that modifies engineering 
 
 | Version | Date | Change | Author |
 |---|---|---|---|
+| 0.1.2 | 2026-10-01 | Current-evidence row for authorization no longer lists `POST /users` and `POST /profiles` as mounted routes. `GET /users` remains unauthenticated. | Engineering |
 | 0.1.1 | 2026-10-01 | Recorded the decided fee and compensation rules and Cloudflare R2 as the storage provider. Broader post-payout recovery stays a stop condition. | Product |
 | 0.1.0 | 2026-09-25 | Initial engineering handbook, derived from the verified repository state and the canonical specifications. Proposed pending human review. | Engineering (drafted by Claude Code) |
