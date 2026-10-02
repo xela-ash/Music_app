@@ -19,6 +19,8 @@ const APPLICATION_TABLES = [
   "asset_project_bindings",
   "asset_upload_sessions",
   "assets",
+  "role_audit_events",
+  "role_assignments",
   "messaging_audit_events",
   "messages",
   "conversations",
