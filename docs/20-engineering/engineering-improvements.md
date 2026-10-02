@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.30 |
+| Version | 0.7.32 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2251,6 +2251,95 @@ Copy this template for each new entry:
 | Related PR | [#104](https://github.com/xela-ash/music_app/pull/104) |
 | Resolution | — |
 
+### ENG-IMP-086 Governed role grant and revoke wait on step-up assurance
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-086 |
+| Title | Governed role grant and revoke wait on step-up assurance |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-008 implementation |
+| Category | Authorization |
+| Affected subsystem | Roles |
+| Current state | `assignPlatformRole` and `revokePlatformRole` return the `authorize()` denial and do not write. An active Administrator receives `step-up required`. Authorization §35.2 item 8 does not choose the proof or the recency window. |
+| Evidence / problem | `BR-ROLE-017` requires step-up before a Moderator or Administrator grant or revocation. A client-supplied boolean would invent that proof. |
+| Suggested improvement | When Product chooses the assurance method and recency window, perform the grant or revocation in the same transaction as `AUD-ROLE-001`. |
+| Expected benefit | A second Administrator and a Moderator can be granted without a public bootstrap. |
+| Risk of doing nothing | The CLI can create only the first Administrator. Later grants stay refused. |
+| Implementation risk | High until the proof is specified |
+| Estimated scope | M |
+| Dependencies | Authorization §35.2 item 8. This entry does not authorize a proof. |
+| Product behavior impact | No until that decision |
+| Specification impact | Yes, the owning specification must record the proof before the write exists |
+| Migration impact | None for the refusal. A later proof may add columns. |
+| Security impact | The closed path preserves `BR-ROLE-017` |
+| Performance impact | None |
+| Priority suggestion | High once the proof is decided |
+| Recommended timing | After the step-up decision |
+| Status | PROPOSED |
+| Related GitHub Issue | [#10](https://github.com/xela-ash/Music_app/issues/10) |
+| Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
+| Resolution | — |
+
+### ENG-IMP-087 Bootstrap does not lock the user row
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-087 |
+| Title | Bootstrap does not lock the user row |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-008 independent review |
+| Category | Authorization |
+| Affected subsystem | Roles |
+| Current state | `bootstrapFirstAdministrator` locks the Administrator catalog row and then reads `users.status` without `FOR UPDATE`. |
+| Evidence / problem | The zero-Administrator check is serialized by the catalog lock. No product path updates `users.status` in that transaction. Handbook §7.4 prefers a lock when a later status writer can race the read. |
+| Suggested improvement | Lock the user row in the bootstrap transaction when a status writer exists. |
+| Expected benefit | A concurrent suspension cannot pass the active check and then commit after the user is suspended. |
+| Risk of doing nothing | Current product code does not update `users.status` during bootstrap. Live authentication still rejects a suspended account before a role command. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the lock. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | Low while no concurrent status writer exists |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the next account-status writer |
+| Status | PROPOSED |
+| Related GitHub Issue | [#10](https://github.com/xela-ash/Music_app/issues/10) |
+| Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
+| Resolution | — |
+
+### ENG-IMP-088 The revocation fixture does not write a role audit row
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-088 |
+| Title | The revocation fixture does not write a role audit row |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-008 independent review |
+| Category | Authorization |
+| Affected subsystem | Roles |
+| Current state | `markRevoked` updates `role_assignments` and does not insert `role_audit_events`. The shipped revoke path does not call it. The acceptance test uses it to create the revoked state. |
+| Evidence / problem | `AUD-ROLE-001` requires a revocation transition to be audited. The product revoke path refuses before any write because step-up assurance is undecided. |
+| Suggested improvement | When the governed revocation write exists, insert the audit row in the same transaction as `markRevoked`. |
+| Expected benefit | A real revocation has the same evidence as the bootstrap grant. |
+| Risk of doing nothing | The fixture row used by the test has no audit event. Production revoke still writes nothing because it does not revoke. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | `ENG-IMP-086`. This entry does not authorize the write. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None while the product path does not revoke |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the step-up revocation write |
+| Status | PROPOSED |
+| Related GitHub Issue | [#10](https://github.com/xela-ash/Music_app/issues/10) |
+| Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
+
 ### ENG-IMP-089 Cashfree order creation omits customer_details
 
 | Field | Value |
@@ -2352,6 +2441,8 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.25 | 2026-10-01 | Added `ENG-IMP-067` (PROPOSED) from the MVP-029 review. Not authorized. | Engineering |
 | 0.7.26 | 2026-10-01 | The unauthenticated-creation cross-reference now records that `POST /users` and `POST /profiles` are removed. `GET /users` remains `SEC-AUTH-008`. | Engineering |
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
-| 0.7.28 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. `ENG-IMP-084` and `ENG-IMP-085` are already on main. | Engineering |
-| 0.7.29 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
-| 0.7.30 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
+| 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. | Engineering |
+| 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
+| 0.7.30 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
+| 0.7.31 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
+| 0.7.32 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |

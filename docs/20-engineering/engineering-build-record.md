@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.21.1 |
+| Version | 0.21.3 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -169,10 +169,10 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Implementation status | Partially Implemented. `authorize()` decides project create, list, lock, seller invitation commands, in-app notification list, read, and mark-read, and conversation read, send, and tombstone. There are no roles tables. Invitation commands write `project_audit_events`. Notification commands write `notification_audit_events`. Messaging commands write `messaging_audit_events`. |
 | Entry points | `backend/src/authorization/authorize.js`. `createProject` and `listProjects` call it. `lockMilestones` calls it after `SELECT … FOR UPDATE`. |
 | Authorization model | Authentication-gated routes: `/auth/me`, `GET /profiles`, all `/projects` routes, all `/notifications` routes, and the messaging routes under `/projects/:projectExternalId/messages`. Account status is enforced only in `requireAuth` (`BR-AUTHZ-005`). `project.create` denies self-dealing with `400` and an ineligible seller with `404`, and the inserted buyer is `obligations.buyerUserId`. `GET /projects` runs the participant `whereSql` from `authorize`: the buyer, or an active seller participant. `seller_user_id` alone is not access (`BR-AUTHZ-032`). Invite, withdraw, accept, decline, and review each have an action. A non-buyer invite and a non-invitee accept or decline return a concealing `404`. Invite no longer rejects a non-draft project before the idempotency store; the transition service rejects an unready proposal inside the handler. Propose, seek-seller, cancel, start, archive, and restore conceal a caller who is neither the buyer nor the active seller with `404`, then `commitTransition` checks the edge's actor. Lock-milestones is unchanged. `notification.list` returns `recipientUserId` and the list query is scoped to that user. Read and mark-read of another user's delivery, or of a missing id, return the same `404`. `conversation.read` and `conversation.send` allow the live Buyer or the active accepted Seller and conceal everyone else with `404`. `message.tombstone` allows only that message's sender; another live participant receives `403`. |
-| Known limitations | `GET /users` is unauthenticated (`SEC-AUTH-008`). `POST /users` and `POST /profiles` are removed (`SEC-001`). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). `POST /projects` still stores `seller_user_id` before acceptance (`ENG-IMP-032`). There are no role tables (MVP-008). An unknown action fails closed with `403`. |
-| Engineering decisions | [EDR-007](#edr-007-authorize-for-the-existing-project-rules) |
-| Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule, including notification list, read, and mark-read, and conversation read, send, and tombstone). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. Notification HTTP coverage is in `backend/test/notifications.http.test.js`. Messaging HTTP coverage is in `backend/test/messages.http.test.js`. |
-| Last materially changed | MVP-005 (2026-10-01) |
+| Known limitations | `GET /users` is unauthenticated (`SEC-AUTH-008`). `POST /users` and `POST /profiles` are removed (`SEC-001`). The decision object is only `allowed`, `status`, `error`, and `obligations` — not the full §9.2 record (`INT-AUTHZ-004` is still Planned). `POST /projects` still stores `seller_user_id` before acceptance (`ENG-IMP-032`). `role.assign` and `role.revoke` fail closed until step-up assurance exists (`ENG-IMP-086`). An unknown action fails closed with `403`. |
+| Engineering decisions | [EDR-007](#edr-007-authorize-for-the-existing-project-rules). [EDR-026](#edr-026-first-administrator-bootstrap) |
+| Tests | `backend/test/authorize.test.js` (allow/deny for each existing rule, including notification list, read, and mark-read, conversation read, send, and tombstone, and role assign/revoke). `backend/test/roles.test.js` (bootstrap, revocation, and the closed step-up path). `backend/test/authorization.http.test.js` (server-derived buyer, suspended seller, non-draft lock). Existing smoke and live-status tests still cover the other protected routes. Notification HTTP coverage is in `backend/test/notifications.http.test.js`. Messaging HTTP coverage is in `backend/test/messages.http.test.js`. |
+| Last materially changed | MVP-008 (2026-10-01) |
 
 ### 4.7 Users, profiles, and discovery
 
@@ -317,11 +317,11 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Purpose | Schema definition and evolution for PostgreSQL 16 |
 | Implementation status | Implemented |
-| Important files | `backend/db/001_create_users.sql` … `020_escrow_ledger_posting.sql`, `backend/db/022_payments_funding.sql`, `backend/db/migrate.js`, `backend/db/db.js` |
+| Important files | `backend/db/001_create_users.sql` … `020_escrow_ledger_posting.sql`, `backend/db/022_payments_funding.sql`, `backend/db/023_platform_roles.sql`, `backend/db/migrate.js`, `backend/db/db.js`. Migration `021` stays reserved by the unmerged asset pull request. |
 | How it works | `npm run migrate` creates `schema_migrations(id, filename UNIQUE, applied_at)` if missing, reads `db/*.sql` sorted by filename, skips filenames already recorded, and runs each remaining file with one `client.query` (each file has its own `BEGIN`/`COMMIT`) followed by an `INSERT` of the filename. The files are written to be re-runnable: `CREATE … IF NOT EXISTS`, enum creation guarded by a `pg_type` lookup, constraint creation guarded by `pg_constraint`, and `CREATE OR REPLACE FUNCTION` / `DROP TRIGGER IF EXISTS`. Extensions: `pgcrypto` (`gen_random_uuid()`) and `citext`. |
 | Conventions in use | Three-digit numeric prefix plus a snake_case description. UUID PK plus a unique application-generated `external_id` per business table. Named constraints `<table>_<rule>`. `created_at`/`updated_at TIMESTAMPTZ NOT NULL DEFAULT now()` (no update trigger). Enums for lifecycle state. |
 | Known limitations | No checksum or drift detection, and applied-state recording is not atomic ([ENG-IMP-001](engineering-improvements.md#eng-imp-001-migration-runner-cannot-detect-edited-migrations-and-records-applied-state-non-atomically)). No down-migrations. |
-| Last materially changed | Migration `022` (MVP-025): funding-payment idempotency, expiry, continuation, and append-only webhook receipts. `021` is not in this tree; it is reserved by the unmerged asset migration. |
+| Last materially changed | Migration `022` (MVP-025): funding payments. Migration `023` (MVP-008): platform roles. |
 
 ### 4.20 Testing
 
@@ -807,6 +807,24 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | [#104](https://github.com/xela-ash/music_app/pull/104) on `cursor/mvp-005-remove-legacy-routes-255b` |
 | Status | ACTIVE |
 
+### EDR-026 First Administrator bootstrap
+
+| Field | Value |
+|---|---|
+| ID | EDR-026 |
+| Date | 2026-10-01 |
+| Issue | MVP-008 / GitHub issue #10 |
+| Decision | Grant the first Administrator only through a non-public CLI. Later Administrator and Moderator grants and revocations fail closed until a step-up assurance mechanism exists. `authorize()` reads the live assignment. |
+| Context | Product decision D02 and Roles §30 item 4. `REQ-ROLE-001`, `REQ-ROLE-003`, `REQ-ROLE-005`, `REQ-ROLE-006`, `REQ-ROLE-007`, `BR-ROLE-008`, `BR-ROLE-010`, `BR-ROLE-012`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `SEC-ROLE-001`, `INT-ROLE-001`, `INT-ROLE-002`, `INT-ROLE-004`, `AUD-ROLE-001`, and `AUD-ROLE-002`. Issue #10 still says the bootstrap is undecided. The specification and D02 win. Authorization §35.2 item 8 leaves the step-up proof and recency window undecided. Organization roles stay out of this item. |
+| Options considered | (1) A public HTTP bootstrap. D02 forbids it. (2) A client-supplied step-up flag on an assignment route. That would let the caller claim the proof the open question has not defined. (3) Skip the role check until step-up exists. The acceptance criteria require `authorize()` to enforce a grant and a revocation. (4) Chosen: migration `023`, a CLI that names one existing active user and refuses once any active Administrator exists, and `role.assign` / `role.revoke` decisions that return `step-up required` only while that live Administrator assignment is active. |
+| Chosen approach | `platform_roles` holds `administrator` and `moderator`. `role_assignments` starts `active`. A database guard rejects any other insert state and any update that does not set `musicapp.role_transition`. The CLI and `bootstrapFirstAdministrator` lock the Administrator catalog row, require `users.status = active`, insert one bootstrap assignment with `granted_by` null, and write `AUD-ROLE-001` in that transaction. `decideRoleCommand` re-reads active, unexpired assignments. A Moderator assignment does not satisfy `role.assign`. The governed write functions return the `authorize()` denial and do not insert or revoke. |
+| Why | The acceptance criteria are a grant that `authorize()` enforces and a revocation that the next decision denies. Bootstrap is the grant D02 allows without step-up. Revocation of a high-privilege role requires step-up, and the proof is undecided, so the service does not perform that write. The test establishes the revoked row through the same state guard the service would use after a future proof. |
+| Trade-offs | No second Administrator or Moderator can be granted through the product path (`ENG-IMP-086`). `GET /users` stays unauthenticated. Organization tables are not created. `EDR-022` through `EDR-024` stay reserved by unmerged pull requests. `EDR-025` records the merged removal of the legacy creation routes. Migration `021` and `022` stay reserved, so this migration is `023`. |
+| Affected components | `backend/db/023_platform_roles.sql`, `backend/src/roles/`, `backend/src/authorization/authorize.js`, `backend/test/roles.test.js`, `backend/test/authorize.test.js`, `backend/test/harness.js` |
+| Reversal / migration considerations | New tables only. Dropping the state guard would let a writer set `revoked` or `active` outside the service. Dropping the audit trigger would let a writer rewrite the bootstrap record. |
+| Related specification IDs | `REQ-ROLE-007`, `BR-ROLE-008`, `BR-ROLE-010`, `BR-ROLE-012`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `SEC-ROLE-001`, `AUD-ROLE-001`, `AUD-ROLE-002` |
+| Related PR / commit | [#106](https://github.com/xela-ash/music_app/pull/106) on `cursor/mvp-008-admin-bootstrap-255b` |
+| Status | ACTIVE |
 
 ### 6.3 EDR index
 
@@ -833,6 +851,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-021](#edr-021-refund-execution-is-an-internal-instruction) | Refund execution is an internal instruction | ACTIVE | 2026-10-01 |
 | [EDR-024](#edr-024-funding-confirmation-through-the-payment-adapter) | Funding confirmation through the payment adapter | ACTIVE | 2026-10-01 |
 | [EDR-025](#edr-025-remove-the-legacy-creation-routes) | Remove the legacy creation routes | ACTIVE | 2026-10-01 |
+| [EDR-026](#edr-026-first-administrator-bootstrap) | First Administrator bootstrap | ACTIVE | 2026-10-01 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -882,6 +901,8 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-029 review / GitHub issue #31 | E05 closure writes `AUD-ESCROW-002` in the same transaction as the refund journal. A partial refund does not. | Escrow, testing | None | None | None | `AUD-ESCROW-002` | `backend/test/refund-execution.test.js` | EDR-021 | `ENG-IMP-067` | #96 | The review-repair commit on `cursor/mvp-029-refund-execution-255b` |
 | 2026-10-01 | MVP-005 / GitHub issue #7 | Removed unauthenticated `POST /users` and `POST /profiles`. Signup remains the production creation path. `GET /users` stays. | Users, profiles, authorization, testing | None | `POST /users` and `POST /profiles` return `404` | None | `SEC-001`, `SEC-AUTH-001`, `SEC-AUTHZ-001`, `SEC-PROFILE-002` | `backend/test/routes.smoke.test.js` | EDR-025 | None | #104 | `2fdbe02` on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
+| 2026-10-01 | MVP-008 / GitHub issue #10 | First Administrator is a non-public CLI bootstrap of one existing active user, refused once any active Administrator exists. `authorize()` reads the live assignment. Governed grant and revoke fail closed until step-up assurance exists. | Authorization, database, testing | 023 | No public bootstrap route | None | `SEC-ROLE-001`, `BR-ROLE-016`, `BR-ROLE-017`, `BR-AUTHZ-034`, `AUD-ROLE-001` | `backend/test/roles.test.js`, `backend/test/authorize.test.js` | EDR-026 | `ENG-IMP-086` | #106 | `13f1678` on `cursor/mvp-008-admin-bootstrap-255b` |
+| 2026-10-01 | MVP-008 review / GitHub issue #10 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-087`, `ENG-IMP-088` | #106 | The review-record commit on `cursor/mvp-008-admin-bootstrap-255b` |
 | 2026-10-01 | MVP-025 / GitHub issue #27 | A buyer funding payment and a verified provider webhook confirm funding. The mock completes that path in tests. Cashfree is the selected adapter and is not called live. An unset provider returns 503. | Payments, escrow, milestones, database, testing | 022 | `POST /projects/:projectId/funding-payments`, `POST /payments/webhooks/:provider` | None | `REQ-ESCROW-025`, `REQ-ESCROW-026`, `REQ-ESCROW-032`, `BR-ESCROW-044`, `BR-ESCROW-045`, `SEC-ESCROW-009`, `SEC-ESCROW-015`, `SEC-ESCROW-022`, `AUD-ESCROW-007`, `AUD-ESCROW-008` | `backend/test/payment-money.test.js`, `backend/test/funding-confirmation.http.test.js` | EDR-024 | `ENG-IMP-079`, `ENG-IMP-080` | #103 | `2f1fb8e` on `cursor/mvp-025-payment-adapter-255b` |
 | 2026-10-01 | MVP-025 review / GitHub issue #27 | The provider reference commits before the provider call. Event outcomes stay inside the adapter. A valid unknown webhook is acknowledged with 200. Payment status changes write `AUD-ESCROW-007`. | Payments, escrow, testing | None | None | None | `REQ-ESCROW-025`, `BR-ESCROW-045`, `AUD-ESCROW-007`, `INT-ESCROW-013` | `backend/test/funding-confirmation.http.test.js`, `backend/test/payment-money.test.js` | EDR-024 | `ENG-IMP-079` implemented; `ENG-IMP-081`, `ENG-IMP-082` | #103 | The review-repair commit on `cursor/mvp-025-payment-adapter-255b` |
 | 2026-10-02 | MVP-025 review / GitHub issue #27 | Repeating the idempotency key of an expired funding attempt cancels that attempt and does not return it as payable. A Cashfree HTTP 5xx stays retryable and does not mark the payment failed. | Payments, testing | None | None | None | `REQ-ESCROW-025` | `backend/test/funding-confirmation.http.test.js`, `backend/test/payment-money.test.js` | EDR-024 | `ENG-IMP-083` IMPLEMENTED; `ENG-IMP-089` PROPOSED | #103 | The second review-repair commit on `cursor/mvp-025-payment-adapter-255b` |
@@ -926,5 +947,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.19.1 | 2026-10-01 | Recorded the MVP-029 review repair: E05 closure also writes `AUD-ESCROW-002`. | Engineering |
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
 | 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |
-| 0.21.0 | 2026-10-01 | Recorded MVP-025: provider-neutral funding confirmation, the mock and Cashfree adapters, and EDR-024. Sections 4.1, 4.3, 4.11, 4.13, 4.14, 4.19, 4.20, and 4.22. | Engineering |
-| 0.21.1 | 2026-10-02 | Recorded the second MVP-025 review repair: an expired attempt is cancelled on key replay, and a provider 5xx stays retryable. | Engineering |
+| 0.21.0 | 2026-10-01 | Recorded MVP-008: first-Administrator CLI bootstrap, live role decisions, and EDR-026. Sections 4.6 and 4.19. | Engineering |
+| 0.21.1 | 2026-10-01 | Recorded the MVP-008 review's non-blocking improvements. No application behavior changed. | Engineering |
+| 0.21.2 | 2026-10-01 | Recorded MVP-025: provider-neutral funding confirmation, the mock and Cashfree adapters, and EDR-024. Sections 4.1, 4.3, 4.11, 4.13, 4.14, 4.19, 4.20, and 4.22. | Engineering |
+| 0.21.3 | 2026-10-02 | Recorded the second MVP-025 review repair: an expired attempt is cancelled on key replay, and a provider 5xx stays retryable. | Engineering |

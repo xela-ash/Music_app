@@ -5,6 +5,8 @@ const {
   CONVERSATION_SEND,
   MESSAGE_TOMBSTONE,
   NOTIFICATION_LIST,
+  ROLE_ASSIGN,
+  ROLE_REVOKE,
   NOTIFICATION_MARK_READ,
   NOTIFICATION_READ,
   PROJECT_CREATE,
@@ -272,5 +274,36 @@ describe("authorize fail-closed defaults (BR-AUTHZ-003, BR-AUTHZ-005)", () => {
       }
     );
     assert.equal(decision.allowed, true);
+  });
+});
+
+describe("authorize role commands (BR-AUTHZ-034, BR-ROLE-016, BR-ROLE-017)", () => {
+  it("requires step-up only after a live Administrator grant", () => {
+    const granted = authorize(actor(BUYER), ROLE_ASSIGN, {
+      activePlatformRoles: ["administrator"],
+    });
+    assert.deepEqual(granted, {
+      allowed: false,
+      status: 403,
+      error: "step-up required",
+    });
+    assert.deepEqual(authorize(actor(BUYER), ROLE_REVOKE, { activePlatformRoles: [] }), {
+      allowed: false,
+      status: 403,
+      error: "Forbidden",
+    });
+  });
+
+  it("does not treat Moderator as Administrator", () => {
+    assert.deepEqual(
+      authorize(actor(BUYER), ROLE_ASSIGN, { activePlatformRoles: ["moderator"] }),
+      { allowed: false, status: 403, error: "Forbidden" }
+    );
+    assert.deepEqual(
+      authorize(actor(BUYER), ROLE_REVOKE, {
+        activePlatformRoles: ["moderator", "administrator"],
+      }),
+      { allowed: false, status: 403, error: "step-up required" }
+    );
   });
 });
