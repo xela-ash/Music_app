@@ -36,6 +36,8 @@ const NOTIFICATION_MARK_READ = "notification.mark_read";
 const CONVERSATION_READ = "conversation.read";
 const CONVERSATION_SEND = "conversation.send";
 const MESSAGE_TOMBSTONE = "message.tombstone";
+const ROLE_ASSIGN = "role.assign";
+const ROLE_REVOKE = "role.revoke";
 
 function participantWhereSql(alias) {
   return `${alias}.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = ${alias}.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')`;
@@ -160,6 +162,18 @@ function authorizeConversation(actor, resource) {
   return allow();
 }
 
+function hasActiveAdministrator(resource) {
+  const roles = resource && resource.activePlatformRoles;
+  return Array.isArray(roles) && roles.includes("administrator");
+}
+
+function authorizeRoleCommand(resource) {
+  if (!hasActiveAdministrator(resource)) {
+    return deny(403, "Forbidden");
+  }
+  return deny(403, "step-up required");
+}
+
 function authorizeTombstone(actor, resource) {
   if (!isLiveMessagingParticipant(actor.id, resource)) {
     return deny(404, "Project not found");
@@ -210,6 +224,9 @@ function authorize(actor, action, resource) {
   if (action === MESSAGE_TOMBSTONE) {
     return authorizeTombstone(principal, resource);
   }
+  if (action === ROLE_ASSIGN || action === ROLE_REVOKE) {
+    return authorizeRoleCommand(resource);
+  }
   return deny(403, "Forbidden");
 }
 
@@ -228,6 +245,8 @@ module.exports = {
   CONVERSATION_READ,
   CONVERSATION_SEND,
   MESSAGE_TOMBSTONE,
+  ROLE_ASSIGN,
+  ROLE_REVOKE,
   participantWhereSql,
   authorize,
 };
