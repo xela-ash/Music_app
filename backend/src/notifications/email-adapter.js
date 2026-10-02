@@ -1,8 +1,9 @@
 // Provider-neutral email transport (Notifications §7.2, INT-NOTIFICATIONS-003).
 // Notifications owns delivery and rendering. This module only transports.
-// No email provider is selected (EQ1). The production provider stays unset,
-// and send fails closed. Tests install a mock. This module does not name a
-// vendor, read a credential, or open a network connection.
+// Resend is the selected provider (D17 / Notifications EQ1). This module stays
+// vendor-neutral: it does not name Resend, read a credential, or open a
+// network connection. Production installs the provider from the environment.
+// Tests install a mock. With no provider installed, send fails closed.
 
 let provider = null;
 
