@@ -2339,6 +2339,7 @@ Copy this template for each new entry:
 | Status | PROPOSED |
 | Related GitHub Issue | [#10](https://github.com/xela-ash/Music_app/issues/10) |
 | Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
+| Resolution | — |
 
 ### ENG-IMP-089 Cashfree order creation omits customer_details
 
