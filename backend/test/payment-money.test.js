@@ -12,6 +12,34 @@ describe("MVP-025 payment amounts", () => {
     assert.equal(decimalTokenToMinor("1250.500", 2), null);
   });
 
+  it("keeps a Cashfree 5xx retryable and does not read the response body", async () => {
+    process.env.CASHFREE_CLIENT_ID = "app_test";
+    process.env.CASHFREE_CLIENT_SECRET = "secret_test_value";
+    process.env.CASHFREE_ENV = "sandbox";
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: false,
+      status: 503,
+      json: async () => {
+        throw new Error("body must not be read");
+      },
+    });
+    try {
+      await assert.rejects(
+        () => cashfree.createFundingIntent({
+          providerReference: "ord_abc",
+          amountMinor: 100000n,
+          exponent: 2,
+          currency: "INR",
+          idempotencyKey: "pay-1",
+        }),
+        (error) => error.code === "payment_provider_uncertain",
+      );
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it("builds a Cashfree order body with the decimal text", () => {
     const body = cashfree.orderBody("ord_abc", 125050n, 2, "INR");
     assert.equal(body.includes("1250.50"), true);

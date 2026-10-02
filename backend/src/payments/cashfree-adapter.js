@@ -57,7 +57,7 @@ async function createFundingIntent({ providerReference, amountMinor, exponent, c
   });
   if (!response.ok) {
     const error = new Error("payment provider did not accept the order");
-    error.code = "payment_provider_rejected";
+    error.code = response.status >= 500 ? "payment_provider_uncertain" : "payment_provider_rejected";
     throw error;
   }
   const payload = await response.json();

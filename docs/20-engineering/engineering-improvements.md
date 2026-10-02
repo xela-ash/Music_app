@@ -2186,10 +2186,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | Low |
 | Recommended timing | Before production Cashfree activation |
-| Status | PROPOSED |
+| Status | IMPLEMENTED |
 | Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
 | Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
-| Resolution | — |
+| Resolution | HTTP 5xx from Cashfree is `payment_provider_uncertain`. The payment stays `created` and the same idempotency key can retry. |
 
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
@@ -2249,6 +2249,36 @@ Copy this template for each new entry:
 | Status | PROPOSED |
 | Related GitHub Issue | [#7](https://github.com/xela-ash/Music_app/issues/7) |
 | Related PR | [#104](https://github.com/xela-ash/music_app/pull/104) |
+| Resolution | — |
+
+### ENG-IMP-089 Cashfree order creation omits customer_details
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-089 |
+| Title | Cashfree order creation omits customer_details |
+| Date identified | 2026-10-02 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The Cashfree order body sends `order_id`, `order_amount`, and `order_currency`. |
+| Evidence / problem | Cashfree API version `2023-08-01` documents `customer_details.customer_id` and `customer_details.customer_phone` as required. This repository has no phone number to send, and inventing one is not authorized. |
+| Suggested improvement | When a specified customer identifier and phone source exist, include them. Do not invent a phone number. |
+| Expected benefit | A configured Cashfree call can create an order. |
+| Risk of doing nothing | Live activation fails until the body matches the provider contract. Mock tests do not call Cashfree. |
+| Implementation risk | Low once the phone source is specified |
+| Estimated scope | S |
+| Dependencies | A specified phone source. This entry does not authorize inventing one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | A phone number must not be logged |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before production Cashfree activation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)

@@ -196,12 +196,10 @@ async function prepareFundingPayment(client, projectId, expectedVersion, actorUs
     return { response: { status: 409, body: { error: "Project is not fundable" } } };
   }
   const existing = await repository.lockPaymentByKey(client, escrow.id, idempotencyKey);
-  const current = existing.rows[0] || null;
+  let current = existing.rows[0] || null;
+  let currentExpired = false;
   const open = await repository.lockOpenFundingPayment(client, escrow.id);
   for (const row of open.rows) {
-    if (current && row.id === current.id) {
-      continue;
-    }
     if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
       await repository.cancelPayment(client, row.id);
       await auditPayment(
@@ -220,7 +218,11 @@ async function prepareFundingPayment(client, projectId, expectedVersion, actorUs
           target: "cancelled",
         })
       );
-    } else {
+      if (current && row.id === current.id) {
+        currentExpired = true;
+        current = { ...current, status: "cancelled" };
+      }
+    } else if (!current || row.id !== current.id) {
       return { response: { status: 409, body: { error: "A funding payment is already open" } } };
     }
   }
@@ -233,6 +235,9 @@ async function prepareFundingPayment(client, projectId, expectedVersion, actorUs
     requestHash: hashRequest({ expected_version: expectedVersion }),
   });
   if (claim.outcome === "replay") {
+    if (currentExpired) {
+      return { response: { status: 409, body: { error: "Funding attempt expired" } } };
+    }
     return { response: { status: claim.response.status, body: claim.response.body } };
   }
   if (claim.outcome === "mismatch") {
@@ -245,6 +250,9 @@ async function prepareFundingPayment(client, projectId, expectedVersion, actorUs
       return {
         response: { status: 409, body: { error: "A request with this Idempotency-Key is still in progress" } },
       };
+    }
+    if (currentExpired) {
+      return { response: { status: 409, body: { error: "Funding attempt expired" } } };
     }
     if (current.status === "created") {
       return {

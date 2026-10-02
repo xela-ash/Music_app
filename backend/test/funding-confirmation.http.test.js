@@ -366,6 +366,36 @@ describe("MVP-025 funding confirmation", { concurrency: 1, timeout: 30000 }, () 
     assert.equal(confirmed.json.outcome, "applied");
   });
 
+  it("cancels an expired attempt when the same idempotency key is repeated", async () => {
+    const agreed = await agreeProject([640]);
+    const payment = await openFunding(agreed);
+    assert.equal(payment.status, "requires_action");
+    const keyRow = await pool.query(
+      "SELECT idempotency_key FROM payments WHERE external_id = $1",
+      [payment.external_id]
+    );
+    await pool.query(
+      "UPDATE payments SET expires_at = now() - interval '1 minute' WHERE external_id = $1",
+      [payment.external_id]
+    );
+    const version = await pool.query("SELECT version FROM projects WHERE id = $1", [agreed.project.id]);
+    const replay = await request("POST", `/projects/${agreed.project.id}/funding-payments`, {
+      token: agreed.buyer.token,
+      idempotencyKey: keyRow.rows[0].idempotency_key,
+      body: { expected_version: version.rows[0].version },
+    });
+    assert.equal(replay.status, 409, replay.text);
+    assert.equal(replay.json.error, "Funding attempt expired");
+    assert.equal(replay.json.payment, undefined);
+    const stored = await pool.query(
+      "SELECT status FROM payments WHERE external_id = $1",
+      [payment.external_id]
+    );
+    assert.equal(stored.rows[0].status, "cancelled");
+    const project = await pool.query("SELECT state FROM projects WHERE id = $1", [agreed.project.id]);
+    assert.notEqual(project.rows[0].state, "cancelled");
+  });
+
   it("replays the same funding payment idempotency key", async () => {
     const agreed = await agreeProject([600]);
     const intent = await request("POST", `/projects/${agreed.project.id}/funding-intent`, {

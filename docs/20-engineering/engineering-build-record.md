@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.21.0 |
+| Version | 0.21.1 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -884,6 +884,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-10-01 | MVP-005 review / GitHub issue #7 | Recorded the review's non-blocking observations. No application behavior changed. | Documentation only | None | None | None | None | None | None | `ENG-IMP-084`, `ENG-IMP-085` | #104 | The review-record commit on `cursor/mvp-005-remove-legacy-routes-255b` |
 | 2026-10-01 | MVP-025 / GitHub issue #27 | A buyer funding payment and a verified provider webhook confirm funding. The mock completes that path in tests. Cashfree is the selected adapter and is not called live. An unset provider returns 503. | Payments, escrow, milestones, database, testing | 022 | `POST /projects/:projectId/funding-payments`, `POST /payments/webhooks/:provider` | None | `REQ-ESCROW-025`, `REQ-ESCROW-026`, `REQ-ESCROW-032`, `BR-ESCROW-044`, `BR-ESCROW-045`, `SEC-ESCROW-009`, `SEC-ESCROW-015`, `SEC-ESCROW-022`, `AUD-ESCROW-007`, `AUD-ESCROW-008` | `backend/test/payment-money.test.js`, `backend/test/funding-confirmation.http.test.js` | EDR-024 | `ENG-IMP-079`, `ENG-IMP-080` | #103 | `2f1fb8e` on `cursor/mvp-025-payment-adapter-255b` |
 | 2026-10-01 | MVP-025 review / GitHub issue #27 | The provider reference commits before the provider call. Event outcomes stay inside the adapter. A valid unknown webhook is acknowledged with 200. Payment status changes write `AUD-ESCROW-007`. | Payments, escrow, testing | None | None | None | `REQ-ESCROW-025`, `BR-ESCROW-045`, `AUD-ESCROW-007`, `INT-ESCROW-013` | `backend/test/funding-confirmation.http.test.js`, `backend/test/payment-money.test.js` | EDR-024 | `ENG-IMP-079` implemented; `ENG-IMP-081`, `ENG-IMP-082` | #103 | The review-repair commit on `cursor/mvp-025-payment-adapter-255b` |
+| 2026-10-02 | MVP-025 review / GitHub issue #27 | Repeating the idempotency key of an expired funding attempt cancels that attempt and does not return it as payable. A Cashfree HTTP 5xx stays retryable and does not mark the payment failed. | Payments, testing | None | None | None | `REQ-ESCROW-025` | `backend/test/funding-confirmation.http.test.js`, `backend/test/payment-money.test.js` | EDR-024 | `ENG-IMP-083` IMPLEMENTED; `ENG-IMP-089` PROPOSED | #103 | The second review-repair commit on `cursor/mvp-025-payment-adapter-255b` |
 
 ## 8. Version history
 
@@ -926,3 +927,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.20.0 | 2026-10-01 | Recorded MVP-005: removal of `POST /users` and `POST /profiles`, and EDR-025. Sections 4.3, 4.6, and 4.7. | Engineering |
 | 0.20.1 | 2026-10-01 | Recorded the MVP-005 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.21.0 | 2026-10-01 | Recorded MVP-025: provider-neutral funding confirmation, the mock and Cashfree adapters, and EDR-024. Sections 4.1, 4.3, 4.11, 4.13, 4.14, 4.19, 4.20, and 4.22. | Engineering |
+| 0.21.1 | 2026-10-02 | Recorded the second MVP-025 review repair: an expired attempt is cancelled on key replay, and a provider 5xx stays retryable. | Engineering |
