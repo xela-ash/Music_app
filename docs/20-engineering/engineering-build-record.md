@@ -7,7 +7,7 @@
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
 | Version | 0.21.4 |
-| Last Reviewed | 2026-10-01 |
+| Last Reviewed | 2026-10-06 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
