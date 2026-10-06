@@ -1,8 +1,10 @@
 const crypto = require("crypto");
+const { participantWhereSql } = require("../authorization/authorize");
+const { makeParticipantExternalId, insertBuyerParticipant } = require("./invitation-repository");
 
 const SAFE_PROJECT_FIELDS = `
   id, external_id, buyer_user_id, seller_user_id, title, requirements,
-  price_amount, currency, delivery_days, revision_limit, state,
+  price_amount, currency, currency_exponent, delivery_days, revision_limit, state, version,
   accepted_at, delivered_at, completed_at, milestones_locked_at, created_at, updated_at
 `;
 
@@ -13,7 +15,7 @@ const SAFE_PROJECT_FIELDS = `
 // untouched.
 const SAFE_PROJECT_FIELDS_JOINED = `
   pr.id, pr.external_id, pr.buyer_user_id, pr.seller_user_id, pr.title, pr.requirements,
-  pr.price_amount, pr.currency, pr.delivery_days, pr.revision_limit, pr.state,
+  pr.price_amount, pr.currency, pr.currency_exponent, pr.delivery_days, pr.revision_limit, pr.state, pr.version,
   pr.accepted_at, pr.delivered_at, pr.completed_at, pr.milestones_locked_at, pr.created_at, pr.updated_at
 `;
 
@@ -43,7 +45,19 @@ function insertProject(db, values) {
   );
 }
 
-function listProjectsForParticipant(db, userId) {
+// The WHERE clause is the project.list obligation from authorize(). This
+// query does not load every project and filter in memory (BR-AUTHZ-023).
+function listProjectsForParticipant(db, scope) {
+  const whereSql = participantWhereSql("pr");
+  if (
+    !scope ||
+    scope.scope !== "participant" ||
+    scope.whereSql !== whereSql ||
+    !Array.isArray(scope.params) ||
+    scope.params.length !== 1
+  ) {
+    throw new Error("project.list requires the participant scope from authorize()");
+  }
   return db.query(
     `SELECT
        ${SAFE_PROJECT_FIELDS_JOINED},
@@ -58,9 +72,9 @@ function listProjectsForParticipant(db, userId) {
      FROM projects pr
      JOIN profiles bp ON bp.user_id = pr.buyer_user_id
      JOIN profiles sp ON sp.user_id = pr.seller_user_id
-     WHERE pr.buyer_user_id = $1 OR pr.seller_user_id = $1
+     WHERE ${whereSql}
      ORDER BY pr.created_at DESC`,
-    [userId]
+    scope.params
   );
 }
 
@@ -84,6 +98,8 @@ function lockProjectMilestones(db, projectId) {
 
 module.exports = {
   makeProjectExternalId,
+  makeParticipantExternalId,
+  insertBuyerParticipant,
   findActiveSellerWithProfile,
   insertProject,
   listProjectsForParticipant,

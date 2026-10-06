@@ -7,7 +7,7 @@
 | Document ID | SPEC-ROLE-000 (provisional — see §4.1) |
 | Type | Specification (SPEC) |
 | Status | Approved |
-| Version | 1.0.0 |
+| Version | 1.0.2 |
 | Owner | Engineering (interim: repository maintainers) |
 | Repository branch | `docs/specification-foundation` |
 | Last updated | 2026-07-22 |
@@ -198,7 +198,7 @@ Not every Role in this catalog is assigned the same way. This document introduce
 | Seller | Relationship-derived | Per-Project | A User named as counterparty on a specific Project | Automatic today (target: consent-gated, §7.6) | Implemented (relationship, unconditional) |
 | Verified Seller | Relationship-derived, composite | Per-Project | A Seller with `Approved` identity verification | Fully derived — never independently assigned | Planned |
 | Moderator | Explicitly assigned | Global | Platform trust & safety staff | Explicit grant by Administrator (target) | Planned |
-| Administrator | Explicitly assigned | Global | Platform operations staff | Explicit grant, bootstrap process TBD (§30) | Planned |
+| Administrator | Explicitly assigned | Global | Platform operations staff | Explicit grant. The first grant is the non-public bootstrap in §30 item 4 | Planned |
 | Support Operator | Explicitly assigned | Global, scoped/temporary | Platform support staff | Explicit, temporary grant (target) | Planned, explicitly post-MVP |
 | System | Non-human | Global | The platform itself (scheduled/automated processes) | N/A — not assigned to a person | Planned |
 | Service Account | Non-human | Global or scoped (undecided) | A machine credential (internal service, future API consumer) | Explicit creation by Administrator (target) | Planned |
@@ -334,7 +334,7 @@ flowchart TB
 | Responsibilities | Suspend/restrict Users; review verification outcomes; investigate disputes; manage Role assignments (all target, `authorization.md` §19). |
 | Capabilities | Platform-wide but explicit and audited (`authorization.md` §19) — every administrative Capability requires explicit permission; does not automatically receive financial authority (`authorization.md` `BR-AUTHZ-012`). |
 | Restrictions | Independent of Moderator (`authorization.md` `BR-AUTHZ-034`); must not see credentials (`authentication.md` §19.2); administrative UI visibility is not authorization — backend enforcement is mandatory. |
-| Assignment Rules | Explicitly assigned. Target: granted by an existing Administrator, or via a bootstrap process for the first Administrator (open question, §30), requiring step-up authentication (`authorization.md` §9.5, item 8), auditable. |
+| Assignment Rules | Explicitly assigned. The first Administrator is the non-public bootstrap in §30 item 4 (resolved 2026-10-01). Later grants are made by an existing Administrator, require step-up authentication (`authorization.md` §9.5, item 8), and are audited. |
 | Removal Rules | Target: explicit, auditable revocation; step-up authentication required. |
 | Lifecycle | Persistent until revoked; may be time-limited (§12). |
 | Relationships | Requires Authenticated User; independent of Moderator; consumes the Administration domain (Planned, `system-architecture.md` §10.12). |
@@ -980,7 +980,7 @@ This roadmap is sequencing guidance, not a committed schedule — no dates are i
 | 1 | Should GOV-000 §11's domain-token list be updated to add `ROLE`/`ROLES`, should Role identifiers fold under the existing `AUTHZ` token, or should this remain provisional indefinitely? | Identifier governance | §4.1 — mirrors the exact three-option shape `authorization.md` once posed for its own `AUTHZ` gap |
 | 2 | Exact database schema for `roles`, `role_assignments`, `organization_memberships`, `organization_role_assignments`, and `temporary_access_grants` — column names, types, and indices. | Implementation detail | §21 |
 | 3 | Complete Permission catalog and Role-to-Permission mapping. | Deferred scope | Deferred to a future `permissions.md` (`authorization.md` §3, §25; this document's §6.2) |
-| 4 | Exact bootstrap mechanism for the first Administrator, since every Administrator-assignment path in this document assumes an existing Administrator does the assigning. | Implementation detail | §9.1, §7.9 |
+| 4 | Resolved 2026-10-01. The first Administrator is granted by a non-public environment or CLI bootstrap. It operates only on an existing active User named explicitly, and only while zero Administrators exist. After that grant the bootstrap path refuses. Later grants use the governed assignment flow. The bootstrap is audited. There is no public HTTP bootstrap route and no self-service elevation. Bootstrap secrets are not committed. | Product decision | §9.1, §7.9 |
 | 5 | Whether an approval workflow (`Requested` → `Active`, §10.2) precedes Role activation, or whether every assignment is a direct grant. | Product design | §10.2 — drawn as Planned-but-optional since no canonical decision resolves it either way |
 | 6 | Exact segregation-of-duties rules for Administrator role assignment (e.g., whether the same Administrator may both propose and approve a colleague's grant). | Product design | Carried from `authorization.md` §35.2, item 9 |
 | 7 | Whether the seven-role Organization catalog (§8) is final and closed, or whether Organizations will be able to define custom roles beyond this list. | Product design | §8.3 |
@@ -1047,4 +1047,6 @@ This roadmap is sequencing guidance, not a committed schedule — no dates are i
 
 | Version | Date | Change | Author |
 |---|---|---|---|
+| 1.0.2 | 2026-10-01 | Aligned the Administrator catalog row and §7.9 assignment rules with resolved §30 item 4. | Product |
+| 1.0.1 | 2026-10-01 | Recorded the first-Administrator bootstrap: non-public, one existing active User, only while zero Administrators exist, then refused. | Product |
 | 1.0.0 | 2026-07-22 | Initial approved Roles domain specification. Defined 10 Platform Roles (Anonymous, Authenticated User, Buyer, Seller, Verified Seller, Moderator, Administrator, Support Operator, System, Service Account) and 7 Organization Roles (Owner, Administrator, Billing Manager, Project Manager, Finance Manager, Member, Viewer), each with Purpose, Responsibilities, Capabilities, Restrictions, Assignment Rules, Removal Rules, Lifecycle, Relationships, Security Implications, and Repository Status. Introduced a four-category Role taxonomy (§6.3: session-derived, relationship-derived, explicitly assigned, non-human) to reconcile this catalog with `authorization.md` §13.2's "relationship-based, not role-based" framing of Buyer/Seller without contradicting it. Defined Role assignment, lifecycle, activation/suspension/expiry, temporary roles, revocation, delegation, multiplicity, precedence/conflict resolution, constraints, evaluation order, auditing, target data model, and interfaces. Verified the entire domain against the repository: confirmed zero Role, Permission, Role Assignment, or Organization schema exists anywhere; confirmed Buyer/Seller exist only as relationship columns; confirmed the frontend's `isBuyer`-derived UI copy is client-side-only and untrusted server-side. Identified six new findings (`SEC-ROLE-001`–`006`) and cross-referenced eight existing findings from `authorization.md`/`authentication.md`. Flagged the missing `ROLE` GOV-000 domain token as a governance gap, mirroring the exact precedent `authorization.md` v1.0.0 once established for `AUTHZ`, and recommended (without performing) a future dedicated governance-update task. No existing specification was modified; no objective contradiction requiring one was found. No repository code was changed. | Engineering |

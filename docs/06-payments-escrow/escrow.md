@@ -6,9 +6,9 @@
 | Type | Specification (SPEC) |
 | Domain | Escrow, allocations, ledger, release, refund, and financial outcomes (governed `ESCROW` token) |
 | Status | Proposed |
-| Version | 0.2.0 |
+| Version | 0.2.3 |
 | Owner | Product and Architecture |
-| Last Reviewed | 2026-09-25 |
+| Last Reviewed | 2026-10-01 |
 | Applies To | Target Escrow product architecture and verified current repository comparison |
 | Governed token | `ESCROW` |
 | Canonical path | `docs/06-payments-escrow/escrow.md` |
@@ -25,7 +25,7 @@ This specification makes the following principal decisions. Each is labeled as t
 - **MVP funding is Project-wide and up front.** The Buyer funds the entire agreed obligation in one funding. The Escrow becomes funded only when confirmed protected funds equal the expected amount exactly, and all allocations become funded together. Per-Milestone and staged funding are future architecture. This resolves [Milestones Question Q3](../05-projects-milestones/milestones.md#361-open-questions-table).
 - **Release is not payout.** Buyer approval is a Milestone fact that makes an allocation eligible for release. Release is an Escrow ledger movement to a Seller entitlement. Payout is a separate provider-facing transfer of that entitlement to the Seller's payout account, executed under [payments.md](payments.md). Approval, release, and payout are three facts with three records.
 - **Holds, not state copying, express disputes.** A dispute freezes only the disputed amount of the affected allocation through an Escrow hold. The Dispute domain decides who is right. Escrow applies a signed, idempotent instruction to the held amount and never adjudicates.
-- **Fees are architecture, not percentages.** No specification or code establishes any fee kind or rate. This document defines how fees are snapshotted, computed in integer minor units, ledgered, and disclosed, and leaves every rate, payer, and tax rule as configuration or policy Open Questions.
+- **Fees are a snapshotted schedule.** Product set the MVP rates on 2026-10-01 (EQ1, EQ8, Section 19.3). Seller-side commission is `1000` basis points of the amount ultimately released or awarded to the Seller. Buyer platform fee and activation fee are `0`. Computation stays integer minor units with the Section 19.3 half-up rule. Tax withholding is not invented (EQ9).
 
 The repository contains a partial financial schema and nothing more. Migration 006 creates `escrows`, `escrow_allocations`, `payments`, and `escrow_ledger` tables and five enums, with 32-bit integer amounts and unrestricted currency text. The database enforces `released_amount + refunded_amount <= allocated_amount` on allocations, but the ledger is not immutable, no total is tied to the ledger, no table has idempotency, versioning, or a payee, and no route, service, provider integration, webhook, frontend screen, or automated test touches any of it. This specification defines the future product independently of those limits and labels every repository observation with one of the required implementation statuses.
 
@@ -111,9 +111,9 @@ The following contradictions and gaps between existing documents were found whil
 | ER2 | [Users `BR-USERS-011`](../02-users-roles-permissions/users.md#9-business-rules) ("receiving escrow releases"); [Authorization `BR-AUTHZ-010`](../02-users-roles-permissions/authorization.md#15-escrow-and-financial-authorization) and [Verification Section 25](../03-identity-profiles-verification/verification.md#25-verification-levels-and-capability-unlocking) ("receiving escrow payouts") | The documents use "release" and "payout" interchangeably | Release and payout are separate operations here, and Identity Verified is evaluated live at both (Section 20) |
 | ER3 | Governance Section 4 ("Escrow, payments, ledger, payouts") versus System Architecture Section 9 (Escrow owns payments) | One directory and one token for what is described as several concerns | Two documents, one domain and token; no ownership split |
 | ER4 | Migration 006 enums versus target model | `payment_type` values `milestone_release` and `milestone_refund` treat an Escrow decision as a provider payment; `escrow_status` includes `disputed`, which duplicates Dispute state; `escrow_status` includes `funding_pending` and `refund_pending`, which duplicate Payment state | Target maps them (Section 31); legacy values are retained in the enum during migration and never written |
-| ER5 | [Projects Section 20](../05-projects-milestones/projects.md#20-escrow-and-payment-relationship) fundability includes "required Seller payout verification policy"; Users `BR-USERS-011` says verification blocks only receiving releases | Whether Seller verification must precede funding is unresolved | This document defers to policy: a configurable pre-funding check, default non-blocking; Question EQ4 |
+| ER5 | [Projects Section 20](../05-projects-milestones/projects.md#20-escrow-and-payment-relationship) fundability includes "required Seller payout verification policy"; Users `BR-USERS-011` says verification blocks only receiving releases | Resolved 2026-10-01 (EQ4): verification does not precede funding. It is required at release and payout | Funding does not wait for Seller verification. Release and payout do |
 | ER6 | [Milestones Section 19.1](../05-projects-milestones/milestones.md#191-completion-semantics) default split mapping versus this document | Milestones gave a default mapping pending this specification | Confirmed and extended in Section 12; consistent, no contradiction |
-| ER7 | User brief lists Seller activation fee, Buyer protection fee, and commission | No specification or code establishes any of them | Not adopted as canonical; fee kinds are configuration (Section 19); Question EQ1 |
+| ER7 | User brief lists Seller activation fee, Buyer protection fee, and commission | Resolved 2026-10-01 (EQ1): Seller commission is 10%; Buyer platform fee and activation fee are 0 | Section 19 records the schedule. Architecture is Not Implemented |
 | ER8 | Product decision, 2026-09-25; [Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention) | Milestones' `delivered` → `buyer_approved` transition may now be entered through an ordinary Buyer approval (M07) or a platform non-response release authorization (M18); both are distinct Milestones-owned records | Escrow's release-eligibility fact (Section 14.1) treats both sources identically and evaluates neither Buyer intent nor non-response policy itself, which remain entirely Milestones-owned; see `BR-ESCROW-049` |
 
 ## 4. Terminology and domain boundaries
@@ -281,7 +281,7 @@ The Milestones question this section resolves is Q3: "Is funding taken Project-w
 | Underfunding | The Escrow stays `created`; no allocation is funded; the Project stays Awaiting Funding | Not Implemented |
 | Overfunding | Prohibited. Confirmed amount above expected plus disclosed fees is quarantined and the excess refunded through the funding Payment | Not Implemented |
 | Duplicate funding | One funding per Escrow. Further confirmed payments are duplicates: recorded, alerted, and refunded, never applied | Not Implemented |
-| Funding deadline and expiry | A funding intent has a configurable expiry. Durations are not established and are an Open Question (EQ2). The mechanism is fixed: expired intents move their Payment to `cancelled` and leave the Escrow `created` | Not Implemented |
+| Funding deadline and expiry | A funding intent expires after 24 hours (EQ2, 2026-10-01). The expired attempt is cancelled. The accepted Project stays unfunded. A later attempt has its own payment identity | Not Implemented |
 | Failed funding | Payment `failed`; Escrow unchanged; Project unchanged; the Buyer may retry with a new Payment | Not Implemented |
 | Abandoned funding | An Escrow that is never funded and whose Project is cancelled moves to `cancelled` with no ledger movement | Not Implemented |
 | Provider authorization and capture | Only captured funds count. An authorization that is not captured moves no money and records no ledger entry ([payments.md Section 9](payments.md#9-funding-payments)) | Not Implemented |
@@ -319,7 +319,7 @@ Financial truth has one authority: the ledger (Section 13). Every total on the E
 | `buyer_user_id` | UUID FK to Users, `RESTRICT` | Snapshot of the Project Buyer at creation, kept as immutable financial evidence; never an authorization source | Immutable | Not Implemented: no Buyer column; payer appears only on `payments` |
 | `seller_user_id` | UUID FK to Users, `RESTRICT` | Snapshot of the accepted Seller at creation, kept as immutable beneficiary evidence per `BR-USERS-018`; never an authorization source | Immutable | Not Implemented |
 | `currency`, `currency_exponent` | Supported ISO 4217 code and exponent snapshot | Snapshot | Immutable | Partially Implemented: unrestricted `TEXT`, no exponent |
-| `expected_amount` | Signed 64-bit minor units, positive; equals the sum of active allocations at creation | Snapshot, changed only by an accepted amendment through supplemental funding (Section 11.3) | Immutable after creation except by amendment | Partially Implemented: `amount INT`, positive CHECK |
+| `expected_amount` | Signed 64-bit minor units, positive; equals the sum of active allocations at creation | Snapshot. MVP does not increase it through supplemental funding (EQ10, Section 11.3) | Immutable after funding. An increase is not an MVP amendment | Partially Implemented: `amount INT`, positive CHECK |
 | `funded_amount` | Minor units | Projection | Ledger-posting function only | Partially Implemented: stored mutable `INT`, nonnegative CHECK, not tied to any ledger |
 | `allocated_amount` | Minor units | Projection | Ledger-posting function only | Not Implemented |
 | `released_amount` | Minor units | Projection | Ledger-posting function only | Partially Implemented: stored mutable `INT`, nonnegative CHECK |
@@ -359,7 +359,7 @@ The current `escrow_status` enum has nine values. Distinctions that duplicate Pa
 | Partially released | `funded` with `0 < released_amount` and funds remaining | `partially_released` |
 | Refund pending | A refund Payment is non-terminal | `refund_pending` |
 | Held | At least one open hold | `disputed` |
-| Supplement pending | `funded` with `funding_gap > 0` after an amendment | none |
+| Supplement pending | Not an MVP state. A funded amendment must not create `funding_gap > 0` (EQ10, 2026-10-01) | none |
 
 The legacy values `funding_pending`, `partially_released`, `refund_pending`, and `disputed` remain in the PostgreSQL enum because values cannot be safely removed, but the target never writes them. The Foundation state sketch that goes `funded` to `disputed` is non-normative ([Product Overview Section 10.4](../01-foundation/product-overview.md#104-escrow-lifecycle) and System Architecture Section 10.7). A dispute is a hold on funds, not an Escrow state, so Escrow state never duplicates Dispute state.
 
@@ -449,7 +449,7 @@ Whether held amounts need an additional invariant is answered by the second row.
 | Identity and uniqueness | One active allocation per active Milestone. A Milestone can have several revisions over time, each an immutable row. History is retained | Partially Implemented: exactly one row per Milestone ever |
 | Creation timing | Allocations are created with the Escrow at E01 in `planned` and become `funded` at E02 | Not Implemented |
 | Amendment before funding | The unfunded Escrow is cancelled and replaced (E03, E01), so no allocation amount is edited | Not Implemented |
-| Amendment after funding | Amount and scope changes come only through an accepted Projects amendment. Removal of an unstarted Milestone supersedes its allocation and returns funds to the pool for refund. An increase creates a new allocation revision and a supplemental funding for the delta (`funding_gap`). Reduction below released, refunded, held, or retained amounts is prohibited. Whether MVP supports supplemental funding is Question EQ10 | Not Implemented |
+| Amendment after funding | Amount and scope changes come only through an accepted Projects amendment. Removal of an unstarted Milestone supersedes its allocation and returns funds to the pool for refund. An increase of the funded obligation is not supported in MVP (EQ10, 2026-10-01). Additional paid scope requires a new Project. Reduction below released, refunded, held, or retained amounts is prohibited | Not Implemented |
 | Cancellation | An unfunded allocation becomes `cancelled`. A funded allocation follows the refund or settlement path (Section 16) | Not Implemented |
 | Dispute | Holds attach to the allocation (Section 17); the allocation status does not change | Not Implemented |
 | Completion | Settled when `released + refunded = funded`; state `released` if `released > 0`, else `refunded` | Not Implemented |
@@ -518,7 +518,7 @@ Logical accounts, scoped to an Escrow where indicated:
 | `REFUND_IN_TRANSIT` | Protected funds reserved for an initiated refund |
 | `EXTERNAL_SELLER` | Destination of completed payouts |
 | `PLATFORM_REVENUE` | Fees earned by the platform |
-| `TAX_PAYABLE` | Tax and withholding hook account (policy open, Question EQ9) |
+| `TAX_PAYABLE` | Tax and withholding hook. MVP calculates no withholding; the hook stays empty. Jurisdictional policy stays open (EQ9) |
 | `PROVIDER_FEE_EXPENSE` | Provider processing fees borne by the platform |
 | `CHARGEBACK_EXPOSURE` | Platform exposure created by a provider reversal |
 
@@ -651,7 +651,7 @@ Ratings are not a release fact. A missing or unwritten Rating never delays relea
 | Release after cancellation | A Milestone approved before cancellation is still released: approval is an eligibility fact and cancellation cannot claw it back. A Milestone cancelled without approval is released only by a resolution or settlement instruction | Not Implemented |
 | Release while disputed | Blocked for the held amount. Unheld remaining amounts of the same allocation may still release. Unaffected allocations proceed | Not Implemented |
 | Release after dispute resolution | Executed only from the signed resolution instruction (Section 17) | Not Implemented |
-| Blocked by payout gate | Release stays pending, derived as Release Pending. Funds remain protected. How long an approved amount may wait for an unverified Seller before an alternative applies is Question EQ7 | Not Implemented |
+| Blocked by payout gate | Release stays pending, derived as Release Pending. Funds remain protected. MVP retains the Seller entitlement with no invented expiry, refund, or cancellation (EQ7, 2026-10-01) and pays it after the live gate passes | Not Implemented |
 | Provider failure | Release involves no provider call, so it cannot fail at the provider. Failures at payout are handled in [payments.md Section 11](payments.md#11-payouts) and leave the entitlement intact | Not Implemented |
 | Retry | Idempotent by instruction key; a crashed release re-runs to the same journal or is rejected as already posted | Not Implemented |
 | Ledger | `released_to_seller`, `platform_fee` or `escrow_fee`, journal balanced; beneficiary recorded on the entry (`BR-USERS-018`) | Not Implemented |
@@ -706,15 +706,15 @@ Escrow decides whether and how much protected money returns to the Buyer. [payme
 | Project-level refund | A set of allocation-level refunds committed in one journal by one instruction | Not Implemented |
 | Refundable amount | `funded - released - refunded - held` for the allocation (before considering an award that converts a hold) | Not Implemented |
 | Eligibility | Funds must be protected, unreleased, and unheld. A hold can be converted by a dispute award to the Buyer | Not Implemented |
-| Destination | The original funding instrument through a refund against the original funding Payment. An alternative destination is not permitted in MVP; when the instrument cannot receive a refund the case moves to a manual, audited resolution (Question EQ8) | Not Implemented |
-| Refund after release | If the amount is still Seller entitlement (not initiated for payout), it can be reversed only by a Dispute award or Administrator policy, using a compensating journal from `SELLER_ENTITLEMENT` back to the allocation and then a refund. If a payout has been initiated or completed the funds have left Escrow, and recovery is a Seller-side exposure matter, not an Escrow refund (Section 18, Question EQ5) | Not Implemented |
+| Destination | The original funding instrument through a refund against the original funding Payment. An alternative destination is not permitted in MVP. When the instrument cannot receive a refund the case moves to a manual, audited resolution. Commission is not charged on the refunded amount (EQ8) | Not Implemented |
+| Refund after release | If the amount is still Seller entitlement (not initiated for payout), it can be reversed only by a Dispute award or Administrator policy, using a compensating journal from `SELLER_ENTITLEMENT` back to the allocation and then a refund. If a payout has been initiated or completed the funds have left Escrow. Record exposure on the affected transaction. Do not debit an unrelated Seller balance or a future unrelated Project. Broader recovery stays open (EQ5) | Not Implemented |
 | Refund before release | The normal path: protected funds in an allocation return to the Buyer | Not Implemented |
 | Cancellation relationship | A cancellation does not itself refund (`BR-ESCROW-019`). Refund follows the financial outcome matrix of Section 16 | Not Implemented |
 | Dispute relationship | A refund of held funds occurs only from the resolution instruction | Not Implemented |
 | Provider failure | The `REFUND_IN_TRANSIT` reservation is reversed by a compensating entry, the instruction stays open, and the case escalates for manual resolution. Funds are never marked refunded on failure | Not Implemented |
 | Retry | Provider retries reuse the refund Payment's idempotency key. A new attempt is a new Payment referencing the same instruction | Not Implemented |
 | Duplicate refund | One journal per instruction key. Cumulative refunds against a funding Payment never exceed its captured amount | Not Implemented |
-| Fee refundability | Whether Buyer-side and Seller-side fees are refundable is policy. The mechanism is fixed: a refund journal includes fee lines only when the fee snapshot marks them refundable. Question EQ8 | Not Implemented |
+| Fee refundability | Commission is earned only on money released or awarded to the Seller (EQ8, 2026-10-01). A refund journal includes a Seller commission line only for that awarded amount | Not Implemented |
 | Invariant | Never `released + refunded > allocated` and never `released + refunded + held > funded` | Implemented for `released + refunded <= allocated`; Not Implemented for holds |
 | Ledger | `refunded_to_buyer` on decision, then `refund_paid` on confirmed provider success | Not Implemented |
 | Audit | `AUD-ESCROW-004` with instruction, source, amount, allocation, and outcome | Not Implemented |
@@ -733,16 +733,16 @@ The financial side of cancellation resolves what [Projects Section 16.1](../05-p
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Draft or unfunded | None | None | None | Buyer alone before acceptance ([Projects Section 16.1](../05-projects-milestones/projects.md#161-cancellation-matrix)) | None | None charged | None; Escrow, if any, `cancelled` | `EscrowCancelled` | Not Implemented |
 | Accepted, unfunded | None | None | None | Mutual, or a governed basis | None | None charged | None; Escrow `created` to `cancelled` | `EscrowCancelled` | Not Implemented |
-| Funded, not started | Full amount | None | Full amount by default | Mutual or Dispute or administrative resolution | Required if the parties disagree | Refundability by policy (EQ8) | `refunded_to_buyer` per allocation, then `refund_paid` | `AllocationRefunded`, `EscrowClosed` | Not Implemented |
-| Active, no delivery | Full amount | None | Full amount by default. Compensation to the Seller for partial performance is a Product decision (EQ3) | Mutual or resolution | Required if the parties disagree | By policy | Refund per allocation, or a settlement split | As above | Not Implemented |
-| Delivered, not approved | Full amount | None until approval or resolution | Only by resolution | No unilateral cancel ([Projects Section 16.1](../05-projects-milestones/projects.md#161-cancellation-matrix)) | Required | By policy | Hold if disputed; otherwise none | `HoldPlaced` if held | Not Implemented |
+| Funded, not started | Full amount | None | Full amount by default | Mutual or Dispute or administrative resolution | Required if the parties disagree | No Seller commission on the Buyer refund (EQ8) | `refunded_to_buyer` per allocation, then `refund_paid` | `AllocationRefunded`, `EscrowClosed` | Not Implemented |
+| Active, no delivery | Full amount | None | Full Buyer refund unless the parties agree a Seller award (EQ3, 2026-10-01). No automatic percentage | Mutual agreement, otherwise Dispute | Required if the parties disagree | 10% only on the Seller award | Refund the remainder; commission only on the award | As above | Not Implemented |
+| Delivered, not approved | Full amount | None until approval or resolution | Only by resolution | No unilateral cancel ([Projects Section 16.1](../05-projects-milestones/projects.md#161-cancellation-matrix)) | Required | 10% only on a Seller award (EQ8) | Hold if disputed; otherwise none | `HoldPlaced` if held | Not Implemented |
 | Approved, not released | Full amount | Full remaining (approval fact) | None unless disputed | None: approval cannot be undone by cancellation | Only if a dispute is raised | Seller-side fee lines apply at release | Release journal as normal | `AllocationReleased` | Not Implemented |
 | Partially released | Unsettled allocations only | Per allocation | Per allocation | Per allocation | Per allocation | Per allocation | Each allocation follows its own row; released amounts are unaffected | Per allocation | Not Implemented |
 | Fully released | None protected | None | None through Escrow | Not cancellable ([Projects Section 16.1](../05-projects-milestones/projects.md#161-cancellation-matrix)) | None | Not applicable | None; post-release recovery is Section 18 | None | Not Implemented |
 | Disputed | Held amount | Only per resolution | Only per resolution | Not applicable | The resolution decides | Per resolution and policy | Hold conversion per Section 17 | Per resolution | Not Implemented |
 | Completed | None | None | None | Not applicable | None | Not applicable | None; exposures and corrections only | None | Not Implemented |
 
-The matrix resolves cancellation mechanics but not commercial policy. The open decisions are recorded as prioritized questions: compensation for partially performed work on a funded cancellation (EQ3, P0), fee refundability (EQ8), and the full set of cancellation, release, partial-work, fee, chargeback, and refund outcomes that Projects marked P0 ([Projects Section 36.1](../05-projects-milestones/projects.md#361-open-questions-table), P0 row on "exact cancellation, release, partial-work, fee, chargeback, and refund outcomes").
+EQ3 and EQ8 were decided on 2026-10-01. Partial performance uses a mutually agreed Seller award, not an automatic percentage. Commission applies only to that award. Dispute adjudication (EQ6) and chargeback recovery beyond the affected transaction (EQ5) stay open.
 
 `REQ-ESCROW-011`: Escrow MUST apply the cancellation financial outcome rules of Section 16, MUST treat an approved Milestone's release as unaffected by later cancellation, and MUST convert unresolved disagreement into a hold rather than a unilateral outcome.
 
@@ -770,9 +770,9 @@ A hold is an append-only record `escrow_holds` that restricts an amount of one a
 
 | Outcome | Hold effect | Ledger action | Milestone and Escrow effect | Fee impact | Repository status |
 | --- | --- | --- | --- | --- | --- |
-| Buyer award | Held amount becomes refundable | `refunded_to_buyer` for the held amount, then `refund_paid` | Allocation `refunded`, or reduced if part unheld | Refundability by policy; Question EQ8 | Not Implemented |
+| Buyer award | Held amount becomes refundable | `refunded_to_buyer` for the held amount, then `refund_paid` | Allocation `refunded`, or reduced if part unheld | No commission on the Buyer refund (EQ8, 2026-10-01) | Not Implemented |
 | Seller award | Held amount becomes releasable | `released_to_seller` for the held amount with fee lines; payout gate still applies | Allocation `released` | Seller-side lines by snapshot | Not Implemented |
-| Split award | The instruction states `release_amount` and `refund_amount`; they must sum to exactly the held amount | One journal with both movements | Allocation `released` if `release_amount > 0`, else `refunded` | Fee on the released part only unless policy states otherwise (Question EQ8) | Not Implemented |
+| Split award | The instruction states `release_amount` and `refund_amount`; they must sum to exactly the held amount | One journal with both movements | Allocation `released` if `release_amount > 0`, else `refunded` | 10% Seller commission only on the amount awarded to the Seller (EQ8, 2026-10-01) | Not Implemented |
 | Dismissal or withdrawal | Hold lifted with no movement | None | Allocation returns to its prior derived state | None | Not Implemented |
 | Partial dispute resolved | Only the held part moves; the unheld part is unaffected | As above | As above | As above | Not Implemented |
 | Timeout without a resolver decision | Undefined. No timeout outcome is invented; the hold stays until a resolution instruction | None | Held | None | Not Implemented |
@@ -809,15 +809,15 @@ flowchart TD
 
 ## 18. Chargebacks and provider reversals
 
-The platform cannot technically prevent a Buyer's bank or the provider from reversing a payment. A chargeback can arrive after the money has been released or paid out. This section records exposure and recovery behavior, and does not pretend prevention. Provider notification intake and the chargeback record itself belong to [payments.md Section 13](payments.md#13-chargebacks-and-provider-reversals). Liability, fees, and recovery rights are business and legal decisions and are not invented here (Question EQ5, P0).
+The platform cannot technically prevent a Buyer's bank or the provider from reversing a payment. A chargeback can arrive after the money has been released or paid out. This section records exposure and recovery behavior, and does not pretend prevention. Provider notification intake and the chargeback record itself belong to [payments.md Section 13](payments.md#13-chargebacks-and-provider-reversals). MVP records the chargeback as a compensating entry and hold, preserves the original ledger, and does not debit an unrelated Seller balance or a future unrelated Project (EQ5, 2026-10-01). Recovery beyond the affected transaction stays open. No debt-collection rule is authorized.
 
 | Situation | Escrow behavior | Ledger | Milestone and Project facts | Account and evidence | Repository status |
 | --- | --- | --- | --- | --- | --- |
 | Reversal notice while funds remain unreleased | Place a `CHARGEBACK` hold on unreleased funds up to the reversed amount; block release of those funds | Hold only, then `chargeback` or `funding_reversed` on outcome | `HoldPlaced`, `ChargebackOpened` for Projects to interpret | Evidence bound to the chargeback record | Not Implemented |
 | Reversal on funds already released to entitlement | Block payout of the related entitlement | Compensating journal from `SELLER_ENTITLEMENT` if the reversal is lost | `ChargebackOpened` | Alert | Not Implemented |
-| Reversal on funds already paid out | Funds have left; record platform exposure | `chargeback`: source per reversed amount, destination `CHARGEBACK_EXPOSURE` | Fact to Projects; no state rewrite | Exposure alert; recovery path is policy (EQ5) | Not Implemented |
+| Reversal on funds already paid out | Funds have left; record platform exposure | `chargeback`: source per reversed amount, destination `CHARGEBACK_EXPOSURE` | Fact to Projects; no state rewrite | Compensating entry and hold. No unrelated Seller debit and no future-project deduction. Broader recovery stays open (EQ5) | Not Implemented |
 | Negative platform exposure | Tracked as an exposure balance, never as a negative amount in a normal account | `CHARGEBACK_EXPOSURE` balance | None | Finance alert | Not Implemented |
-| Seller payout already completed and later reversal | Same as above; offsetting against future payouts is a recovery option whose lawfulness and consent are Legal decisions | As above | None | Seller notified per policy | Not Implemented |
+| Seller payout already completed and later reversal | Record exposure on the affected transaction. Do not automatically debit an unrelated Seller balance or deduct a future unrelated Project | As above | None | Broader recovery stays open (EQ5). No debt-collection rule | Not Implemented |
 | Chargeback won by the platform | Lift hold; reverse the exposure by compensating entry | `adjustment` referencing the `chargeback` entry | `ChargebackClosed` | Audit | Not Implemented |
 | Project state implications | Escrow emits facts and never sets Project state. Projects decides whether to suspend or restrict the Project ([Projects Section 20](../05-projects-milestones/projects.md#20-escrow-and-payment-relationship)) | None | Projects-owned | Moderation, Users | Not Implemented |
 | Account restrictions | A chargeback is a risk signal to Moderation and Users. Restriction is their decision and their audit | None | None | Users and Moderation own status | Not Implemented |
@@ -829,7 +829,7 @@ The platform cannot technically prevent a Buyer's bank or the provider from reve
 
 ### 19.1 What is established
 
-The task brief lists an escrow activation fee (Seller), a platform protection fee (Buyer), and a commission (Seller or project proceeds). These were searched for across every specification and all application code and are **not established anywhere**. The only fee-related evidence found is: ledger entry types `platform_fee` and `escrow_fee`, payment types `platform_fee` and `escrow_fee` (migration 006), a note in [System Architecture Section 10.7](../01-foundation/system-architecture.md#107-escrow) that platform fee calculation is a future extension, an Administration mention of "platform fee rates" as configuration ([System Architecture Section 10.12](../01-foundation/system-architecture.md#1012-administration)), and Projects' requirement that a platform fee be "separate from creator earnings and gross obligation" and snapshotted "before authorization/funding" ([Projects Section 14.1](../05-projects-milestones/projects.md#141-commercial-terms-matrix)), with the fee owner an open Projects question. No percentage, payer, or tax rule exists. This document therefore does not adopt those three fee kinds as canonical, invents no rate, and defines only the architecture. Every fee kind is configuration in a versioned schedule.
+Product set the MVP fee schedule on 2026-10-01 (EQ1, EQ8, EQ9). Seller-side platform commission is 10% (`1000` basis points) of value released or awarded to the Seller. The Buyer platform fee is 0. The activation fee is 0. The Buyer funds the agreed Project amount. Commission is not charged on money returned to the Buyer. MusicApp does not calculate tax withholding. The `TAX_PAYABLE` hook stays empty, and jurisdictional tax policy stays open. The schedule is versioned, disclosed before funding, and snapshotted immutably on the funded Escrow. Ledger entry types `platform_fee` and `escrow_fee` remain the representation.
 
 ### 19.2 Fee ownership matrix
 
@@ -837,14 +837,14 @@ Attribute columns state what is fixed by architecture. Cells that depend on a Pr
 
 | Fee kind (configurable) | Payer | Beneficiary | Basis | Timing | In agreed total or on top | Deducted from Seller proceeds | Refundability | Tax interaction | Ledger representation | Disclosure | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Buyer-side platform or protection fee (candidate) | Buyer, if the schedule defines one | Platform | Policy: percentage in basis points, fixed, or both (EQ1) | Charged with funding; snapshot fixed before funding | On top of the agreed total, never inside a Milestone amount ([Projects Section 14.1](../05-projects-milestones/projects.md#141-commercial-terms-matrix)) | No | Policy (EQ8) | Policy (EQ9) | `platform_fee` from `EXTERNAL_BUYER` to `PLATFORM_REVENUE` | Shown before authorization and funding | Policy Open Question; architecture Not Implemented |
-| Seller-side commission or fee (candidate) | Seller, if the schedule defines one | Platform | Policy (EQ1) | Taken at release | Inside the allocation; the Seller nets proceeds | Yes | Policy (EQ8) | Policy (EQ9) | `platform_fee` or `escrow_fee` from `ESCROW_ALLOCATION` to `PLATFORM_REVENUE` inside the release journal | Shown to the Seller before acceptance | Policy Open Question; architecture Not Implemented |
-| Escrow service or activation fee (candidate) | Policy (EQ1) | Platform | Policy | Policy | Policy | Policy | Policy | Policy | `escrow_fee` | Before funding | Policy Open Question |
+| Buyer-side platform or protection fee | Buyer | Platform | `0` basis points (EQ1, 2026-10-01) | Not charged | On top of the agreed total, never inside a Milestone amount ([Projects Section 14.1](../05-projects-milestones/projects.md#141-commercial-terms-matrix)) | No | Not charged | No MusicApp withholding (EQ9) | None in MVP | Shown before funding as zero | Decided; architecture Not Implemented |
+| Seller-side commission | Seller | Platform | `1000` basis points of the amount released or awarded to the Seller (EQ1) | Taken at release or award | Inside the allocation; the Seller nets proceeds | Yes | Only on the Seller award; none on Buyer refunds (EQ8) | Hook empty (EQ9) | `platform_fee` from the Seller award to `PLATFORM_REVENUE` | Shown before funding and snapshotted | Decided; architecture Not Implemented |
+| Escrow service or activation fee | None | Platform | `0` (EQ1, 2026-10-01) | Not charged | Not charged | No | Not charged | None | None in MVP | Shown before funding as zero | Decided |
 | Taxes on fees | Fee payer | Tax authority | Jurisdiction rules; not defined here | With the fee | On top of the fee | Per rule | Per rule | Hook only: `TAX_PAYABLE` account and a tax line on the fee snapshot | `TAX_PAYABLE` entries in the same journal | Itemized | Hook Planned; policy open (EQ9) |
 | Withholding on Seller payouts | Seller | Tax authority | Jurisdiction rules; not defined here | At release or payout per rule | Inside proceeds | Yes | Per rule | Hook only | `TAX_PAYABLE` from `SELLER_ENTITLEMENT` or allocation | Itemized | Hook Planned; policy open (EQ9) |
 | Provider processing fees | Platform, unless the schedule passes them on | Provider | Provider statement | On provider settlement | Outside protected funds unless disclosed | No unless disclosed | Provider rules | Provider invoices | `PROVIDER_FEE_EXPENSE` | Internal | Not Implemented |
-| Refund fees | Policy | Policy | Policy | At refund | Policy | Policy | Not applicable | Policy | `escrow_fee` in the refund journal | Before funding | Policy Open Question (EQ8) |
-| Chargeback fees | Provider bills the platform; pass-through is policy | Provider | Provider statement | On notification | Outside protected funds | Policy | Not applicable | Provider invoices | `PROVIDER_FEE_EXPENSE` or `CHARGEBACK_EXPOSURE` | Internal | Policy Open Question (EQ5) |
+| Refund fees | None | None | None in MVP | Not charged | None | No | Not applicable | None | No commission on money returned to the Buyer (EQ8) | Disclosed with the snapshot | Decided 2026-10-01 |
+| Chargeback fees | Provider bills the platform; pass-through is not an MVP fee | Provider | Not an MVP fee | On notification | Outside protected funds | No automatic Seller debit | Not applicable | Provider invoices stay external | `CHARGEBACK_EXPOSURE` compensating entry | Internal | Exposure rule decided; pass-through stays out of MVP (EQ5) |
 
 ### 19.3 Calculation, snapshot, and rounding
 
@@ -853,11 +853,11 @@ Attribute columns state what is fixed by architecture. Cells that depend on a Pr
 | Fee schedule snapshot | An immutable versioned schedule is snapshotted against the Escrow (`fee_snapshot_id`) before the first funding attempt. A schedule change never alters an existing snapshot |
 | Representation | Rates are integer basis points and fixed amounts are integer minor units. No fractional or floating rate |
 | Formula | `fee = (basis_amount * rate_bps + 5000) div 10000` using integer arithmetic (round half up), computed per fee line on the basis stated in the snapshot |
-| Determinism | The same snapshot and inputs always yield the same fee. Rounding mode is a schedule attribute with this default; Finance confirmation is Question EQ1 |
+| Determinism | The same snapshot and inputs always yield the same fee. The MVP Seller commission is `1000` basis points (EQ1, 2026-10-01). Rounding uses the formula in this table |
 | Sum invariants | For every journal, `gross = net to Seller + fee lines` and entries balance. A fee line never changes an allocation's `allocated_amount` |
 | Residual | No residual is silently allocated. If a policy requires splitting a fee across lines, the residual goes to a named line in the schedule |
 | Zero-decimal currencies | Basis and results are in the currency's own minor unit; exponent-aware, so a whole-unit currency rounds to whole units |
-| Percentages | None are defined here |
+| Percentages | MVP Seller commission is 10% (`1000` basis points) of the amount released or awarded to the Seller. Buyer platform fee and activation fee are 0 (EQ1, 2026-10-01) |
 
 ### 19.4 Disclosure
 
@@ -881,7 +881,7 @@ Capabilities: **Browse** is create or browse and prepare Projects; **Fund** is c
 | Buyer, Email Verification Pending | Limited | No | Not applicable | Not applicable | Not applicable | Cannot buy ([Users Section 8.1](../02-users-roles-permissions/users.md#81-account-status)) |
 | Buyer, Restricted | Yes | No new funding | Not applicable | Not applicable | Not applicable | `BR-USERS-014`; existing Escrow protection continues |
 | Buyer, Suspended or Disabled | No | No | Not applicable | Not applicable | Not applicable | `BR-USERS-015`, `BR-USERS-016`; open holds and history continue |
-| Seller, Active, Unverified | Yes | Funding permitted by default | Yes | No | No | `BR-USERS-011`; whether funding must wait for verification is configurable policy (Question EQ4) |
+| Seller, Active, Unverified | Yes | Yes | Yes | No | No | Verification does not block proposal, acceptance, or funding (EQ4, 2026-10-01). Release and payout require the live gate |
 | Seller, verification Pending, Under Review, or Additional Information Required | Yes | As above | Yes | No | No | Not yet Approved ([Verification Section 8.1](../03-identity-profiles-verification/verification.md#81-canonical-status-values-adopted-from-usersmd-82)) |
 | Seller, verification Rejected | Yes | As above | Yes | No | No | Terminal for that attempt; a new attempt is a new record |
 | Seller, Identity Verified (Approved) | Yes | Yes | Yes | Yes | Yes | Required level for payouts ([Verification Section 25](../03-identity-profiles-verification/verification.md#25-verification-levels-and-capability-unlocking)) |
@@ -891,7 +891,7 @@ Capabilities: **Browse** is create or browse and prepare Projects; **Fund** is c
 | Seller, Restricted | Yes | As above | Policy | No | No | `BR-USERS-014` names payouts; release is blocked with them to keep entitlement and payout eligibility coherent |
 | Seller, Suspended or Disabled | No | As above | No | No | No | Cannot authenticate; funds stay protected and held pending Moderation and Administration outcome |
 
-The matrix distinguishes exactly the five capabilities the task named. It does not silently resolve a conflict with Projects: [Projects Section 20](../05-projects-milestones/projects.md#20-escrow-and-payment-relationship) lists "required Seller payout verification policy" as a fundability condition while `BR-USERS-011` leaves buying unblocked. Reconciliation item ER5 records this. The mechanism here is a configurable pre-funding Seller payout-readiness check with a default of non-blocking plus disclosure to the Buyer. Whether it must be blocking, and at what level, is the P0 question Projects already carries, restated as Question EQ4. A related question, how long approved funds may wait for a Seller who never verifies, is Question EQ7.
+The matrix distinguishes exactly the five capabilities the task named. Seller Identity Verification does not block proposal creation, Seller acceptance, or Buyer funding (EQ4, 2026-10-01). It blocks release and payout. A Buyer may fund an accepted Project while Seller verification is pending. If entitlement exists and the live payout gate fails, the entitlement is retained with no invented expiry or refund (EQ7). [Projects Section 20](../05-projects-milestones/projects.md#20-escrow-and-payment-relationship) does not treat Seller verification as a funding condition.
 
 `REQ-ESCROW-016`: Escrow MUST evaluate account status and Identity Verified status live at each financial decision, MUST gate release and payout on the payout gate, MUST gate funding on Buyer account eligibility, and MUST NOT let verification change earned or protected amounts.
 
@@ -1335,7 +1335,7 @@ This task is documentation only. Application and migration work proceeds in revi
 12. **Add the payout workflow.** Per `payments.md Section 20`.
 13. **Add dispute holds and resolution integration.** The hold model and instruction contract of Section 17.
 14. **Add chargeback and reversal handling.** Section 18, coordinated with `payments.md`'s intake.
-15. **Add fee and commission hooks.** The fee schedule snapshot of Section 19, with rates supplied only after Product and Finance decide them.
+15. **Add fee and commission hooks.** The fee schedule snapshot of Section 19, using the 2026-10-01 rates: 10% Seller commission, 0% Buyer fee, and 0% activation fee.
 16. **Add authorization.** Project-scoped resolution and the permission model of Section 21.
 17. **Add idempotency and concurrency controls.** Section 22.
 18. **Add audit and reconciliation.** Section 23.
@@ -1355,7 +1355,7 @@ This task is documentation only. Application and migration work proceeds in revi
 | Incorrect allocation | Allocation amount or currency diverges from the agreed Milestone | Equality constraint at write time | Escrow and Milestones |
 | Currency mismatch | Wrong-currency funds recorded against an Escrow | Registry and cross-table constraints | Escrow |
 | Stale state | A command acts on an out-of-date Project, term, or approval version | Expected-version checks, lock order | Escrow |
-| Chargebacks after payout | Platform exposure with no automatic recovery | Exposure account, alerting; recovery is a policy decision | Finance and Legal (Question EQ5) |
+| Chargebacks after payout | Platform exposure on the affected transaction | Compensating entry and hold; no unrelated Seller debit and no future-project deduction. Broader recovery stays open | Finance and Legal (EQ5) |
 | Seller payout failure | Entitlement stuck; Seller unpaid | Payout retry and reconciliation in `payments.md` | Payments |
 | Verification changes after approval | A Seller loses eligibility between approval and release | Live gate at every decision point | Escrow and Verification |
 | Dispute and release race | Release proceeds on funds a dispute is about to freeze | Serialized locks, hold check before every release | Escrow |
@@ -1374,31 +1374,31 @@ This task is documentation only. Application and migration work proceeds in revi
 3. `INR` is the MVP currency with exponent 2; the target still carries a validated currency and exponent for future currencies.
 4. MVP has one Buyer and at most one accepted Seller per Project, so every Escrow has one counterparty on each side.
 5. No financial row (`escrows`, `escrow_allocations`, `payments`, `escrow_ledger`) currently exists in any environment, because no code path writes one; this must be confirmed by direct query before any migration proceeds (Section 30, stage 1).
-6. A payment provider capable of India-first payment methods, webhooks, and payouts will be selected; this document does not select one.
+6. Cashfree is the target beta and production payment provider (EQ13, 2026-10-01). The adapter stays provider-neutral. Real-money production waits for Cashfree approval of the marketplace, milestone-release, and Seller-settlement model. Credentials stay in the environment.
 7. Notification delivery is asynchronous and cannot be atomic with the Escrow transaction.
-8. Retention periods, fee rates, tax rules, and dispute remedies will be supplied by their owners (Finance, Legal, Product, and a future Disputes specification).
+8. Retention periods, dispute adjudication, and jurisdictional tax policy will be supplied by their owners. MVP fee rates and the MVP chargeback compensating-entry rule are decided (EQ1, EQ5, EQ9). Broader chargeback recovery stays open.
 9. No production data is altered by this documentation task.
 10. Behaviors reported in Section 26 as read from SQL rather than executed (trigger absence, cascade behavior) are as read from the migration text and would benefit from a database-level test to confirm.
 
 ### 31.3 Prioritized open questions
 
-Questions owned by future domains (Disputes adjudication, tax and legal policy, provider selection) remain open here and are not silently resolved.
+Questions owned by future domains (Disputes adjudication and jurisdictional tax policy) remain open here and are not silently resolved. Provider selection, fee rates, and the MVP chargeback rule are recorded in the table below.
 
 | ID | Priority | Question | Why it blocks or risks | Decision owner | Affected contract |
 | --- | --- | --- | --- | --- | --- |
-| EQ1 | P0 | What fee kinds exist (Buyer-side, Seller-side, activation), at what rate, and who is the payer and beneficiary of each? | No architecture can charge a fee without a rate; nothing here invents one | Product, Finance, Pricing | Section 19 |
-| EQ2 | P0 | What is the funding-intent expiry duration, and what happens to a Project whose funding never completes? | Determines when an unfunded Escrow is abandoned | Product | Section 8.2 |
-| EQ3 | P0 | What compensation, if any, is owed to a Seller for partial performance on a funded-but-cancelled Project? | Cancellation cannot safely default to full refund if partial work was done and product policy disagrees | Product, Legal | Section 16 |
-| EQ4 | P0 | Must Seller Identity Verification complete before a Project can be funded, or only before release and payout? (Restates the Projects P0 question on payout-related verification and the reconciliation in ER5) | Determines a fundability gate; Projects and Users state the rule differently | Verification, Risk, Legal | Sections 8.2, 20 |
-| EQ5 | P0 | Who bears financial liability for a chargeback on funds already paid out, and what recovery rights, if any, exist against the Seller? | Escrow cannot invent a liability or offset rule | Legal, Finance, Product | Section 18 |
+| EQ1 | Resolved 2026-10-01 | What fee kinds exist, at what rate, and who pays? | Seller-side platform commission is `1000` basis points of value released or awarded to the Seller. Buyer platform fee is `0`. Activation fee is `0`. The Buyer funds the agreed Project amount. Example: `100000` minor units released yields fee `10000` and Seller entitlement `90000` under Section 19.3. The schedule is versioned, disclosed before funding, and snapshotted on the funded Escrow | Product decision | Section 19 |
+| EQ2 | Resolved 2026-10-01 | What is the funding-intent expiry duration, and what happens to a Project whose funding never completes? | Expiry is 24 hours. The expired attempt is cancelled. The accepted Project stays unfunded and is not cancelled solely because the attempt expired. A later attempt has its own idempotency and payment identity | Product decision | Section 8.2 |
+| EQ3 | Resolved 2026-10-01 | What compensation is owed for partial Seller performance on a funded cancellation? | No automatic percentage. Buyer and Seller may agree a compensation amount. That amount is the Seller award, subject to the 10% Seller commission. The remaining eligible funds return to the Buyer. Disagreement enters the governed Dispute path. Funds and holds stay while the disputed amount is unresolved | Product decision | Section 16 |
+| EQ4 | Resolved 2026-10-01 | Must Seller Identity Verification complete before funding, or only before release and payout? | Verification is not required for proposal creation, Seller acceptance, or Buyer funding. It is required at the release and payout boundary. No Seller payout occurs unless the live verification gate passes | Product decision | Sections 8.2, 20 |
+| EQ5 | Partially resolved 2026-10-01 | Who bears chargeback liability after Seller payout, and what recovery rights exist? | MVP preserves the original ledger, records the chargeback through a compensating entry and hold, and does not rewrite history, debit an unrelated Seller balance, or deduct a future unrelated Project. Recovery beyond the affected transaction stays open. No debt-collection rule is authorized | Legal, Finance, Product | Section 18 |
 | EQ6 | P0 | Who adjudicates a Milestone dispute, on what evidence and timeline, and what is the timeout behavior if no resolution arrives? | Escrow can execute a resolution but cannot decide one; unresolved holds could persist indefinitely | Product, a future Disputes specification | Section 17 |
-| EQ7 | P1 | How long may an approved allocation wait in Release Pending for an unverified or de-verified Seller before an alternative applies? | Affects Buyer experience and platform exposure to held funds | Product, Risk | Section 14.2 |
-| EQ8 | P1 | Are Buyer-side and Seller-side fees refundable, in full or pro-rated, on a refund or a dispute award? | The refund and split-award journals cannot include or exclude fee lines without this decision | Product, Finance | Sections 15, 17.2, 19.2 |
-| EQ9 | P1 | What withholding, tax, and invoicing rules apply to fees and Seller proceeds, and in which jurisdictions? | The `TAX_PAYABLE` hook has no content without it | Legal, Finance, Tax | Section 19 |
-| EQ10 | P1 | Does MVP support a supplemental funding round for an amendment that increases the agreed total, or does an increase require a new Project? | Determines whether Section 11.3's "supplemental funding" path is built for MVP | Product, Architecture | Sections 8.1, 11.3 |
+| EQ7 | Resolved for MVP 2026-10-01 | How long may Seller entitlement wait when payout is blocked? | Retain the entitlement. Do not refund it to the Buyer, cancel it, or invent an expiry. Pay it after the live payout gate passes | Product decision | Section 14.2 |
+| EQ8 | Resolved 2026-10-01 | Are fees refundable? | Commission is earned only on money released or awarded to the Seller. A full Buyer refund charges no Seller commission. A split outcome charges 10% only on the Seller award. Money returned to the Buyer carries no commission | Product decision | Sections 15, 17.2, 19.2 |
+| EQ9 | Resolved for MVP 2026-10-01 | What tax withholding applies? | MusicApp does not calculate a Seller withholding percentage. Do not add GST, VAT, or TDS by assumption. The `TAX_PAYABLE` hook stays empty. Provider-mandated charges remain distinguishable from the fee schedule. Jurisdictional policy stays open | Legal, Finance, Tax | Section 19 |
+| EQ10 | Resolved 2026-10-01 | Does MVP support supplemental funding? | No. After funding, an amendment must not increase the funded obligation. Additional paid scope requires a new Project. Do not build top-ups | Product decision | Sections 8.1, 11.3 |
 | EQ11 | P1 | What retention period applies to ledger entries, Payments, holds, and instructions, and under what conditions may personal data within them be anonymized? | Determines the deletion policy boundary the schema must respect | Legal, Privacy, Data | Section 24 |
 | EQ12 | P2 | Is a dedicated Finance or Support Operator role needed for reconciliation and ledger access, or does an Administrator capability suffice? | Affects the authorization model and Roles specification | Product, Authorization | Section 21 |
-| EQ13 | P2 | Which payment provider or providers will MusicApp integrate first, and what methods (cards, UPI, netbanking) must the adapter support? | `payments.md`'s provider adapter cannot be finalized without it | Product, Engineering | `payments.md` |
+| EQ13 | Resolved 2026-10-01 | Which payment provider is selected? | Cashfree is the target beta/production provider for Payment Gateway funding, marketplace split or vendor settlement, and payout where the approved flow requires it. The adapter stays provider-neutral. Real-money production waits for Cashfree approval of the marketplace, milestone-release, and Seller-settlement model. The internal ledger is not represented as regulated escrow unless that arrangement supports it | Product decision | `payments.md` |
 | EQ14 | P2 | Is a tamper-evident hash chain over ledger entries required, or does the append-only trigger and audit trail suffice? | Affects the ledger's target data model | Architecture, Security | Section 13.4 |
 | EQ15 | P2 | Which Milestones and Projects P0 questions remain blocking after this document, specifically the exact cancellation, partial-work, and chargeback liability outcomes Projects flagged? | Confirms the scope handed back to Product and Legal | Product, Legal | Section 16; [Projects Section 36.1](../05-projects-milestones/projects.md#361-open-questions-table) |
 
@@ -1515,3 +1515,6 @@ The authoring validation for version 0.2.0 covers version 0.1.0's checks plus th
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial Proposed Escrow aggregate, allocations, ledger, funding model, release, refund, cancellation and dispute financial outcomes, chargebacks, fees, currency, eligibility, authorization, concurrency, audit, reconciliation, target data model, verified repository comparison, security findings, and traceability, companion to `payments.md`. | Product and Architecture |
 | 0.2.0 | 2026-09-25 | Reconciled the Buyer non-response product decision ([Milestones Section 18.2](../05-projects-milestones/milestones.md#182-buyer-non-response-and-platform-intervention)): Section 14's release-eligibility fact now explicitly covers a platform non-response release authorization alongside ordinary Buyer approval, treated identically at the Escrow layer without Escrow itself evaluating Buyer responsiveness. Added `REQ-ESCROW-036`, `BR-ESCROW-049`, and reconciliation item ER8. No existing identifier, section number, or unrelated content changed. | Product and Architecture |
+| 0.2.3 | 2026-10-01 | Removed the supplemental-funding path from `expected_amount` and the Supplement pending qualifier (EQ10). | Product |
+| 0.2.2 | 2026-10-01 | Aligned Sections 8, 14, 16, 18, 19, 20, 30, and 31 with the resolved EQ rows so those sections no longer describe the decided rates, expiry, verification timing, payout wait, or provider as open. | Product |
+| 0.2.1 | 2026-10-01 | Recorded Product decisions for EQ1–EQ4, EQ7, EQ8, EQ10, and EQ13, and the MVP limits of EQ5 and EQ9. Fee rate is 10% Seller commission with the Section 19.3 rounding rule. EQ6, EQ11, EQ12, EQ14, EQ15, and chargeback recovery beyond the affected transaction stay open. | Product |

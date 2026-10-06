@@ -50,6 +50,15 @@ describe("MVP-004 CI workflow (SEC-PROJECTS-019 gate)", () => {
     assert.doesNotMatch(backend, /musicapp_ci_migrate/);
   });
 
+  it("gives backend-test a TCP fixture-reset connection, because Actions has no local postgres user", () => {
+    const yaml = fs.readFileSync(workflowPath, "utf8");
+    const backend = jobBlock(yaml, "backend-test");
+
+    assert.match(backend, /MUSICAPP_TEST_ADMIN_USER: musicapp/);
+    assert.match(backend, /MUSICAPP_TEST_ADMIN_PASSWORD: musicapp/);
+    assert.match(backend, /POSTGRES_USER: musicapp/);
+  });
+
   it("applies migrations to a disposable database and never to the test database", () => {
     const yaml = fs.readFileSync(workflowPath, "utf8");
     const migrate = jobBlock(yaml, "migration-dry-run");

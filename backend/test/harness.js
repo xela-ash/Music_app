@@ -13,6 +13,14 @@ const BACKEND_ROOT = path.join(__dirname, "..");
 // Every application table. schema_migrations is intentionally absent so
 // teardown clears rows without replaying migrations.
 const APPLICATION_TABLES = [
+  "role_audit_events",
+  "role_assignments",
+  "messaging_audit_events",
+  "messages",
+  "conversations",
+  "notification_audit_events",
+  "notification_deliveries",
+  "notification_intents",
   "idempotency_keys",
   "outbox_messages",
   "inbox_events",
@@ -20,6 +28,17 @@ const APPLICATION_TABLES = [
   "escrow_allocations",
   "payments",
   "escrows",
+  "escrow_fee_snapshots",
+  "project_audit_events",
+  "project_amendments",
+  "project_state_transitions",
+  "project_term_versions",
+  "project_participants",
+  "project_invitations",
+  "milestone_term_versions",
+  "milestone_state_transitions",
+  "milestone_revision_requests",
+  "milestone_approvals",
   "project_milestones",
   "projects",
   "verification_documents",
@@ -42,10 +61,65 @@ function ensureMigrated() {
   }
 }
 
+// CI and non-Cursor machines reach PostgreSQL over TCP, where there is no
+// local `postgres` OS user. MUSICAPP_TEST_ADMIN_USER names a superuser of the
+// same isolated database (host, port, and name already passed the guard).
+async function resetWithAdminConnection(sql) {
+  const { Client } = require("pg");
+  const client = new Client({
+    host: process.env.DB_HOST || "localhost",
+    port: Number(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.MUSICAPP_TEST_ADMIN_USER,
+    password: process.env.MUSICAPP_TEST_ADMIN_PASSWORD,
+  });
+  await client.connect();
+  try {
+    await client.query("SET session_replication_role = replica");
+    await client.query(sql);
+    await client.query("SET session_replication_role = origin");
+  } catch (err) {
+    throw new Error(`Fixture reset failed.\n${err.message}`);
+  } finally {
+    await client.end();
+  }
+}
+
 async function resetApplicationData() {
-  await pool.query(
-    `TRUNCATE TABLE ${APPLICATION_TABLES.join(", ")} RESTART IDENTITY CASCADE`
+  // escrow_ledger rejects UPDATE, DELETE, and TRUNCATE for the application
+  // role. The cluster superuser resets fixtures with session_replication_role
+  // so that trigger does not fire. The application pool never sets that role.
+  const sql = `TRUNCATE TABLE ${APPLICATION_TABLES.join(", ")} RESTART IDENTITY CASCADE`;
+  if (process.env.MUSICAPP_TEST_ADMIN_USER) {
+    await resetWithAdminConnection(sql);
+    return;
+  }
+  const result = spawnSync(
+    "sudo",
+    [
+      "-u",
+      "postgres",
+      "psql",
+      "-p",
+      String(process.env.DB_PORT),
+      "-d",
+      process.env.DB_NAME,
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      "SET session_replication_role = replica",
+      "-c",
+      sql,
+      "-c",
+      "SET session_replication_role = origin",
+    ],
+    { encoding: "utf8" }
   );
+  if (result.status !== 0) {
+    throw new Error(
+      `Fixture reset failed (status ${result.status}).\n${result.stdout || ""}\n${result.stderr || ""}`
+    );
+  }
 }
 
 function startServer() {

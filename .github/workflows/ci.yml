@@ -80,6 +80,9 @@ jobs:
       DB_PASSWORD: musicapp
       DB_NAME: musicapp_mvp001
       JWT_SECRET: ci-mvp004-test-jwt-secret
+      # The service container's superuser resets fixtures over TCP (backend/test/harness.js).
+      MUSICAPP_TEST_ADMIN_USER: musicapp
+      MUSICAPP_TEST_ADMIN_PASSWORD: musicapp
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

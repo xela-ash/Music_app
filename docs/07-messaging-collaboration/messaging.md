@@ -6,9 +6,9 @@
 | Type | Specification (SPEC) |
 | Domain | Messaging and Collaboration (governed `MESSAGING` token) |
 | Status | Proposed |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Owner | Product and Architecture |
-| Last Reviewed | 2026-09-25 |
+| Last Reviewed | 2026-09-29 |
 | Applies To | Target Messaging product architecture and verified current repository comparison |
 | Governed token | `MESSAGING` |
 | Canonical path | `docs/07-messaging-collaboration/messaging.md` |
@@ -186,7 +186,7 @@ erDiagram
 | `message_type` | `USER` or `SYSTEM` | Stored | Immutable | Not Implemented |
 | `sender_user_id` | The authoring participant; `NULL` only for `SYSTEM` messages | Stored | Immutable | Not Implemented |
 | `system_event_reference` | For `SYSTEM` messages, the source domain's event ID (Section 13.2); `NULL` for `USER` messages | Stored | Immutable | Not Implemented |
-| `body` | Bounded, restricted text | Stored | Immutable (Section 8.2) | Not Implemented |
+| `body` | Text of at most 500 characters. Product set this MVP maximum on 2026-09-29. No minimum and no further character restriction are stated | Stored | Immutable (Section 8.2) | Not Implemented |
 | `sent_at` | Server-assigned timestamp; never client-supplied | Stored | Immutable | Not Implemented |
 | `idempotency_key` | Caller-supplied key bound to sender, Conversation, and request hash | Stored, unique | Immutable | Not Implemented |
 | `tombstoned_at` / `tombstoned_by_user_id` | Nullable; set only by a tombstone action (Section 10) | Stored | Set once | Not Implemented |
@@ -195,6 +195,8 @@ erDiagram
 ### 8.2 Edit policy
 
 Messages are not editable in MVP. No existing product document establishes an edit window, and inventing one would create an unreviewed evidence-integrity question for a future Disputes specification. A sender who needs to correct content sends a new Message. This is recorded as Open Question EQ4 (Section 24.3) for a possible future short edit window, should Product decide one is needed.
+
+The MVP message `body` MUST be at most 500 characters. A longer body MUST be rejected and MUST NOT be stored. Product set this maximum on 2026-09-29. The specification states no minimum length and no further restriction on which characters are allowed.
 
 `BR-MESSAGING-001`: A Message's `body`, `sender_user_id`, `message_type`, and attachments MUST NOT be edited after creation; a correction MUST take the form of a new Message.
 
@@ -504,7 +506,7 @@ flowchart LR
 | `SEC-MESSAGING-007` No moderation/case access separation exists | High | No route or case model exists | An ordinary participant read path could be reused for case-scoped evidence access without distinct audit | Case-scoped, distinctly audited access of Section 12/15 | Open |
 | `SEC-MESSAGING-008` No audit trail exists | High | No audit table or event exists | Unauthorized access, spoofing, or evidence tampering would be undetectable | `AUD-MESSAGING-001`/`002` of Section 18.1 | Open |
 | `SEC-MESSAGING-009` No rate limiting on any future Messaging route | Medium | No route exists; consistent with the repository-wide absence of rate limiting noted in `SEC-AUTH-005` | Spam or abuse of a send endpoint once built | Rate limits on every Messaging route | Open |
-| `SEC-MESSAGING-010` No unbounded-input protection for message body | Low | No field exists yet | Unbounded or unrestricted text could leak into logs/events or exhaust storage | Bounded, restricted text requirement of Section 8.1 | Open |
+| `SEC-MESSAGING-010` No unbounded-input protection for message body | Low | No field exists yet | Unbounded or unrestricted text could leak into logs/events or exhaust storage | MVP maximum of 500 characters, set by Product on 2026-09-29 (Section 8.1). No minimum and no further character restriction are stated | Open |
 | `SEC-MESSAGING-011` No automated Messaging test coverage | High | No test file or directory exists | Authorization, idempotency, and evidence-preservation regressions would reach production undetected | Layered test suite of Section 23 | Open |
 
 "Open" is a finding disposition (target-architecture risk given the current empty repository state), not an implementation-status label. Cross-domain findings that also apply: Authentication `SEC-AUTH-002`/`SEC-AUTH-005`, and every Assets finding governing Asset storage and access that this document's attachment bindings rely on.
@@ -614,6 +616,8 @@ flowchart LR
 
 ## 26. Validation record
 
+Version 0.2.0 changes the metadata version and the message-body maximum in Section 8.1 and Section 22 only. The validation statements in this section describe version 0.1.0.
+
 This document was validated against Governance's structural requirements before commit: exactly one H1; sequential, non-skipping H2/H3 numbering; Status Proposed and Version 0.1.0 stated once in the metadata table and not contradicted elsewhere; no placeholder or "TBD" content; all required tables (conversation field matrix, message field matrix, attachment relationship, authorization matrix, lifecycle matrix, dispute-evidence matrix, moderation matrix, repository comparison, implementation status, security findings, open questions) present and substantive; all required Mermaid diagram categories present (domain architecture, aggregate relationship, message send/attachment, deletion state machine, authorization evaluation, dispute-evidence flow, repository vs. target) with balanced fences; relative links resolve to sections that exist in their target documents; identifiers verified unique across the complete specification tree with zero collisions (Section 3.2, no prior `MESSAGING`-token identifier existed); repository claims are evidence-based per Section 21; target behavior is never mislabeled as implemented; Project, Milestone, Escrow, and Dispute state remain untouched by this document throughout (Sections 5, 12, 13); Message history is non-destructive throughout (Sections 8, 10, 12); no trailing whitespace or tabs were introduced.
 
 ## 27. Version history
@@ -621,3 +625,4 @@ This document was validated against Governance's structural requirements before 
 | Version | Date | Change | Author |
 | --- | --- | --- | --- |
 | 0.1.0 | 2026-09-25 | Initial canonical Messaging and Collaboration domain specification: ownership resolved to the `MESSAGING` token under `docs/07-messaging-collaboration/`, verified empty and identifier-collision-free before authoring; one-Conversation-per-Project aggregate model with an append-only Message stream; Asset-attachment-by-reference contract reusing Assets' existing Message Attachment purpose; non-destructive tombstone deletion policy preserving Dispute evidence; authorized-participant model including an acting Organization Project Manager; System Message contract consuming trusted domain events; private read state; Moderation contract; authorization, concurrency, audit, target data model, security findings, and staged implementation plan. | Product and Architecture |
+| 0.2.0 | 2026-09-29 | Product set the MVP message-body maximum at 500 characters. Section 8.1 records that maximum, states that a longer body is rejected, and states that no minimum and no further character restriction are decided. `SEC-MESSAGING-010` now cites that maximum. No other messaging rule changed. This is not an ADR: the document is Proposed, the maximum does not change an Approved or Implemented document, it does not introduce a cross-cutting standard, and it does not reverse a prior decision (Governance §14). | Product |
