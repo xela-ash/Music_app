@@ -73,15 +73,15 @@ async function resetWithAdminConnection(sql) {
     user: process.env.MUSICAPP_TEST_ADMIN_USER,
     password: process.env.MUSICAPP_TEST_ADMIN_PASSWORD,
   });
-  await client.connect();
   try {
+    await client.connect();
     await client.query("SET session_replication_role = replica");
     await client.query(sql);
     await client.query("SET session_replication_role = origin");
   } catch (err) {
-    throw new Error(`Fixture reset failed.\n${err.message}`);
+    throw new Error(`Fixture reset failed as ${process.env.MUSICAPP_TEST_ADMIN_USER}.\n${err.message}`, { cause: err });
   } finally {
-    await client.end();
+    await client.end().catch(() => {});
   }
 }
 

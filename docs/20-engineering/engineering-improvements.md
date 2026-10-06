@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.31 |
+| Version | 0.7.32 |
 | Last Reviewed | 2026-10-06 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -154,6 +154,7 @@ Copy this template for each new entry:
 | [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
 | [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
 | [ENG-IMP-049](#eng-imp-049-a-matching-later-snapshot-can-move-the-agreed-pointer-without-an-amendment) | A matching later snapshot can move the agreed pointer without an amendment | Database | Low | PROPOSED |
+| [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2315,6 +2316,36 @@ Copy this template for each new entry:
 | Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
 | Resolution | — |
 
+### ENG-IMP-091 CI cannot exercise privilege-based database protections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-091 |
+| Title | CI cannot exercise privilege-based database protections |
+| Date identified | 2026-10-06 |
+| Identified by | Independent review of the MVP-004 reconciliation, pull request #61, commit `36a7d88` |
+| Category | CI/CD, Testing, Security |
+| Affected subsystem | CI, Testing, Escrow |
+| Current state | In `.github/workflows/ci.yml` the `postgres:16` service is created with `POSTGRES_USER: musicapp`, so the application role `musicapp` is that container's superuser. Migration `020_escrow_ledger_posting.sql` both adds append-only triggers on `escrow_ledger` and runs `REVOKE UPDATE, DELETE, TRUNCATE ON escrow_ledger FROM musicapp`. In the Cursor image, `musicapp` is an ordinary role created by `.cursor/lib/postgres.sh`. |
+| Evidence / problem | A superuser bypasses privilege checks, so CI tests the trigger layer only. A regression that dropped the `REVOKE`, or a future protection that relies only on privileges, would stay green in CI. |
+| Suggested improvement | In the `backend-test` job, create a non-superuser application role (for example with a setup step or an init script), run the suite as that role, and keep `MUSICAPP_TEST_ADMIN_USER` as the superuser used only for fixture reset. |
+| Expected benefit | CI runs with the same privilege split as the Cursor environment and production. |
+| Risk of doing nothing | Low today, because every current ledger protection is also enforced by a trigger. |
+| Implementation risk | Low. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Minor positive: privilege-based protections become testable in CI |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (review finding; not part of the acceptance criteria) |
+| Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2390,3 +2421,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
 | 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
 | 0.7.31 | 2026-10-06 | MVP-004 reconciled with `main`: added `ENG-IMP-025` (PROPOSED, CI does not run `pnpm build`), `ENG-IMP-026` (PROPOSED, Actions referenced by major tag), and `ENG-IMP-027` (PROPOSED, the workflow-structure test runs only inside `backend-test`), all first recorded on pull request #61 on 2026-09-28. Noted in `ENG-IMP-022` that Handbook §14 still calls CI future work. None is authorized. | Engineering |
+| 0.7.32 | 2026-10-06 | Added `ENG-IMP-091` (PROPOSED) from the independent review of the MVP-004 reconciliation: CI runs as the database superuser, so privilege-based protections are not exercised there. Not authorized. | Engineering |
