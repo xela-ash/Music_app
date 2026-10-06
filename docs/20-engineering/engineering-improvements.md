@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.32 |
+| Version | 0.7.34 |
 | Last Reviewed | 2026-10-01 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -142,6 +142,7 @@ Copy this template for each new entry:
 | [ENG-IMP-038](#eng-imp-038-notification-intent-class-is-not-tied-to-the-topic) | Notification intent class is not tied to the topic | Database | Low | PROPOSED |
 | [ENG-IMP-039](#eng-imp-039-notification-preferences-have-no-user-settings-store) | Notification preferences have no User Settings store | Architecture | Medium | PROPOSED |
 | [ENG-IMP-040](#eng-imp-040-quiet-hours-and-digest-are-not-applied) | Quiet hours and digest are not applied | Architecture | Low | PROPOSED |
+| [ENG-IMP-041](#eng-imp-041-email-fan-out-does-not-call-the-email-adapter) | Email fan-out does not call the email adapter | Architecture | Medium | PROPOSED |
 | [ENG-IMP-042](#eng-imp-042-completed-send-idempotency-payloads-keep-the-pre-tombstone-body) | Completed send idempotency payloads keep the pre-tombstone body | Security, Database | Low | PROPOSED |
 | [ENG-IMP-043](#eng-imp-043-an-active-seller-receives-409-on-a-buyer-only-project-command) | An active seller receives 409 on a buyer-only project command | Authorization | Low | PROPOSED |
 | [ENG-IMP-044](#eng-imp-044-invite-checks-an-accepted-seller-before-the-idempotency-store) | Invite checks an accepted seller before the idempotency store | API, Idempotency | Low | PROPOSED |
@@ -1259,6 +1260,36 @@ Copy this template for each new entry:
 | Status | PROPOSED |
 | Related GitHub Issue | [#44](https://github.com/xela-ash/Music_app/issues/44) |
 | Related PR | [#73](https://github.com/xela-ash/music_app/pull/73) |
+| Resolution | — |
+
+### ENG-IMP-041 Email fan-out does not call the email adapter
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-041 |
+| Title | Email fan-out does not call the email adapter |
+| Date identified | 2026-10-02 |
+| Identified by | MVP-043 implementation |
+| Category | Architecture |
+| Affected subsystem | Notifications |
+| Current state | `submitVerifiedEvent` evaluates the email channel and does not insert an email delivery or call `sendEmail`. The Resend transport is installed from the environment and is not used by fan-out. |
+| Evidence / problem | MVP-042 left email decisions unpersisted. MVP-043 adds transport only. The acceptance criterion is the mock adapter. Templates, verified-address eligibility, and the three-attempt delivery loop are not in this item. |
+| Suggested improvement | When a later item renders transactional email, have Notifications call the neutral adapter. Do not let another domain call Resend. |
+| Expected benefit | A verified recipient can receive the email channel the matrix already evaluates. |
+| Risk of doing nothing | Selecting Resend does not deliver mail. In-app delivery is unchanged. |
+| Implementation risk | Medium. The delivery row, attempt limit, and template are separate product behavior. |
+| Estimated scope | M |
+| Dependencies | Rendered content, a verified destination, and a merged email adapter |
+| Product behavior impact | Yes, once email deliveries are created |
+| Specification impact | No. Section 7.2 already assigns transport to the adapter and rendering to Notifications. |
+| Migration impact | An email delivery row would be a later migration |
+| Security impact | A caller outside Notifications must not receive the API key |
+| Performance impact | None until send is on the fan-out path |
+| Priority suggestion | Medium |
+| Recommended timing | With the item that creates email deliveries |
+| Status | PROPOSED |
+| Related GitHub Issue | [#45](https://github.com/xela-ash/Music_app/issues/45) |
+| Related PR | [#76](https://github.com/xela-ash/music_app/pull/76) |
 | Resolution | — |
 
 ### ENG-IMP-042 Completed send idempotency payloads keep the pre-tombstone body
@@ -2444,6 +2475,8 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.27 | 2026-10-01 | Added `ENG-IMP-084` and `ENG-IMP-085` (both PROPOSED) from the MVP-005 review. Neither is authorized. | Engineering |
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. | Engineering |
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
-| 0.7.30 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
-| 0.7.31 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
-| 0.7.32 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
+| 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
+| 0.7.31 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
+| 0.7.32 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
+| 0.7.33 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
+| 0.7.34 | 2026-10-06 | Reconciled MVP-025 with `main` after MVP-043 and renumbered this branch's rows to `0.7.31`–`0.7.33`. Records what those rows omit: `ENG-IMP-083` was set to IMPLEMENTED by the second review repair, and `ENG-IMP-089` (PROPOSED) was added. Neither change authorizes further work. | Engineering |

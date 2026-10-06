@@ -12,6 +12,9 @@ const messagingRouter = require("./src/messaging/routes");
 const { createFundingPayment } = require("./src/payments/service");
 const { webhookRouter } = require("./src/payments/routes");
 const { requireAuth } = require("./src/auth/routes");
+const { installEmailProviderFromEnv } = require("./src/notifications/resend-adapter");
+
+installEmailProviderFromEnv(process.env);
 
 const app = express();
 app.use(cors());
