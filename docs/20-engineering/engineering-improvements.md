@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.32 |
-| Last Reviewed | 2026-10-01 |
+| Version | 0.7.33 |
+| Last Reviewed | 2026-10-06 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -2417,4 +2417,5 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
 | 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
 | 0.7.31 | 2026-10-01 | Added `ENG-IMP-075` (PROPOSED): seller acceptance does not repeat the fee schedule. Not authorized. `ENG-IMP-068` through `ENG-IMP-074` remain on the unmerged MVP-010 branch. | Engineering |
-| 0.7.32 | 2026-10-06 | Added `ENG-IMP-076`, `ENG-IMP-077`, and `ENG-IMP-078` (all PROPOSED) from the MVP-027 review. None are authorized. | Engineering |
+| 0.7.32 | 2026-10-01 | Added `ENG-IMP-076`, `ENG-IMP-077`, and `ENG-IMP-078` (all PROPOSED) from the MVP-027 review. None are authorized. | Engineering |
+| 0.7.33 | 2026-10-06 | Reconciled MVP-027 with `main` after MVP-043 and renumbered this branch's rows to `0.7.31`–`0.7.32`. No entry status changed. | Engineering |

@@ -6,8 +6,8 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.21.4 |
-| Last Reviewed | 2026-10-01 |
+| Version | 0.21.5 |
+| Last Reviewed | 2026-10-06 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
@@ -966,4 +966,5 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.21.1 | 2026-10-01 | Recorded the MVP-008 review's non-blocking improvements. No application behavior changed. | Engineering |
 | 0.21.2 | 2026-10-02 | Recorded MVP-043: Resend behind the provider-neutral email adapter, EDR-012. Sections 4.18 and 4.20. | Engineering |
 | 0.21.3 | 2026-10-01 | Recorded MVP-027: the funding-intent fee snapshot and EDR-023. Section 4.13. | Engineering |
-| 0.21.4 | 2026-10-06 | Recorded the MVP-027 review (renumbered after MVP-043 when reconciled with `main` on 2026-10-06): EDR-023 uses the Section 6.2 fields, EDR-019's empty snapshot is superseded by EDR-023, and `ENG-IMP-076` through `ENG-IMP-078` stay proposed. No application behavior changed. | Engineering |
+| 0.21.4 | 2026-10-01 | Recorded the MVP-027 review: EDR-023 uses the Section 6.2 fields, EDR-019's empty snapshot is superseded by EDR-023, and `ENG-IMP-076` through `ENG-IMP-078` stay proposed. No application behavior changed. | Engineering |
+| 0.21.5 | 2026-10-06 | Reconciled MVP-027 with `main` after MVP-043 and renumbered this branch's rows to `0.21.3`–`0.21.4`. No application behavior changed. | Engineering |
