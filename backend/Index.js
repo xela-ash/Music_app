@@ -10,6 +10,9 @@ const milestonesRouter = require("./src/milestones/routes");
 const notificationsRouter = require("./src/notifications/routes");
 const messagingRouter = require("./src/messaging/routes");
 const assetsRouter = require("./src/assets/routes");
+const { installEmailProviderFromEnv } = require("./src/notifications/resend-adapter");
+
+installEmailProviderFromEnv(process.env);
 
 const app = express();
 app.use(cors());
