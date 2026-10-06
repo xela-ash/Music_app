@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.30 |
-| Last Reviewed | 2026-10-01 |
+| Version | 0.7.31 |
+| Last Reviewed | 2026-10-06 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -151,6 +151,7 @@ Copy this template for each new entry:
 | [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
 | [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
 | [ENG-IMP-049](#eng-imp-049-a-matching-later-snapshot-can-move-the-agreed-pointer-without-an-amendment) | A matching later snapshot can move the agreed pointer without an amendment | Database | Low | PROPOSED |
+| [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2222,6 +2223,36 @@ Copy this template for each new entry:
 | Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
 | Resolution | — |
 
+### ENG-IMP-090 Full MVP frontend screen set from pull request #72 is preserved, unmerged
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-090 |
+| Title | Full MVP frontend screen set from pull request #72 is preserved, unmerged |
+| Date identified | 2026-10-06 |
+| Identified by | Repository consolidation for technical handover (Claude Code), reviewing pull request #72 |
+| Category | Frontend, UX, Architecture |
+| Affected subsystem | Frontend application |
+| Current state | `main`'s frontend is one module (`frontend/src/App.tsx`) with screens for auth, Discover, profile detail, project create/list/detail, and milestone lock. Most backend capabilities from MVP-014 onward (invitations, transitions, amendments, funding intent, messaging, notifications) have no screen. Pull request #72 (branch `frontend/full-mvp-screens`, tag `archive/pr-72-full-mvp-screens`, commit `391c896`) built a feature-folder frontend (`features/`, `ui/`, `nav/`, `lib/`), about 40 screens, and a retro-modern theme. Most screens run on an in-memory preview store (`frontend/src/demo/`). |
+| Evidence / problem | #72 branched from `5174e20` (MVP-014). Against `main` `9bda4b7`, its live project creation omits the per-milestone `revision_allowance` and `deliverable_definition` that MVP-017 requires, and defaults revisions to 0. Its seller invitation is sent from Draft, which MVP-015 forbids. It replaces MVP-017's create-project screen. It reuses `EDR-010` and `ENG-IMP-036`–`040`, which `main` already uses. It treats the rating scale as undecided, but the 2026-10-01 decision is 1–5. It loads Google Fonts. It was closed without merge on 2026-10-06; the screen-by-screen disposition is a comment on #72. |
+| Suggested improvement | Under an approved frontend issue (with an EDR for the layout and any router or state library), reuse #72's folder layout, `ui/` primitives, and the screen designs whose backends now exist: invitations and acceptance, project transitions, amendments, messaging, and notifications. Wire them to the real API. Do not reuse the preview store. Keep MVP-017's money, catalogue, and allowance rules. Treat the visual theme as a separate product/design decision. |
+| Expected benefit | The backend capabilities already built become usable and testable in the browser. A reviewer can walk the negotiation flow without the HTTP API. |
+| Risk of doing nothing | Backend-only capabilities stay untested from the user's side. The prototype drifts further from the API contracts. |
+| Implementation risk | Medium. The work is a frontend restructure. It must not regress the existing screens or the money-parsing rules (Handbook §12). |
+| Estimated scope | L |
+| Dependencies | None for the screens whose backends exist. Screens for deliverables, release, payout, disputes, ratings, and verification wait on their `MVP-*` items. |
+| Product behavior impact | No new product rules. UI exposure of existing API behavior only. |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Neutral. Frontend hiding never replaces backend authorization (Handbook §8). |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | After the four open implementation pull requests merge |
+| Status | PROPOSED |
+| Related GitHub Issue | — (no `MVP-*` item covers a frontend restructure) |
+| Related PR | [#72](https://github.com/xela-ash/Music_app/pull/72) (closed, unmerged) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2296,3 +2327,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. | Engineering |
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
 | 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
+| 0.7.31 | 2026-10-06 | Added `ENG-IMP-090` (PROPOSED) during the repository consolidation: pull request #72's frontend screen set is closed unmerged and preserved for a future approved frontend issue. Not authorized. | Engineering |
