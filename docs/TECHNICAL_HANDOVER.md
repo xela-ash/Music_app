@@ -159,7 +159,7 @@ Health checks: `curl localhost:4000/` and `curl localhost:4000/db-health`.
 
 **Frontend.** Run `cd frontend && pnpm test && pnpm lint && pnpm build`. The tests use Vitest 4, Testing Library, and jsdom 26. The build is `tsc -b && vite build`.
 
-**CI.** The four checks run on every pull request and on every push to `main`. A pull request is only checked once it contains current `main`'s workflow. CI does not run `pnpm build` (ENG-IMP-025), and it runs the app as the database superuser (ENG-IMP-091).
+**CI.** The four checks run on every pull request and on every push to `main`. GitHub evaluates a pull request's workflow from the PR merged with `main`, and the checks appear after the PR's next push. A PR that has not been pushed since the checks became required shows them as expected but not reported; merge current `main` into it to trigger them. CI does not run `pnpm build` (ENG-IMP-025), and it runs the app as the database superuser (ENG-IMP-091).
 
 **Results on 2026-10-07, `main` `d60bb94`:**
 
@@ -190,10 +190,9 @@ Health checks: `curl localhost:4000/` and `curl localhost:4000/db-health`.
 | 12 Ratings | — | MVP-044–047 |
 | 13 Hardening | — | MVP-048–051 |
 
-**Ready now:**
+**Ready now:** `MVP-011` and `MVP-012`, both AUTONOMOUS-READY.
 
-- `MVP-011` and `MVP-012` (both AUTONOMOUS-READY).
-- `MVP-009` (EXTERNAL-DEPENDENCY). A human merges it. Live email needs credentials.
+**Blocked:** `MVP-009`. Its dependencies are merged and Resend is selected. It is blocked on a Product/Architecture decision: Authentication §16.1 step 11 requires session revocation on reset, and no work item builds it (`ENG-IMP-016`).
 
 The critical path (plan §6) continues at `MVP-020`, which needs `MVP-011`. The first full transaction without payout (plan §6 checkpoint A) also needs `MVP-012`, `MVP-028`, `MVP-044`, and `MVP-045`.
 
@@ -201,12 +200,12 @@ The critical path (plan §6) continues at `MVP-020`, which needs `MVP-011`. The 
 
 - **None was closed:** no open issue meets its acceptance criteria, and none is obsolete, superseded, or a duplicate.
 - Every merged item's issue is closed (25).
-- No open issue carries the `blocked` label.
+- Only #11 carries the `blocked` label, for the decision above.
 - Bodies written before the 2026-10-01 decisions (#11, #32, #46, #54) carry a status banner.
 
 | Issue | Item | Title | Classification | Status | Why it stays open |
 |---|---|---|---|---|---|
-| [#11](https://github.com/xela-ash/Music_app/issues/11) | MVP-009 | Password reset and email verification | EXTERNAL-DEPENDENCY | READY | Not started. Buildable against the merged email adapter and mock. Live Resend delivery needs credentials. Session revocation on reset (ENG-IMP-016) has no work item. |
+| [#11](https://github.com/xela-ash/Music_app/issues/11) | MVP-009 | Password reset and email verification | EXTERNAL-DEPENDENCY | Blocked (decision) | Not started. Needs the Product/Architecture decision in ENG-IMP-016 (session revocation on reset). Live Resend delivery needs credentials. |
 | [#13](https://github.com/xela-ash/Music_app/issues/13) | MVP-011 | Asset retention, hold, and deletion | AUTONOMOUS-READY | READY | Not started. Unblocks MVP-020, MVP-031, MVP-033, MVP-039. |
 | [#14](https://github.com/xela-ash/Music_app/issues/14) | MVP-012 | Identity verification routes | AUTONOMOUS-READY | READY | Not started. The schema and asset FK exist; no routes. |
 | [#22](https://github.com/xela-ash/Music_app/issues/22) | MVP-020 | Deliverable and Submission model | AUTONOMOUS-READY | Waiting on MVP-011 | Not started. Next critical-path item. |
@@ -318,7 +317,7 @@ Other points for review:
 
 - **Credentials:** Cloudflare R2 bucket and token; Cashfree merchant approval and API keys; Resend API key and a verified sender domain.
 - **Malware scanner** for assets. It is not selected; an Assets specification open question.
-- **Still-open product questions** (each specification's Open Questions section). Examples: the asset session duration, rate, and concurrency limits (Assets §30.1); chargeback and post-payout recovery (Escrow EQ5, Disputes EQ1); the step-up authentication proof (Authorization §35.2 item 8); the `ENG-IMP-036` notification classes; and retention periods (Escrow EQ11).
+- **Still-open product questions** (each specification's Open Questions section). Examples: how session revocation on password reset is planned (`ENG-IMP-016`, which blocks MVP-009); the asset session duration, rate, and concurrency limits (Assets §30.1); chargeback and post-payout recovery (Escrow EQ5, Disputes EQ1); the step-up authentication proof (Authorization §35.2 item 8); the `ENG-IMP-036` notification classes; and retention periods (Escrow EQ11).
 - **Hosting:** no deployment target, application Dockerfile, TLS, or observability exists ([Build Record §4.21](20-engineering/engineering-build-record.md#421-deployment-and-infrastructure)).
 
 ## 13. Repository housekeeping (2026-10-06/07)
@@ -345,7 +344,8 @@ It is preserved as tag `archive/pr-72-full-mvp-screens` and branch `frontend/ful
 **Issues:**
 
 - #7 and #10 were closed with acceptance evidence.
-- The stale `blocked` label was removed from #29, #46, #54, and #11.
+- The stale `blocked` label was removed from #29, #46, and #54.
+- #11 keeps `blocked`: its provider blocker is resolved, but the ENG-IMP-016 decision remains.
 - After the four merges, 25 issues are closed and 27 are open. Each open issue was reviewed on 2026-10-07; see the table in Section 7.
 
 **Branches:**
@@ -358,7 +358,7 @@ It is preserved as tag `archive/pr-72-full-mvp-screens` and branch `frontend/ful
 
 ## 14. How to continue
 
-1. Pick a `READY` item from the [issue index](19-implementation-planning/github-issue-index.md): `MVP-011` (it unblocks critical-path `MVP-020`, and also `MVP-031` and `MVP-039`), `MVP-012`, or `MVP-009` (a human merges it).
+1. Pick a `READY` item from the [issue index](19-implementation-planning/github-issue-index.md): `MVP-011` (it unblocks critical-path `MVP-020`, and also `MVP-031` and `MVP-039`) or `MVP-012`. `MVP-009` needs the ENG-IMP-016 decision first.
 2. Follow the nine pre-implementation steps of [`AGENTS.md`](../AGENTS.md) §2 for every item. Update the Build Record, EDRs, and improvements register as §5 requires. The next free identifiers are `EDR-027`, `ENG-IMP-092`, and migration `024`.
 3. Merge `main` into a pull request before expecting CI on it. The four checks are required.
 4. Do not redesign working subsystems ([Handbook §20](20-engineering/engineering-handbook.md#20-refactoring-and-replacement)). Do not decide open product questions in code ([`AGENTS.md`](../AGENTS.md) §4).
