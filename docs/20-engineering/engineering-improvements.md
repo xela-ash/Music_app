@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.31 |
-| Last Reviewed | 2026-10-06 |
+| Version | 0.7.43 |
+| Last Reviewed | 2026-10-07 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -129,6 +129,9 @@ Copy this template for each new entry:
 | [ENG-IMP-022](#eng-imp-022-handbook-current-state-snapshots-predate-mvp-001-and-mvp-002) | Handbook current-state snapshots predate MVP-001 and MVP-002 | Documentation | Low | PROPOSED |
 | [ENG-IMP-023](#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting) | Outbox dispatcher has no process runner, transport, or alerting | Reliability, Observability, Architecture | Medium | PROPOSED |
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
+| [ENG-IMP-025](#eng-imp-025-ci-does-not-typecheck-or-build-the-frontend) | CI does not typecheck or build the frontend | CI/CD, Testing | Low | PROPOSED |
+| [ENG-IMP-026](#eng-imp-026-github-actions-are-referenced-by-major-tag) | GitHub Actions are referenced by major tag | CI/CD, Security | Low | PROPOSED |
+| [ENG-IMP-027](#eng-imp-027-ci-workflow-guard-test-does-not-run-if-the-backend-test-job-is-removed) | CI workflow guard test does not run if the backend-test job is removed | CI/CD, Testing | Low | PROPOSED |
 | [ENG-IMP-028](#eng-imp-028-future-authenticatable-statuses-are-not-covered-by-an-http-test) | Future authenticatable statuses are not covered by an HTTP test | Testing | Low | PROPOSED |
 | [ENG-IMP-029](#eng-imp-029-projectcreate-seller-eligibility-is-a-boolean-the-caller-supplies) | project.create seller eligibility is a boolean the caller supplies | Authorization | Low | PROPOSED |
 | [ENG-IMP-030](#eng-imp-030-profile-search-uses-an-unindexed-leading-wildcard) | Profile search uses an unindexed leading wildcard | Database, Performance | Low | PROPOSED |
@@ -151,7 +154,48 @@ Copy this template for each new entry:
 | [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
 | [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
 | [ENG-IMP-049](#eng-imp-049-a-matching-later-snapshot-can-move-the-agreed-pointer-without-an-amendment) | A matching later snapshot can move the agreed pointer without an amendment | Database | Low | PROPOSED |
+| [ENG-IMP-050](#eng-imp-050-milestone-lines-stay-inside-the-32-bit-project-total) | Milestone lines stay inside the 32-bit project total | Database | Low | PROPOSED |
+| [ENG-IMP-051](#eng-imp-051-the-milestone-lock-trigger-does-not-lock-the-project-row) | The milestone lock trigger does not lock the project row | Database | Low | PROPOSED |
+| [ENG-IMP-052](#eng-imp-052-the-incomplete-freeze-test-does-not-execute-the-update) | The incomplete-freeze test does not execute the update | Testing | Low | PROPOSED |
+| [ENG-IMP-053](#eng-imp-053-invite-readiness-does-not-recheck-catalogue-codes) | Invite readiness does not recheck catalogue codes | Backend | Low | PROPOSED |
+| [ENG-IMP-054](#eng-imp-054-revision-reason-codes-and-detail-bound-are-unspecified) | Revision reason codes and detail bound are unspecified | Backend | Low | PROPOSED |
+| [ENG-IMP-055](#eng-imp-055-milestone-transition-tests-do-not-cover-every-source-and-outcome) | Milestone transition tests do not cover every source and outcome | Testing | Low | PROPOSED |
+| [ENG-IMP-056](#eng-imp-056-the-state-trigger-does-not-bind-a-resume-exit-to-the-stored-state) | The state trigger does not bind a resume exit to the stored state | Database | Low | PROPOSED |
+| [ENG-IMP-057](#eng-imp-057-resume-does-not-recheck-funding-or-submission-facts) | Resume does not recheck funding or submission facts | Backend | Low | PROPOSED |
+| [ENG-IMP-058](#eng-imp-058-escrow-facts-are-not-re-identified-against-the-milestone) | Escrow facts are not re-identified against the milestone | Backend | Medium | PROPOSED |
+| [ENG-IMP-059](#eng-imp-059-interruption-events-and-superseded-milestones-are-incomplete) | Interruption events and superseded milestones are incomplete | Backend | Low | PROPOSED |
+| [ENG-IMP-060](#eng-imp-060-the-concurrent-start-test-does-not-resubmit-the-losing-key) | The concurrent start test does not resubmit the losing key | Testing | Low | PROPOSED |
+| [ENG-IMP-061](#eng-imp-061-escrow-audit-rows-do-not-store-amount-and-currency-as-columns) | Escrow audit rows do not store amount and currency as columns | Database | Low | PROPOSED |
+| [ENG-IMP-062](#eng-imp-062-the-application-role-owns-the-ledger-table) | The application role owns the ledger table | Security | Medium | PROPOSED |
+| [ENG-IMP-063](#eng-imp-063-the-ledger-poster-does-not-write-allocation-projections) | The ledger poster does not write allocation projections | Database | Medium | PROPOSED |
+| [ENG-IMP-064](#eng-imp-064-the-created-escrow-guard-watches-only-three-projections) | The created-escrow guard watches only three projections | Security | Low | PROPOSED |
+| [ENG-IMP-065](#eng-imp-065-refund-execution-does-not-see-holds-or-the-unallocated-pool) | Refund execution does not see holds or the unallocated pool | Escrow | Medium | PROPOSED |
+| [ENG-IMP-066](#eng-imp-066-the-refund-journal-does-not-reference-a-funding-payment) | The refund journal does not reference a funding Payment | Escrow | Medium | PROPOSED |
+| [ENG-IMP-067](#eng-imp-067-a-settled-allocation-with-a-release-stays-funded) | A settled allocation with a release stays funded | Escrow | Low | PROPOSED |
+| [ENG-IMP-068](#eng-imp-068-upload-session-duration-rate-and-concurrency-stay-open) | Upload session duration, rate, and concurrency stay open | Assets | Medium | PROPOSED |
+| [ENG-IMP-069](#eng-imp-069-image-and-archive-inspection-is-header-only) | Image and archive inspection is header-only | Assets | Medium | PROPOSED |
+| [ENG-IMP-070](#eng-imp-070-local-adapter-part-cap-is-an-inode-guard) | Local adapter part cap is an inode guard | Assets | Low | PROPOSED |
+| [ENG-IMP-071](#eng-imp-071-r2-completion-does-not-scan-provider-bytes) | R2 completion does not scan provider bytes | Assets | High | PROPOSED |
+| [ENG-IMP-072](#eng-imp-072-upload-completion-does-not-re-check-the-live-project-relationship) | Upload completion does not re-check the live project relationship | Assets | Medium | IMPLEMENTED |
+| [ENG-IMP-073](#eng-imp-073-completion-does-not-evaluate-the-duration-helper) | Completion does not evaluate the duration helper | Assets | Low | PROPOSED |
+| [ENG-IMP-074](#eng-imp-074-asset-audit-update-rejection-is-not-asserted) | Asset audit update rejection is not asserted | Assets | Low | PROPOSED |
+| [ENG-IMP-075](#eng-imp-075-seller-acceptance-does-not-repeat-the-fee-schedule) | Seller acceptance does not repeat the fee schedule | Escrow | Low | PROPOSED |
+| [ENG-IMP-076](#eng-imp-076-commission-helper-repeats-the-snapshot-rate) | Commission helper repeats the snapshot rate | Escrow | Low | PROPOSED |
+| [ENG-IMP-077](#eng-imp-077-fee-snapshot-immutability-test-does-not-delete) | Fee-snapshot immutability test does not delete | Testing | Low | PROPOSED |
+| [ENG-IMP-078](#eng-imp-078-seller-commission-timing-names-release) | Seller commission timing names release | Escrow | Low | PROPOSED |
+| [ENG-IMP-079](#eng-imp-079-the-cashfree-order-call-holds-the-funding-transaction) | The Cashfree order call holds the funding transaction | Payments | Medium | IMPLEMENTED |
+| [ENG-IMP-080](#eng-imp-080-expired-funding-attempts-are-not-cancelled-by-a-clock) | Expired funding attempts are not cancelled by a clock | Payments | Low | PROPOSED |
+| [ENG-IMP-081](#eng-imp-081-funding-confirmation-locks-the-project-after-the-payment) | Funding confirmation locks the project after the payment | Payments | Low | PROPOSED |
+| [ENG-IMP-082](#eng-imp-082-funding-confirmation-does-not-enqueue-allocationfunded) | Funding confirmation does not enqueue AllocationFunded | Escrow | Low | PROPOSED |
+| [ENG-IMP-083](#eng-imp-083-a-cashfree-5xx-marks-the-funding-attempt-failed) | A Cashfree 5xx marks the funding attempt failed | Payments | Low | IMPLEMENTED |
+| [ENG-IMP-084](#eng-imp-084-unused-direct-insert-repository-functions-remain) | Unused direct-insert repository functions remain | Users and profiles | Low | PROPOSED |
+| [ENG-IMP-085](#eng-imp-085-eng-imp-007-still-names-the-removed-creation-routes) | ENG-IMP-007 still names the removed creation routes | Documentation | Low | PROPOSED |
+| [ENG-IMP-086](#eng-imp-086-governed-role-grant-and-revoke-wait-on-step-up-assurance) | Governed role grant and revoke wait on step-up assurance | Authorization | High once the proof is decided | PROPOSED |
+| [ENG-IMP-087](#eng-imp-087-bootstrap-does-not-lock-the-user-row) | Bootstrap does not lock the user row | Authorization | Low | PROPOSED |
+| [ENG-IMP-088](#eng-imp-088-the-revocation-fixture-does-not-write-a-role-audit-row) | The revocation fixture does not write a role audit row | Authorization | Low | PROPOSED |
+| [ENG-IMP-089](#eng-imp-089-cashfree-order-creation-omits-customer_details) | Cashfree order creation omits customer_details | Payments | Low | PROPOSED |
 | [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
+| [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -793,7 +837,7 @@ Copy this template for each new entry:
 | Identified by | Cursor autonomous build, while implementing MVP-002 (GitHub issue #4) |
 | Category | Documentation |
 | Affected subsystem | Documentation |
-| Current state | [Handbook §5.1](engineering-handbook.md#51-current-verified-2026-09-25) still describes `backend/Index.js` as the whole backend. [Handbook §14](engineering-handbook.md#14-testing-strategy) still says no tests exist and that `backend/package.json`'s `test` script is a placeholder that exits 1. |
+| Current state | [Handbook §5.1](engineering-handbook.md#51-current-verified-2026-09-25) still describes `backend/Index.js` as the whole backend. [Handbook §14](engineering-handbook.md#14-testing-strategy) still says no tests exist and that `backend/package.json`'s `test` script is a placeholder that exits 1. After MVP-004, that section also still says CI is future work, while `.github/workflows/ci.yml` exists. |
 | Evidence / problem | MVP-001 split the backend into domain modules. MVP-002's `npm test` runs the smoke suite, and `frontend` has `pnpm test`. A later agent that trusts the handbook's "Current" paragraphs will plan against a repository that no longer exists. The Build Record is the implementation record; the handbook's current-state notes were not refreshed because MVP-002 does not change an engineering standard. |
 | Suggested improvement | Refresh the handbook's "Current" snapshots in one documentation pass after the corresponding build-record sections are verified. Do not change the required standards in the same edit unless a standard actually changed. |
 | Expected benefit | The next implementer does not rebuild the module split or the test harness. |
@@ -871,6 +915,96 @@ Copy this template for each new entry:
 | Status | PROPOSED |
 | Related GitHub Issue | [#5](https://github.com/xela-ash/Music_app/issues/5) (found in review; not implemented) |
 | Related PR | [#60](https://github.com/xela-ash/Music_app/pull/60) |
+| Resolution | — |
+
+### ENG-IMP-025 CI does not typecheck or build the frontend
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-025 |
+| Title | CI does not typecheck or build the frontend |
+| Date identified | 2026-09-28 |
+| Identified by | Cursor autonomous build, while implementing MVP-004 (GitHub issue #6) |
+| Category | CI/CD, Testing |
+| Affected subsystem | Frontend, CI |
+| Current state | `.github/workflows/ci.yml` runs `pnpm lint` and `pnpm test`. It does not run `pnpm build` (`tsc -b && vite build`). |
+| Evidence / problem | MVP-004's work column lists lint, backend test, frontend test, and a migration dry-run. A TypeScript error that ESLint and Vitest do not catch can merge. Local `pnpm build` is still a manual check. |
+| Suggested improvement | Add a frontend job that runs `pnpm build` once a later issue authorizes it. |
+| Expected benefit | Type errors and Vite build failures fail the pull request. |
+| Risk of doing nothing | A merged frontend change can fail the production build. |
+| Implementation risk | Low. The script already exists. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (found during implementation; not part of the acceptance criteria) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-026 GitHub Actions are referenced by major tag
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-026 |
+| Title | GitHub Actions are referenced by major tag |
+| Date identified | 2026-09-28 |
+| Identified by | Cursor autonomous build, while implementing MVP-004 (GitHub issue #6) |
+| Category | CI/CD, Security |
+| Affected subsystem | CI |
+| Current state | `.github/workflows/ci.yml` uses `actions/checkout@v4`, `actions/setup-node@v4`, and `pnpm/action-setup@v4`. |
+| Evidence / problem | A mutable major tag can move to a new commit without a repository change. The workflow grants `contents: read` only, which limits the blast radius, but it does not pin the action source. |
+| Suggested improvement | Pin each action to a full commit SHA and update those pins in a dedicated change. |
+| Expected benefit | CI runs a reviewed action revision. |
+| Risk of doing nothing | A compromised or broken tag update runs on the next pull request. |
+| Implementation risk | Low. Renovate or a manual pin update. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Minor positive once pinned |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A dedicated CI-hardening change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (found during implementation; not part of the acceptance criteria) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-027 CI workflow guard test does not run if the backend-test job is removed
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-027 |
+| Title | CI workflow guard test does not run if the backend-test job is removed |
+| Date identified | 2026-09-28 |
+| Identified by | Independent review of MVP-004 pull request #61, commit `00e9d7b` |
+| Category | CI/CD, Testing |
+| Affected subsystem | CI, Testing |
+| Current state | `backend/test/ci-workflow.test.js` asserts that `.github/workflows/ci.yml` still defines `lint`, `frontend-test`, `backend-test`, and `migration-dry-run`. `npm test` runs only in the `backend-test` job. |
+| Evidence / problem | Deleting the `backend-test` job would also delete the process that runs this test. The other three jobs could stay green. Deleting one of those three jobs still fails `backend-test`, because the test file runs there. |
+| Suggested improvement | Run the workflow-structure test in a job that does not depend on `backend-test`, or add a second copy of that check to another job. |
+| Expected benefit | Removing the backend test job cannot silently drop its own guard. |
+| Risk of doing nothing | Low. The job is visible in the workflow file and in review. |
+| Implementation risk | Low. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (review finding; not part of the acceptance criteria) |
+| Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
 | Resolution | — |
 
 ### ENG-IMP-028 Future authenticatable statuses are not covered by an HTTP test
@@ -2073,6 +2207,486 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-068 Upload session duration, rate, and concurrency stay open
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-068 |
+| Title | Upload session duration, rate, and concurrency stay open |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | Create returns `503` `session_ttl_unconfigured` unless `ASSET_UPLOAD_SESSION_TTL_SECONDS` is a positive safe integer. Tests set `3600`. Rate and concurrency limits are not implemented. |
+| Evidence / problem | Assets §30.1 leaves the session duration, rate, and concurrency numbers open. Inventing them would be a product decision. |
+| Suggested improvement | When Product sets those numbers, enforce them in the session create path and stop treating the test value as configuration. |
+| Expected benefit | Upload sessions expire and throttle on an approved policy instead of an operator-supplied duration. |
+| Risk of doing nothing | An unset environment refuses new sessions. A long configured duration leaves reserved quota in place until expiry. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A product number for each limit. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None beyond the disclosed fail-closed duration. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | After the product numbers exist |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-069 Image and archive inspection is header-only
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-069 |
+| Title | Image and archive inspection is header-only |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | PNG and JPEG dimensions come from the container header. HEIC fails closed. There is no full raster decode, no EXIF strip, and no archive entry, depth, or expansion-ratio check. DAW objects stay opaque. |
+| Evidence / problem | §7.3 requires unverified dimensions to fail closed and leaves archive expansion limits open. A header-only PNG of exactly `25000000` pixels can become Ready without a decoded bitmap. |
+| Suggested improvement | Decode supported rasters, strip metadata before a derivative is stored, and apply an approved archive policy if Product sets one. |
+| Expected benefit | Pixel and archive limits are enforced on the bytes a client can actually decode. |
+| Risk of doing nothing | A truncated or hostile image can pass the header check. DAW archives remain unextracted, which is the current decision. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | None for EXIF stripping. Archive numbers remain a product decision. This entry does not authorize those numbers. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | Malicious image payloads are not fully inspected. |
+| Performance impact | A later decoder would add CPU on the completion path. |
+| Priority suggestion | Medium |
+| Recommended timing | Before production image delivery |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-070 Local adapter part cap is an inode guard
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-070 |
+| Title | Local adapter part cap is an inode guard |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | The local adapter rejects a part number above `10000`. |
+| Evidence / problem | That cap protects the test filesystem from unbounded part files. It is not a product quota and it is not applied to Cloudflare R2. |
+| Suggested improvement | Keep the guard local to the mock adapter and do not copy it into the R2 path or the purpose policy. |
+| Expected benefit | A later reader does not treat `10000` as an approved upload limit. |
+| Risk of doing nothing | The constant can be mistaken for a product rule. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a product part-count limit. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | When the local adapter is next touched |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-071 R2 completion does not scan provider bytes
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-071 |
+| Title | R2 completion does not scan provider bytes |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | The R2 adapter can reserve a multipart upload and presign a part URL. `completeMultipart` does not download the object, hash it, or scan it. Live credentials are not in the repository. |
+| Evidence / problem | `REQ-ASSET-004` requires scan and validation before Ready. The local adapter does that. The R2 path cannot yet prove the stored object. |
+| Suggested improvement | On R2 completion, verify the provider object's size and checksum, read a bounded prefix, and run the same scan gate before Ready. |
+| Expected benefit | A direct R2 upload cannot become Ready without the same validation as the local adapter. |
+| Risk of doing nothing | Production selection of R2 would refuse file bodies and would not finish validation. The local path remains the tested Ready path. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | R2 credentials for live verification. This entry does not authorize committing them. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | The unvalidated R2 completion path must stay unable to mark Ready. |
+| Performance impact | A later prefix read is bounded. |
+| Priority suggestion | High |
+| Recommended timing | Before any environment sets `ASSET_STORAGE_PROVIDER=r2` for real uploads |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-072 Upload completion does not re-check the live project relationship
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-072 |
+| Title | Upload completion does not re-check the live project relationship |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | Create checks the live profile owner or the live buyer or active seller. Write, complete, grant, and read allow the session uploader. `requireAuth` still re-checks account status. |
+| Evidence / problem | Assets §13.2 gate 15 asks for a fresh relationship check before Ready. The binding row is also inserted when the session is created, before the scan gate. |
+| Suggested improvement | Re-authorize the live relationship inside complete, and move the binding insert to the Ready transition. |
+| Expected benefit | A participant who loses access after create cannot finish the upload. |
+| Risk of doing nothing | The uploader recorded at create can still complete. Account status is still checked. |
+| Implementation risk | Medium |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | The completion path trusts the uploader recorded at create. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the next asset authorization change |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | Completion re-reads the live profile or the live buyer or active seller and does not mark the asset Ready when that relationship is gone. |
+
+### ENG-IMP-073 Completion does not evaluate the duration helper
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-073 |
+| Title | Completion does not evaluate the duration helper |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | `AUDIO_DURATION_CEILING_MS` and `VIDEO_DURATION_CEILING_MS` are null. The limit unit test locks those constants. Completion stores `duration_ms` as null and does not call `durationExceedsCeiling`. |
+| Evidence / problem | The approved decision is that no ceiling exists. The helper is unused, so a later non-null constant would not be enforced until completion calls it. |
+| Suggested improvement | Call the helper when a detector supplies `duration_ms`. Keep the null ceilings. |
+| Expected benefit | A future approved ceiling is enforced in one place. |
+| Risk of doing nothing | The current null ceilings cannot reject a duration. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a duration ceiling. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | If a duration detector is added |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
+### ENG-IMP-074 Asset audit update rejection is not asserted
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-074 |
+| Title | Asset audit update rejection is not asserted |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | `asset_audit_events` is append-only. The constraint test deletes a row and updates a Ready asset. It does not attempt an audit `UPDATE`. |
+| Evidence / problem | A trigger edit that still rejects `DELETE` but allows `UPDATE` would pass the current test. |
+| Suggested improvement | Assert that an audit `UPDATE` raises. |
+| Expected benefit | The append-only rule is covered for both mutation kinds. |
+| Risk of doing nothing | `DELETE` coverage remains. `UPDATE` is enforced by the same trigger and is untested. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a behavior change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the next asset constraint test |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
+### ENG-IMP-075 Seller acceptance does not repeat the fee schedule
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-075 |
+| Title | Seller acceptance does not repeat the fee schedule |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 implementation |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding intent returns schedule `2026-10-01` to the Buyer. Seller acceptance of a proposal does not include that schedule. `buyer_acknowledged_at` and `seller_acknowledged_at` stay null. |
+| Evidence / problem | Escrow §19.4 says the snapshot is disclosed to the Seller before acceptance. The 2026-10-01 decision requires disclosure before funding, which the funding-intent response does. Acceptance happens before that response exists, so this item does not invent a second disclosure surface. |
+| Suggested improvement | When a later item can show the recorded schedule on seller acceptance, store the seller acknowledgment time on the snapshot that funding then freezes. |
+| Expected benefit | The Seller sees the same immutable lines before agreeing to the Project. |
+| Risk of doing nothing | The Buyer still receives the snapshot before funding. The Seller does not see it on the acceptance response. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A seller-facing acceptance response that can carry the schedule. This entry does not authorize that response. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a seller acceptance disclosure surface |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-076 Commission helper repeats the snapshot rate
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-076 |
+| Title | Commission helper repeats the snapshot rate |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | `sellerCommissionMinor` multiplies by a hardcoded `1000n`. `FEE_LINES[0].rate_bps` is also `1000`. |
+| Evidence / problem | The two constants match the recorded schedule today. A later edit could change one and leave the other. |
+| Suggested improvement | Read the seller-commission basis points from the snapshotted line when a release item computes the fee. |
+| Expected benefit | The posted fee cannot drift from the row the escrow references. |
+| Risk of doing nothing | Both values are `1000` on schedule `2026-10-01`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The release item that posts the commission. This entry does not authorize that posting. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With MVP-028 |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-077 Fee-snapshot immutability test does not delete
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-077 |
+| Title | Fee-snapshot immutability test does not delete |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Testing |
+| Affected subsystem | Escrow |
+| Current state | `funding-intent.http.test.js` rejects an `UPDATE` of `fee_lines`. It does not issue a `DELETE`. |
+| Evidence / problem | The same trigger function rejects both. The test proves the update path only. |
+| Suggested improvement | Add a `DELETE` assertion next to the update assertion. |
+| Expected benefit | A trigger that stopped rejecting deletes would fail the suite. |
+| Risk of doing nothing | `DELETE` is still rejected by `escrow_fee_snapshots_no_delete`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the extra assertion by itself. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a later escrow test change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-078 Seller commission timing names release
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-078 |
+| Title | Seller commission timing names release |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | The seller line stores `timing: "release"` and `basis: "seller_award"`. |
+| Evidence / problem | Escrow §19.2 says the commission is taken at release or award. The funding-intent command does not post it. |
+| Suggested improvement | When the release item posts the commission, keep the basis as the seller award, including a dispute award that is not a milestone release. |
+| Expected benefit | A split award still uses the snapshotted 10% line. |
+| Risk of doing nothing | No commission is posted by this item. The basis already says `seller_award`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | MVP-028. This entry does not authorize a fee journal. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the release posting |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-079 The Cashfree order call holds the funding transaction
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-079 |
+| Title | The Cashfree order call holds the funding transaction |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 implementation |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The funding payment and its provider reference commit before `createFundingIntent`. An uncertain provider result leaves the row `created`. The same idempotency key retries that reference. |
+| Evidence / problem | The first draft called the provider inside the open transaction. A commit failure after a successful provider call would have rolled back the only local copy of the order id. |
+| Suggested improvement | Implemented in the MVP-025 review repair: persist the reference, commit, then call the provider. |
+| Expected benefit | Provider latency does not block other project commands. |
+| Risk of doing nothing | The mock path used by tests does not call the network. A live Cashfree create holds the locks for the HTTP round trip. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | A live Cashfree credential. This entry does not authorize a second funding path. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | Live creates hold project and escrow locks for the provider round trip. |
+| Priority suggestion | Medium |
+| Recommended timing | Before production Cashfree activation |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | The review repair commits the payment reference before the provider call. |
+
+### ENG-IMP-080 Expired funding attempts are not cancelled by a clock
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-080 |
+| Title | Expired funding attempts are not cancelled by a clock |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 implementation |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | A funding payment expires 24 hours after creation. The next create cancels an expired open attempt so a new idempotency key can proceed. A webhook for an expired attempt cancels it and does not fund. No process scans for expiry on its own. |
+| Evidence / problem | Until one of those commands runs, the row stays in its open status even though its `expires_at` is past. D13 does not require a scheduler. |
+| Suggested improvement | Add an operational expiry sweep only if a later specification requires attempts to leave the open status without a buyer or provider call. |
+| Expected benefit | Open-payment reports would not show an attempt that can no longer fund. |
+| Risk of doing nothing | A later buyer create still cancels the expired row and can start a new attempt. The accepted project is not cancelled. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a scheduler. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None until a sweep exists. |
+| Priority suggestion | Low |
+| Recommended timing | If operations need expired rows to leave the open status without a new attempt |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-081 Funding confirmation locks the project after the payment
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-081 |
+| Title | Funding confirmation locks the project after the payment |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The webhook locks the payment and the escrow, then `applyJournal` locks the project. Another command that already holds the project lock can deadlock. PostgreSQL aborts one transaction. |
+| Evidence / problem | The review of pull request #103. Balances stay consistent because the aborted transaction rolls back. |
+| Suggested improvement | Lock the project before the payment when the webhook confirms funding. |
+| Expected benefit | Concurrent project commands fail with a conflict instead of a deadlock abort. |
+| Risk of doing nothing | One of the two transactions is aborted and can be retried. Money is not applied twice. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a lock-order rewrite. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | A deadlock abort retries one command. |
+| Priority suggestion | Low |
+| Recommended timing | With a later funding concurrency pass |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-082 Funding confirmation does not enqueue AllocationFunded
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-082 |
+| Title | Funding confirmation does not enqueue AllocationFunded |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding confirmation enqueues `EscrowFunded` and applies M02 in the same transaction. It does not enqueue `AllocationFunded`. |
+| Evidence / problem | The review of pull request #103. Milestone rows still reach `funded`. |
+| Suggested improvement | Enqueue `AllocationFunded` with the project id and term version when a later consumer needs that event. |
+| Expected benefit | A downstream consumer can see each allocation funding without reading the milestone table. |
+| Risk of doing nothing | The milestone transition is already applied. No consumer reads `AllocationFunded` today. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | An outbox consumer. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the outbox dispatcher |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
+### ENG-IMP-083 A Cashfree 5xx marks the funding attempt failed
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-083 |
+| Title | A Cashfree 5xx marks the funding attempt failed |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | `createFundingIntent` throws `payment_provider_rejected` for every non-OK HTTP response. The service then marks the payment `failed` and completes the idempotency key. A network throw stays `payment_provider_uncertain` and leaves the row `created`. |
+| Evidence / problem | The re-review of pull request #103. A provider 5xx can mean the order was not created, or that the result was lost. Marking it failed prevents the same key from retrying that reference. |
+| Suggested improvement | Treat HTTP 5xx like an uncertain result: leave the payment `created` and let the same idempotency key retry. |
+| Expected benefit | A transient provider error does not burn the order reference. |
+| Risk of doing nothing | The buyer can start a new idempotency key after a failed attempt. No live Cashfree call exists yet. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A live Cashfree credential. This entry does not authorize a retry-policy change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before production Cashfree activation |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | HTTP 5xx from Cashfree is `payment_provider_uncertain`. The payment stays `created` and the same idempotency key can retry. |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2223,6 +2837,36 @@ Copy this template for each new entry:
 | Related PR | [#106](https://github.com/xela-ash/music_app/pull/106) |
 | Resolution | — |
 
+### ENG-IMP-089 Cashfree order creation omits customer_details
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-089 |
+| Title | Cashfree order creation omits customer_details |
+| Date identified | 2026-10-02 |
+| Identified by | MVP-025 independent review |
+| Category | Payments |
+| Affected subsystem | Payments |
+| Current state | The Cashfree order body sends `order_id`, `order_amount`, and `order_currency`. |
+| Evidence / problem | Cashfree API version `2023-08-01` documents `customer_details.customer_id` and `customer_details.customer_phone` as required. This repository has no phone number to send, and inventing one is not authorized. |
+| Suggested improvement | When a specified customer identifier and phone source exist, include them. Do not invent a phone number. |
+| Expected benefit | A configured Cashfree call can create an order. |
+| Risk of doing nothing | Live activation fails until the body matches the provider contract. Mock tests do not call Cashfree. |
+| Implementation risk | Low once the phone source is specified |
+| Estimated scope | S |
+| Dependencies | A specified phone source. This entry does not authorize inventing one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | A phone number must not be logged |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before production Cashfree activation |
+| Status | PROPOSED |
+| Related GitHub Issue | [#27](https://github.com/xela-ash/Music_app/issues/27) |
+| Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
+| Resolution | — |
+
 ### ENG-IMP-090 Full MVP frontend screen set from pull request #72 is preserved, unmerged
 
 | Field | Value |
@@ -2253,6 +2897,36 @@ Copy this template for each new entry:
 | Related PR | [#72](https://github.com/xela-ash/Music_app/pull/72) (closed, unmerged) |
 | Resolution | — |
 
+### ENG-IMP-091 CI cannot exercise privilege-based database protections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-091 |
+| Title | CI cannot exercise privilege-based database protections |
+| Date identified | 2026-10-06 |
+| Identified by | Independent review of the MVP-004 reconciliation, pull request #61, commit `36a7d88` |
+| Category | CI/CD, Testing, Security |
+| Affected subsystem | CI, Testing, Escrow |
+| Current state | In `.github/workflows/ci.yml` the `postgres:16` service is created with `POSTGRES_USER: musicapp`, so the application role `musicapp` is that container's superuser. Migration `020_escrow_ledger_posting.sql` both adds append-only triggers on `escrow_ledger` and runs `REVOKE UPDATE, DELETE, TRUNCATE ON escrow_ledger FROM musicapp`. In the Cursor image, `musicapp` is an ordinary role created by `.cursor/lib/postgres.sh`. |
+| Evidence / problem | A superuser bypasses privilege checks, so CI tests the trigger layer only. A regression that dropped the `REVOKE`, or a future protection that relies only on privileges, would stay green in CI. |
+| Suggested improvement | In the `backend-test` job, create a non-superuser application role (for example with a setup step or an init script), run the suite as that role, and keep `MUSICAPP_TEST_ADMIN_USER` as the superuser used only for fixture reset. |
+| Expected benefit | CI runs with the same privilege split as the Cursor environment and production. |
+| Risk of doing nothing | Low today, because every current ledger protection is also enforced by a trigger. |
+| Implementation risk | Low. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Minor positive: privilege-based protections become testable in CI |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (review finding; not part of the acceptance criteria) |
+| Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2260,7 +2934,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 | Observation | Owner |
 |---|---|
 | `backend/Index.js` and `frontend/src/App.tsx` are single-module tiers | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle); backend: MVP-001 |
-| No automated tests or CI | MVP-002, MVP-004 |
+| Automated tests and CI were absent at the initial review | Closed for the harness by MVP-002 and for the workflow by MVP-004. Remaining coverage gaps stay with the findings that own them, including `SEC-PROJECTS-019` |
 | `POST /users` and `POST /profiles` are removed. `GET /users` stays unauthenticated. | `SEC-001` / MVP-005; `SEC-AUTH-008` |
 | Open CORS, no rate limiting, no JWT algorithm allowlist, weak secret accepted | `SEC-AUTH-004`, `SEC-AUTH-005`, `SEC-AUTH-009`, `SEC-AUTH-006` ([Authentication](../02-users-roles-permissions/authentication.md)) |
 | Account status was not re-checked on protected routes | Current `requireAuth` routes reload `users.status` in MVP-006. `SEC-AUTH-002` stays in `authentication.md` until Product/Architecture updates that document. |
@@ -2327,4 +3001,16 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. | Engineering |
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
 | 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
-| 0.7.31 | 2026-10-06 | Added `ENG-IMP-090` (PROPOSED) during the repository consolidation: pull request #72's frontend screen set is closed unmerged and preserved for a future approved frontend issue. Not authorized. | Engineering |
+| 0.7.31 | 2026-10-06 | MVP-004 reconciled with `main`: added `ENG-IMP-025` (PROPOSED, CI does not run `pnpm build`), `ENG-IMP-026` (PROPOSED, Actions referenced by major tag), and `ENG-IMP-027` (PROPOSED, the workflow-structure test runs only inside `backend-test`), all first recorded on pull request #61 on 2026-09-28. Noted in `ENG-IMP-022` that Handbook §14 still calls CI future work. None is authorized. | Engineering |
+| 0.7.32 | 2026-10-06 | Added `ENG-IMP-091` (PROPOSED) from the independent review of the MVP-004 reconciliation: CI runs as the database superuser, so privilege-based protections are not exercised there. Not authorized. | Engineering |
+| 0.7.33 | 2026-10-01 | Added `ENG-IMP-075` (PROPOSED): seller acceptance does not repeat the fee schedule. Not authorized. `ENG-IMP-068` through `ENG-IMP-074` remain on the unmerged MVP-010 branch. | Engineering |
+| 0.7.34 | 2026-10-01 | Added `ENG-IMP-076`, `ENG-IMP-077`, and `ENG-IMP-078` (all PROPOSED) from the MVP-027 review. None are authorized. | Engineering |
+| 0.7.35 | 2026-10-07 | Reconciled MVP-027 with `main` after MVP-043 and MVP-004; this branch's rows are renumbered to `0.7.33`–`0.7.34`. No entry status changed. No application behavior changed by the reconciliation. | Engineering |
+| 0.7.36 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
+| 0.7.37 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
+| 0.7.38 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
+| 0.7.39 | 2026-10-07 | Reconciled MVP-025 with `main` after MVP-043, MVP-004, and MVP-027; this branch's rows are renumbered to `0.7.36`–`0.7.38`. Records what those rows omit: `ENG-IMP-083` was set to IMPLEMENTED by the second review repair, and `ENG-IMP-089` (PROPOSED) was added. Row `0.7.36` predates the MVP-027 merge: `ENG-IMP-075`–`078` are now on `main`, and only `068`–`074` remain on pull request #98. Neither change authorizes further work. | Engineering |
+| 0.7.40 | 2026-10-01 | Added `ENG-IMP-068` through `ENG-IMP-071` (all PROPOSED) from MVP-010. None are authorized. | Engineering |
+| 0.7.41 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
+| 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |
+| 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's content or status changed. None is authorized. | Engineering |

@@ -7,10 +7,10 @@
 | Document ID | SPEC-ASSET-000 (provisional — see §4.1) |
 | Type | Specification (SPEC) |
 | Status | Approved |
-| Version | 1.1.0 |
+| Version | 1.2.0 |
 | Owner | Engineering (interim: repository maintainers) |
 | Repository branch | `docs/specification-foundation` |
-| Last Reviewed | 2026-07-23 |
+| Last Reviewed | 2026-10-01 |
 | Applies To | All MusicApp platform-managed uploads, stored objects, derived media, bindings, and file delivery |
 | Related documents | [`product-overview.md`](../01-foundation/product-overview.md), [`system-architecture.md`](../01-foundation/system-architecture.md), [`users.md`](../02-users-roles-permissions/users.md), [`authentication.md`](../02-users-roles-permissions/authentication.md), [`authorization.md`](../02-users-roles-permissions/authorization.md), [`roles.md`](../02-users-roles-permissions/roles.md), [`profiles.md`](../02-users-roles-permissions/profiles.md), [`verification.md`](verification.md), [`user-settings.md`](user-settings.md) |
 | Supersedes / Superseded By | None |
@@ -211,7 +211,7 @@ flowchart LR
 
 ### 7.1 Size-policy classes
 
-Exact byte values are deployment policy pending §30. The class is nevertheless mandatory and server-enforced:
+The classes below remain mandatory and server-enforced. The numeric byte, pixel, duration, and Project-quota values approved on 2026-10-01 are in §7.3. Page, concurrency, and rate numbers remain open in §30.
 
 | Class | Intended envelope | Rule |
 |---|---|---|
@@ -246,6 +246,39 @@ Exact byte values are deployment policy pending §30. The class is nevertheless 
 | System-Generated Export | Requesting domain; System is custodian/generator | System for authorized requester | Requester and explicitly granted recipients | Owner Only or System Only | Server-created archive/document / `EXPORT-L` | Short configured expiry unless owning policy requires longer | Generate asynchronously, scan package where applicable, force download | Expiry schedules deletion; no permanent public link | Not Implemented |
 | Moderation Evidence | Moderation | Moderator, trusted system, or report flow | Assigned Moderator and explicitly authorized Administrator | Moderator Restricted | Approved evidence classes / `ATTACH-M` | Moderation/legal retention and hold policy | Scan, provenance/hash preservation, restricted preview | Hold and immutable audit requirements | Not Implemented |
 | Future Asset Purpose | Unassigned until approved | None by default | None by default | Quarantined | `DENY` | None; reject or expire session | No processing except safe rejection | Cannot bind or deliver until policy review | Not Implemented; deny-by-default extension point |
+
+### 7.3 Upload limits (Decision 2026-10-01)
+
+Product confirmed these limits on 2026-10-01. They resolve the byte, decoded-pixel, audio/video duration, and per-Project retained-byte parts of §30.1 priority 2. They do not select a scanner, a codec list, a session duration, a rate limit, a concurrency limit, or a page limit. Production object storage is selected separately in this section.
+
+**Byte interpretation.** Every limit in this section is an integer number of bytes. `1 MB` means `1000000` bytes (`10^6`). `1 GB` means `1000000000` bytes (`10^9`). These are decimal SI units, not IEC mebibytes or gibibytes. Components MUST use these integers. A client MUST NOT supply a different scale, and a display layer MUST NOT infer a different scale from the words MB or GB.
+
+| Limit class | Integer maximum | Approved purposes |
+|---|---|---|
+| Profile image | `20000000` (20 MB) | Profile Avatar, Profile cover (Profile Banner) |
+| Audio preview / reference | `500000000` (500 MB) | Audio preview or reference file |
+| Final audio deliverable | `2000000000` (2 GB) | Final audio deliverable |
+| Stem or individual audio track | `2000000000` (2 GB) | Stem or individual audio track |
+| Video / reference media | `5000000000` (5 GB) | Video or reference media |
+| DAW project / session / archive | `10000000000` (10 GB) | DAW project, session, or archive |
+| Other project file | `10000000000` (10 GB) | Other project file |
+| Project storage quota | `50000000000` (50 GB) | Sum of stored Asset bytes bound to one Project |
+
+A size equal to the class maximum is accepted. One byte over that maximum is rejected. The check runs on the server from the observed byte count. The client's declared size is only a reservation and is not evidence of the stored size.
+
+**Image pixels.** A raster image is rejected when its decoded pixel count exceeds `25000000`. The count is `width × height`. A count of exactly `25000000` is accepted. The server MUST NOT impose a separate fixed width or height pair when it can evaluate that product. A smaller width or height remains acceptable when the file also satisfies the byte maximum and the supported-format rules. An image whose dimensions cannot be verified fails closed and does not become `Ready`.
+
+**Duration.** MVP has no audio duration ceiling and no video duration ceiling. The applicable byte maximum is the storage safeguard. `duration_ms` may still be stored when a later detector observes it. Absence of a ceiling is the decision. It is not an omitted field and it is not permission for a component to invent a duration maximum.
+
+**Project quota.** `50000000000` bytes is the maximum stored Asset data for one Project. It is not a lifetime user or account quota. Profile Avatar and Profile cover bytes are not Project bytes and do not consume it. The quota is a server-side policy value so a later configuration or plan change can replace the constant without a second byte representation. Bytes reserved by an open upload session count until the session is sealed, expired, or aborted. A total equal to the quota is accepted. One byte over it is rejected.
+
+**Upload path.** Profile image sessions use server-mediated streaming. Every approved purpose whose maximum is larger than the 20 MB profile-image class uses a direct resumable multipart upload session. The storage adapter MUST be able to create, write, complete, and abort a multipart upload so those objects are not required to pass through the application server as a buffered body.
+
+**Production storage provider (Decision 2026-10-01).** Cloudflare R2 Standard is the selected beta and production object-storage provider. The domain model and the adapter interface stay provider-neutral (`BR-ASSET-019`, `INT-ASSET-006`). A local/mock adapter remains the deterministic adapter for automated tests. The R2 adapter is selected only by environment configuration. Account, access-key, secret, and bucket values are never committed. Missing configuration fails closed and does not report a successful upload. Live R2 verification stays outstanding until those credentials exist. This selection does not choose a CDN, a malware scanner, a residency region, or a secret-management product.
+
+**Formats this decision does not expand.** General user-supplied archives, SVG, office documents, and executables stay denied (§13.1). The DAW class is the one approved exception: its object is stored opaquely under the 10 GB maximum and is not extracted. Entry count, nesting depth, and expansion ratio remain open and are not invented here. Bit depth, sample rate, and channel layout stay out of this decision; the model MUST NOT prevent them becoming structured metadata later. Verification, portfolio, message, dispute, organization, review, moderation, and export purposes are not given a number by this decision and stay non-uploadable until their own limit is approved.
+
+**Checks against related specifications.** Projects does not store file bytes, and removing a Project binding does not delete bytes. Milestones §9.3 records the deliverable catalogue and states that it does not select an upload ceiling. Deliverables `REQ-PROJECTS-046` forbids Deliverable byte storage and binds `Ready` Asset versions by identity. Escrow and Payments do not define an Asset byte policy. None of those documents states a conflicting byte, pixel, duration, or quota figure. This section does not change milestone amounts, the deliverable catalogue, revision allowance, or any money movement.
 
 ## 8. Asset visibility
 
@@ -401,6 +434,8 @@ Session authorization is narrow: one uploader, one purpose, one intended binding
 | Direct-to-storage multipart | Future large audio/video | Session creates provider multipart ID; parts upload with bounded scopes; completion lists/validates parts | Resume/retry and large-file scalability | More cleanup, checksum, quota, and duplicate-completion complexity |
 
 “Multipart” at the provider layer is distinct from HTTP `multipart/form-data`. The MVP API may accept a streamed multipart form or raw body, but the adapter contract must not expose provider-specific multipart concepts to owning domains.
+
+§7.3 decides the MVP path split and the production provider. Profile images stay on server-mediated streaming. Larger approved purposes use the direct multipart session contract against the provider-neutral adapter. Cloudflare R2 Standard is the selected beta/production provider. The local/mock adapter remains the test adapter. Credentials stay in the environment.
 
 A **pre-signed upload** is the direct-to-storage form of that scoped operation: an expiring, single-session credential restricted to the reserved staging key, method, size/content constraints the provider can enforce, and—where supported—checksum. It carries no read/list/delete authority. The completion acknowledgement means only “sealed and accepted for asynchronous validation,” not “safe” or `Ready`.
 
@@ -1455,8 +1490,8 @@ No existing specification is modified in this task. A future documentation recon
 | 1 | What exact retention and backup-expiry periods apply to Verification Documents/Selfies, disputes, moderation, Projects, Messages, public Profile media, and audit? | Product / Legal / Compliance / owning domains | Use versioned policy with no universal number; Verification must be explicitly bounded |
 | 1 | What is the authoritative disposition of any existing non-null unresolved Profile/Verification UUID during migration? | Data owner / Security / Compliance | Inventory first; never fabricate Ready Assets; block or quarantine sensitive inconsistency |
 | 1 | Which file types may Verification accept in target architecture—only current JPEG/PNG/HEIC/HEIF images, or reviewed PDF support? | Identity Verification / Security / Compliance | Images only under current schema; PDF remains disabled for Verification |
-| 2 | What per-purpose byte, decoded-pixel, page, duration, quota, concurrency, and rate limits are approved? | Product / Security / Operations | Enforce centrally configured conservative limits; large media disabled until decided |
-| 2 | Which production storage, CDN, scanner, and secret-management capabilities meet encryption, deletion, audit, residency, and portability requirements? | Infrastructure / Security / Compliance | Domain remains provider-neutral; no production launch without capability review |
+| 2 | What per-purpose byte, decoded-pixel, page, duration, quota, concurrency, and rate limits are approved? | Product / Security / Operations | Partially resolved 2026-10-01 (§7.3): the listed byte classes, the `25000000` pixel maximum, no audio/video duration ceiling, and a `50000000000` byte Project quota. Page, concurrency, and rate limits remain open. Purposes without a number in §7.3 stay non-uploadable |
+| 2 | Which production storage, CDN, scanner, and secret-management capabilities meet encryption, deletion, audit, residency, and portability requirements? | Infrastructure / Security / Compliance | Partially resolved 2026-10-01 (§7.3): Cloudflare R2 Standard is the selected beta/production object store. The adapter stays provider-neutral, credentials are environment-only, and live verification is outstanding until they exist. CDN, scanner, secret-management product, and residency remain open. No production launch without that remaining capability review |
 | 2 | Which regions, residency boundaries, and replication rules apply to Verification and other restricted evidence? | Legal / Compliance / Infrastructure | Do not deploy restricted storage until an approved residency and replication policy exists; the repository has no current storage deployment |
 | 2 | What exact signed-delivery TTL classes, public cache TTLs, purge guarantees, and immediate-revocation cases apply? | Security / Infrastructure / owning domains | Use shortest practical restricted TTL; no shared cache for private content |
 | 2 | Should Authorization's exhaustive step-up scope be revised to include any Asset operation, such as high-risk deletion or privileged document access? | Authorization / Security | This document does not silently add step-up; apply only where current Authorization policy requires it |
@@ -1466,7 +1501,7 @@ No existing specification is modified in this task. A future documentation recon
 | 2 | What Organization media roles, delegation, visibility, and organization-deletion behavior apply once Organization schema exists? | Organizations / Authorization | No upload/binding until explicit membership/role policy exists |
 | 3 | What exact API envelopes, permission keys, idempotency windows, pagination, and error-detail policy apply? | API / Authorization | Use conceptual `INT-ASSET-*`; do not mint permission keys before catalog |
 | 3 | Which checksum algorithm(s), encryption-key model, and deduplication scope are approved? | Security / Infrastructure / Privacy | Strong versioned digest; no cross-boundary dedup/existence disclosure |
-| 3 | When does direct-to-storage replace/augment server-mediated upload, and which purpose/size threshold triggers multipart? | Architecture / Operations | Bounded images/documents only through MVP server path; large media disabled |
+| 3 | When does direct-to-storage replace/augment server-mediated upload, and which purpose/size threshold triggers multipart? | Architecture / Operations | Resolved 2026-10-01 (§7.3): profile images use server-mediated streaming; every approved purpose above that 20 MB class uses direct multipart through the provider-neutral adapter. Cloudflare R2 Standard is the selected production provider |
 | 3 | Which processor recipes, codecs, rendition sizes, preview formats, and accessibility derivatives are required? | Product / Design / Media Engineering | Minimal Avatar/image variants first; version every recipe |
 | 3 | What audit store/retention and tamper-evidence mechanism is shared with Authentication/Authorization? | Security / Compliance / Architecture | Durable append-only logical contract; sensitive actions fail closed if audit unavailable |
 | 3 | What numeric SLOs, RPO/RTO, deletion completion target, orphan grace, queue-lag threshold, and cost budgets apply? | Operations / Product / Compliance | Instrument from first implementation; alert thresholds set before production |
@@ -1598,3 +1633,4 @@ Validation completed on 2026-07-23: one H1; sections 1–33 in sequence; 112 hea
 |---|---|---|---|
 | 1.0.0 | 2026-07-23 | Initial approved Assets and Media specification: canonical provider-neutral identity, ingest, validation, storage, delivery, bindings, variants, retention/deletion, audit, migration, repository comparison, security findings, and traceability | Engineering |
 | 1.1.0 | 2026-09-25 | §7.2: resolved the "Dispute Evidence" purpose's Owner Domain from "Unresolved — case domain or Moderation" to Disputes, now that [`disputes.md`](../09-moderation-trust-safety/disputes.md) exists as the governed case domain; exercised jointly with a future Moderation case, consistent with how Ratings' analogous "Review Evidence" ownership was resolved. No other Asset purpose, binding rule, or retention rule was changed. | Product and Architecture |
+| 1.2.0 | 2026-10-01 | Recorded the confirmed upload limits in §7.3: decimal byte classes, a `25000000` pixel maximum, no audio or video duration ceiling, and a 50 GB Project quota. Direct multipart is the adapter contract for purposes above the profile-image class. Cloudflare R2 Standard is the selected beta/production provider; the adapter stays provider-neutral and credentials stay out of the repository. Projects, Milestones, Deliverables, and Escrow were checked and do not state a conflicting figure. | Product and Architecture |

@@ -6,15 +6,18 @@ A two-sided marketplace for fixed-price, milestone-based music work (INR, India-
 
 ## Status
 
-Pre-production MVP build, **not production-ready**. 21 of the 52 planned work items are merged. The backend covers:
+Pre-production MVP build, **not production-ready**. 25 of the 52 planned work items are merged. The backend covers:
 
 - accounts, roles, and discovery;
 - project negotiation with immutable term snapshots;
 - the milestone state machine;
-- escrow creation, an append-only ledger, and internal refunds;
+- escrow creation with a fee snapshot;
+- funding confirmation through a payment-provider adapter (mock for local use; Cashfree wired but not activated);
+- an append-only ledger and internal refunds;
+- asset upload sessions (local storage; Cloudflare R2 wired but not activated);
 - messaging and in-app notifications.
 
-Deliverables, release, payout, disputes, and ratings are not built yet. Live status is in [`docs/19-implementation-planning/autonomous-build-status.md`](docs/19-implementation-planning/autonomous-build-status.md).
+Deliverables, release, payout, disputes, and ratings are not built yet. CI (`lint`, `frontend-test`, `backend-test`, `migration-dry-run`) is required on `main`. Live status is in [`docs/19-implementation-planning/autonomous-build-status.md`](docs/19-implementation-planning/autonomous-build-status.md).
 
 ## Architecture
 

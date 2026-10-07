@@ -9,12 +9,17 @@ const projectsRouter = require("./src/projects/routes");
 const milestonesRouter = require("./src/milestones/routes");
 const notificationsRouter = require("./src/notifications/routes");
 const messagingRouter = require("./src/messaging/routes");
+const assetsRouter = require("./src/assets/routes");
+const { createFundingPayment } = require("./src/payments/service");
+const { webhookRouter } = require("./src/payments/routes");
+const { requireAuth } = require("./src/auth/routes");
 const { installEmailProviderFromEnv } = require("./src/notifications/resend-adapter");
 
 installEmailProviderFromEnv(process.env);
 
 const app = express();
 app.use(cors());
+app.use("/payments/webhooks", express.raw({ type: () => true, limit: "1mb" }), webhookRouter);
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -38,6 +43,17 @@ app.use(projectsRouter);
 app.use(milestonesRouter);
 app.use(notificationsRouter);
 app.use(messagingRouter);
+app.use(assetsRouter);
+
+app.post("/projects/:projectId/funding-payments", requireAuth, async (req, res) => {
+  const result = await createFundingPayment(
+    req.params.projectId,
+    req.body,
+    req.auth.sub,
+    req.get("Idempotency-Key")
+  );
+  res.status(result.status).json(result.body);
+});
 
 if (require.main === module) {
   const PORT = 4000;
