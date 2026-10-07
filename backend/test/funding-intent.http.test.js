@@ -11,6 +11,7 @@ const pool = require("../db/db");
 const { withMilestoneTerms } = require("./milestone-fixture");
 const { formatAmount } = require("../src/money/amount");
 const { createFundingIntent } = require("../src/escrow/service");
+const { FEE_LINES, SCHEDULE_VERSION } = require("../src/escrow/fee-schedule");
 
 let baseUrl = "";
 let server;
@@ -185,8 +186,26 @@ describe("MVP-024 funding intent", { concurrency: 1, timeout: 30000 }, () => {
     assert.equal(escrow.expected_amount, 125050);
     assert.equal(escrow.agreed_term_version, agreed.stored.agreed_term_version);
     assert.equal(escrow.project_external_id, agreed.stored.external_id);
-    assert.deepEqual(escrow.fee_snapshot.fee_lines, []);
-    assert.equal(escrow.fee_snapshot.schedule_version, null);
+    assert.equal(escrow.fee_snapshot.schedule_version, SCHEDULE_VERSION);
+    assert.deepEqual(escrow.fee_snapshot.fee_lines, FEE_LINES);
+    const storedSnapshot = await pool.query(
+      `SELECT snapshot.schedule_version, snapshot.fee_lines
+       FROM escrows escrow
+       JOIN escrow_fee_snapshots snapshot ON snapshot.id = escrow.fee_snapshot_id
+       WHERE escrow.external_id = $1`,
+      [escrow.external_id]
+    );
+    assert.equal(storedSnapshot.rows[0].schedule_version, SCHEDULE_VERSION);
+    assert.deepEqual(storedSnapshot.rows[0].fee_lines, FEE_LINES);
+    await assert.rejects(
+      () => pool.query(
+        `UPDATE escrow_fee_snapshots
+         SET fee_lines = '[]'::jsonb
+         WHERE external_id = $1`,
+        [escrow.fee_snapshot.external_id]
+      ),
+      /immutable/
+    );
     assert.equal(escrow.allocations.length, 2);
     assert.deepEqual(
       escrow.allocations.map((row) => row.allocated_amount),
@@ -375,11 +394,31 @@ describe("MVP-024 funding intent", { concurrency: 1, timeout: 30000 }, () => {
     assert.equal(allocations.rows[0].count, 2);
   });
 
+  it("rejects a client-supplied fee schedule", async () => {
+    const agreed = await agreeProject([100000]);
+    const rejected = await fund(
+      agreed.buyer,
+      agreed.project.id,
+      agreed.stored.version,
+      "fund-client-fee",
+      { fee_lines: [{ kind: "seller_commission", rate_bps: 0 }] }
+    );
+    assert.equal(rejected.status, 400);
+    const rows = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM escrows WHERE project_id = $1",
+      [agreed.project.id]
+    );
+    assert.equal(rows.rows[0].count, 0);
+  });
+
   it("rejects a stale version and keeps the same key reusable after that rejection", async () => {
     const agreed = await agreeProject([80]);
+    const before = await pool.query("SELECT COUNT(*)::int AS count FROM escrow_fee_snapshots");
     const stale = await fund(agreed.buyer, agreed.project.id, agreed.stored.version + 1, "fund-stale");
     assert.equal(stale.status, 409);
     assert.equal(stale.json.error, "Project version is stale");
+    const after = await pool.query("SELECT COUNT(*)::int AS count FROM escrow_fee_snapshots");
+    assert.equal(after.rows[0].count, before.rows[0].count);
     const created = await fund(agreed.buyer, agreed.project.id, agreed.stored.version, "fund-stale");
     assert.equal(created.status, 200, created.text);
     assert.equal(created.json.escrow.expected_amount, 80);

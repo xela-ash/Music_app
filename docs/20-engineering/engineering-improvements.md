@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.32 |
-| Last Reviewed | 2026-10-06 |
+| Version | 0.7.35 |
+| Last Reviewed | 2026-10-07 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -2166,6 +2166,126 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-075 Seller acceptance does not repeat the fee schedule
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-075 |
+| Title | Seller acceptance does not repeat the fee schedule |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 implementation |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding intent returns schedule `2026-10-01` to the Buyer. Seller acceptance of a proposal does not include that schedule. `buyer_acknowledged_at` and `seller_acknowledged_at` stay null. |
+| Evidence / problem | Escrow §19.4 says the snapshot is disclosed to the Seller before acceptance. The 2026-10-01 decision requires disclosure before funding, which the funding-intent response does. Acceptance happens before that response exists, so this item does not invent a second disclosure surface. |
+| Suggested improvement | When a later item can show the recorded schedule on seller acceptance, store the seller acknowledgment time on the snapshot that funding then freezes. |
+| Expected benefit | The Seller sees the same immutable lines before agreeing to the Project. |
+| Risk of doing nothing | The Buyer still receives the snapshot before funding. The Seller does not see it on the acceptance response. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A seller-facing acceptance response that can carry the schedule. This entry does not authorize that response. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a seller acceptance disclosure surface |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-076 Commission helper repeats the snapshot rate
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-076 |
+| Title | Commission helper repeats the snapshot rate |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | `sellerCommissionMinor` multiplies by a hardcoded `1000n`. `FEE_LINES[0].rate_bps` is also `1000`. |
+| Evidence / problem | The two constants match the recorded schedule today. A later edit could change one and leave the other. |
+| Suggested improvement | Read the seller-commission basis points from the snapshotted line when a release item computes the fee. |
+| Expected benefit | The posted fee cannot drift from the row the escrow references. |
+| Risk of doing nothing | Both values are `1000` on schedule `2026-10-01`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The release item that posts the commission. This entry does not authorize that posting. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With MVP-028 |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-077 Fee-snapshot immutability test does not delete
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-077 |
+| Title | Fee-snapshot immutability test does not delete |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Testing |
+| Affected subsystem | Escrow |
+| Current state | `funding-intent.http.test.js` rejects an `UPDATE` of `fee_lines`. It does not issue a `DELETE`. |
+| Evidence / problem | The same trigger function rejects both. The test proves the update path only. |
+| Suggested improvement | Add a `DELETE` assertion next to the update assertion. |
+| Expected benefit | A trigger that stopped rejecting deletes would fail the suite. |
+| Risk of doing nothing | `DELETE` is still rejected by `escrow_fee_snapshots_no_delete`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the extra assertion by itself. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a later escrow test change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-078 Seller commission timing names release
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-078 |
+| Title | Seller commission timing names release |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | The seller line stores `timing: "release"` and `basis: "seller_award"`. |
+| Evidence / problem | Escrow §19.2 says the commission is taken at release or award. The funding-intent command does not post it. |
+| Suggested improvement | When the release item posts the commission, keep the basis as the seller award, including a dispute award that is not a milestone release. |
+| Expected benefit | A split award still uses the snapshotted 10% line. |
+| Risk of doing nothing | No commission is posted by this item. The basis already says `seller_award`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | MVP-028. This entry does not authorize a fee journal. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the release posting |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
 ### ENG-IMP-084 Unused direct-insert repository functions remain
 
 | Field | Value |
@@ -2422,3 +2542,6 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
 | 0.7.31 | 2026-10-06 | MVP-004 reconciled with `main`: added `ENG-IMP-025` (PROPOSED, CI does not run `pnpm build`), `ENG-IMP-026` (PROPOSED, Actions referenced by major tag), and `ENG-IMP-027` (PROPOSED, the workflow-structure test runs only inside `backend-test`), all first recorded on pull request #61 on 2026-09-28. Noted in `ENG-IMP-022` that Handbook §14 still calls CI future work. None is authorized. | Engineering |
 | 0.7.32 | 2026-10-06 | Added `ENG-IMP-091` (PROPOSED) from the independent review of the MVP-004 reconciliation: CI runs as the database superuser, so privilege-based protections are not exercised there. Not authorized. | Engineering |
+| 0.7.33 | 2026-10-01 | Added `ENG-IMP-075` (PROPOSED): seller acceptance does not repeat the fee schedule. Not authorized. `ENG-IMP-068` through `ENG-IMP-074` remain on the unmerged MVP-010 branch. | Engineering |
+| 0.7.34 | 2026-10-01 | Added `ENG-IMP-076`, `ENG-IMP-077`, and `ENG-IMP-078` (all PROPOSED) from the MVP-027 review. None are authorized. | Engineering |
+| 0.7.35 | 2026-10-07 | Reconciled MVP-027 with `main` after MVP-043 and MVP-004; this branch's rows are renumbered to `0.7.33`–`0.7.34`. No entry status changed. No application behavior changed by the reconciliation. | Engineering |
