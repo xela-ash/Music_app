@@ -9,6 +9,7 @@ const projectsRouter = require("./src/projects/routes");
 const milestonesRouter = require("./src/milestones/routes");
 const notificationsRouter = require("./src/notifications/routes");
 const messagingRouter = require("./src/messaging/routes");
+const assetsRouter = require("./src/assets/routes");
 const { createFundingPayment } = require("./src/payments/service");
 const { webhookRouter } = require("./src/payments/routes");
 const { requireAuth } = require("./src/auth/routes");
@@ -42,6 +43,7 @@ app.use(projectsRouter);
 app.use(milestonesRouter);
 app.use(notificationsRouter);
 app.use(messagingRouter);
+app.use(assetsRouter);
 
 app.post("/projects/:projectId/funding-payments", requireAuth, async (req, res) => {
   const result = await createFundingPayment(

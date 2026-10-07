@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.39 |
+| Version | 0.7.42 |
 | Last Reviewed | 2026-10-07 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -2166,6 +2166,216 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-068 Upload session duration, rate, and concurrency stay open
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-068 |
+| Title | Upload session duration, rate, and concurrency stay open |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | Create returns `503` `session_ttl_unconfigured` unless `ASSET_UPLOAD_SESSION_TTL_SECONDS` is a positive safe integer. Tests set `3600`. Rate and concurrency limits are not implemented. |
+| Evidence / problem | Assets §30.1 leaves the session duration, rate, and concurrency numbers open. Inventing them would be a product decision. |
+| Suggested improvement | When Product sets those numbers, enforce them in the session create path and stop treating the test value as configuration. |
+| Expected benefit | Upload sessions expire and throttle on an approved policy instead of an operator-supplied duration. |
+| Risk of doing nothing | An unset environment refuses new sessions. A long configured duration leaves reserved quota in place until expiry. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A product number for each limit. This entry does not authorize one. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None beyond the disclosed fail-closed duration. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | After the product numbers exist |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-069 Image and archive inspection is header-only
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-069 |
+| Title | Image and archive inspection is header-only |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | PNG and JPEG dimensions come from the container header. HEIC fails closed. There is no full raster decode, no EXIF strip, and no archive entry, depth, or expansion-ratio check. DAW objects stay opaque. |
+| Evidence / problem | §7.3 requires unverified dimensions to fail closed and leaves archive expansion limits open. A header-only PNG of exactly `25000000` pixels can become Ready without a decoded bitmap. |
+| Suggested improvement | Decode supported rasters, strip metadata before a derivative is stored, and apply an approved archive policy if Product sets one. |
+| Expected benefit | Pixel and archive limits are enforced on the bytes a client can actually decode. |
+| Risk of doing nothing | A truncated or hostile image can pass the header check. DAW archives remain unextracted, which is the current decision. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | None for EXIF stripping. Archive numbers remain a product decision. This entry does not authorize those numbers. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | Malicious image payloads are not fully inspected. |
+| Performance impact | A later decoder would add CPU on the completion path. |
+| Priority suggestion | Medium |
+| Recommended timing | Before production image delivery |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-070 Local adapter part cap is an inode guard
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-070 |
+| Title | Local adapter part cap is an inode guard |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | The local adapter rejects a part number above `10000`. |
+| Evidence / problem | That cap protects the test filesystem from unbounded part files. It is not a product quota and it is not applied to Cloudflare R2. |
+| Suggested improvement | Keep the guard local to the mock adapter and do not copy it into the R2 path or the purpose policy. |
+| Expected benefit | A later reader does not treat `10000` as an approved upload limit. |
+| Risk of doing nothing | The constant can be mistaken for a product rule. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a product part-count limit. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | When the local adapter is next touched |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-071 R2 completion does not scan provider bytes
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-071 |
+| Title | R2 completion does not scan provider bytes |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 implementation |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | The R2 adapter can reserve a multipart upload and presign a part URL. `completeMultipart` does not download the object, hash it, or scan it. Live credentials are not in the repository. |
+| Evidence / problem | `REQ-ASSET-004` requires scan and validation before Ready. The local adapter does that. The R2 path cannot yet prove the stored object. |
+| Suggested improvement | On R2 completion, verify the provider object's size and checksum, read a bounded prefix, and run the same scan gate before Ready. |
+| Expected benefit | A direct R2 upload cannot become Ready without the same validation as the local adapter. |
+| Risk of doing nothing | Production selection of R2 would refuse file bodies and would not finish validation. The local path remains the tested Ready path. |
+| Implementation risk | Medium |
+| Estimated scope | M |
+| Dependencies | R2 credentials for live verification. This entry does not authorize committing them. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | The unvalidated R2 completion path must stay unable to mark Ready. |
+| Performance impact | A later prefix read is bounded. |
+| Priority suggestion | High |
+| Recommended timing | Before any environment sets `ASSET_STORAGE_PROVIDER=r2` for real uploads |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | The MVP-010 pull request |
+| Resolution | — |
+
+### ENG-IMP-072 Upload completion does not re-check the live project relationship
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-072 |
+| Title | Upload completion does not re-check the live project relationship |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | Create checks the live profile owner or the live buyer or active seller. Write, complete, grant, and read allow the session uploader. `requireAuth` still re-checks account status. |
+| Evidence / problem | Assets §13.2 gate 15 asks for a fresh relationship check before Ready. The binding row is also inserted when the session is created, before the scan gate. |
+| Suggested improvement | Re-authorize the live relationship inside complete, and move the binding insert to the Ready transition. |
+| Expected benefit | A participant who loses access after create cannot finish the upload. |
+| Risk of doing nothing | The uploader recorded at create can still complete. Account status is still checked. |
+| Implementation risk | Medium |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | The completion path trusts the uploader recorded at create. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | With the next asset authorization change |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | Completion re-reads the live profile or the live buyer or active seller and does not mark the asset Ready when that relationship is gone. |
+
+### ENG-IMP-073 Completion does not evaluate the duration helper
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-073 |
+| Title | Completion does not evaluate the duration helper |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | `AUDIO_DURATION_CEILING_MS` and `VIDEO_DURATION_CEILING_MS` are null. The limit unit test locks those constants. Completion stores `duration_ms` as null and does not call `durationExceedsCeiling`. |
+| Evidence / problem | The approved decision is that no ceiling exists. The helper is unused, so a later non-null constant would not be enforced until completion calls it. |
+| Suggested improvement | Call the helper when a detector supplies `duration_ms`. Keep the null ceilings. |
+| Expected benefit | A future approved ceiling is enforced in one place. |
+| Risk of doing nothing | The current null ceilings cannot reject a duration. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a duration ceiling. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | If a duration detector is added |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
+### ENG-IMP-074 Asset audit update rejection is not asserted
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-074 |
+| Title | Asset audit update rejection is not asserted |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-010 independent review |
+| Category | Assets |
+| Affected subsystem | Assets |
+| Current state | `asset_audit_events` is append-only. The constraint test deletes a row and updates a Ready asset. It does not attempt an audit `UPDATE`. |
+| Evidence / problem | A trigger edit that still rejects `DELETE` but allows `UPDATE` would pass the current test. |
+| Suggested improvement | Assert that an audit `UPDATE` raises. |
+| Expected benefit | The append-only rule is covered for both mutation kinds. |
+| Risk of doing nothing | `DELETE` coverage remains. `UPDATE` is enforced by the same trigger and is untested. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize a behavior change. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the next asset constraint test |
+| Status | PROPOSED |
+| Related GitHub Issue | [#12](https://github.com/xela-ash/music_app/issues/12) |
+| Related PR | [#98](https://github.com/xela-ash/music_app/pull/98) |
+| Resolution | — |
+
 ### ENG-IMP-075 Seller acceptance does not repeat the fee schedule
 
 | Field | Value |
@@ -2729,3 +2939,6 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.37 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
 | 0.7.38 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
 | 0.7.39 | 2026-10-07 | Reconciled MVP-025 with `main` after MVP-043, MVP-004, and MVP-027; this branch's rows are renumbered to `0.7.36`–`0.7.38`. Records what those rows omit: `ENG-IMP-083` was set to IMPLEMENTED by the second review repair, and `ENG-IMP-089` (PROPOSED) was added. Row `0.7.36` predates the MVP-027 merge: `ENG-IMP-075`–`078` are now on `main`, and only `068`–`074` remain on pull request #98. Neither change authorizes further work. | Engineering |
+| 0.7.40 | 2026-10-01 | Added `ENG-IMP-068` through `ENG-IMP-071` (all PROPOSED) from MVP-010. None are authorized. | Engineering |
+| 0.7.41 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
+| 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |

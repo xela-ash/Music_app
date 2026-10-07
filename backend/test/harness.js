@@ -13,6 +13,12 @@ const BACKEND_ROOT = path.join(__dirname, "..");
 // Every application table. schema_migrations is intentionally absent so
 // teardown clears rows without replaying migrations.
 const APPLICATION_TABLES = [
+  "asset_audit_events",
+  "asset_variants",
+  "asset_storage_objects",
+  "asset_project_bindings",
+  "asset_upload_sessions",
+  "assets",
   "role_audit_events",
   "role_assignments",
   "messaging_audit_events",
