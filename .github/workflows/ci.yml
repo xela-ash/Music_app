@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Lint frontend
+        working-directory: frontend
+        run: pnpm lint
+
+  frontend-test:
+    name: frontend-test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Test frontend
+        working-directory: frontend
+        run: pnpm test
+
+  backend-test:
+    name: backend-test
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: musicapp
+          POSTGRES_PASSWORD: musicapp
+          POSTGRES_DB: musicapp_mvp001
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U musicapp -d musicapp_mvp001"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5433"
+      DB_USER: musicapp
+      DB_PASSWORD: musicapp
+      DB_NAME: musicapp_mvp001
+      JWT_SECRET: ci-mvp004-test-jwt-secret
+      # The service container's superuser resets fixtures over TCP (backend/test/harness.js).
+      MUSICAPP_TEST_ADMIN_USER: musicapp
+      MUSICAPP_TEST_ADMIN_PASSWORD: musicapp
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+  migration-dry-run:
+    name: migration-dry-run
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: musicapp
+          POSTGRES_PASSWORD: musicapp
+          POSTGRES_DB: musicapp_ci_migrate
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U musicapp -d musicapp_ci_migrate"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_USER: musicapp
+      DB_PASSWORD: musicapp
+      DB_NAME: musicapp_ci_migrate
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Apply migrations to a disposable database
+        working-directory: backend
+        run: npm run migrate
+      - name: Re-run migrations and require every file to be skipped
+        working-directory: backend
+        run: |
+          set -eu
+          output="$(npm run migrate)"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -q "Migrations up to date."
+          printf '%s\n' "$output" | grep -q "^skip "
+          if printf '%s\n' "$output" | grep -q "^apply "; then
+            echo "second migrate applied a file"
+            exit 1
+          fi

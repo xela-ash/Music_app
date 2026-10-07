@@ -5,6 +5,7 @@ const { hashRequest } = require("../infrastructure/canonical-json");
 const projectRepository = require("../projects/transition-repository");
 const invitations = require("../projects/invitation-repository");
 const repository = require("./repository");
+const { FEE_LINES, SCHEDULE_VERSION } = require("./fee-schedule");
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FUNDABLE_STATES = new Set(["accepted", "awaiting_funding"]);
@@ -222,6 +223,8 @@ async function applyFundingIntent(client, project, actorUserId, expectedVersion,
 
   const snapshot = await repository.insertFeeSnapshot(client, [
     repository.makeFeeSnapshotExternalId(),
+    SCHEDULE_VERSION,
+    JSON.stringify(FEE_LINES),
     project.currency,
     project.currency_exponent,
   ]);
@@ -269,7 +272,8 @@ async function applyFundingIntent(client, project, actorUserId, expectedVersion,
     currency: project.currency,
     currency_exponent: Number(project.currency_exponent),
     expected_amount: planSum,
-    fee_lines: [],
+    fee_schedule_version: SCHEDULE_VERSION,
+    fee_lines: FEE_LINES,
     allocations: allocations.map((row) => ({
       milestone_external_id: row.milestone_external_id,
       allocated_amount: minorUnits(row.allocated_amount),

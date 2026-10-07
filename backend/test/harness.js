@@ -32,6 +32,7 @@ const APPLICATION_TABLES = [
   "inbox_events",
   "escrow_ledger",
   "escrow_allocations",
+  "payment_webhook_receipts",
   "payments",
   "escrows",
   "escrow_fee_snapshots",
@@ -67,11 +68,39 @@ function ensureMigrated() {
   }
 }
 
+// CI and non-Cursor machines reach PostgreSQL over TCP, where there is no
+// local `postgres` OS user. MUSICAPP_TEST_ADMIN_USER names a superuser of the
+// same isolated database (host, port, and name already passed the guard).
+async function resetWithAdminConnection(sql) {
+  const { Client } = require("pg");
+  const client = new Client({
+    host: process.env.DB_HOST || "localhost",
+    port: Number(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.MUSICAPP_TEST_ADMIN_USER,
+    password: process.env.MUSICAPP_TEST_ADMIN_PASSWORD,
+  });
+  try {
+    await client.connect();
+    await client.query("SET session_replication_role = replica");
+    await client.query(sql);
+    await client.query("SET session_replication_role = origin");
+  } catch (err) {
+    throw new Error(`Fixture reset failed as ${process.env.MUSICAPP_TEST_ADMIN_USER}.\n${err.message}`, { cause: err });
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
 async function resetApplicationData() {
   // escrow_ledger rejects UPDATE, DELETE, and TRUNCATE for the application
   // role. The cluster superuser resets fixtures with session_replication_role
   // so that trigger does not fire. The application pool never sets that role.
   const sql = `TRUNCATE TABLE ${APPLICATION_TABLES.join(", ")} RESTART IDENTITY CASCADE`;
+  if (process.env.MUSICAPP_TEST_ADMIN_USER) {
+    await resetWithAdminConnection(sql);
+    return;
+  }
   const result = spawnSync(
     "sudo",
     [
