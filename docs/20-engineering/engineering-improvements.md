@@ -6,7 +6,7 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.42 |
+| Version | 0.7.43 |
 | Last Reviewed | 2026-10-07 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
@@ -154,6 +154,47 @@ Copy this template for each new entry:
 | [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
 | [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
 | [ENG-IMP-049](#eng-imp-049-a-matching-later-snapshot-can-move-the-agreed-pointer-without-an-amendment) | A matching later snapshot can move the agreed pointer without an amendment | Database | Low | PROPOSED |
+| [ENG-IMP-050](#eng-imp-050-milestone-lines-stay-inside-the-32-bit-project-total) | Milestone lines stay inside the 32-bit project total | Database | Low | PROPOSED |
+| [ENG-IMP-051](#eng-imp-051-the-milestone-lock-trigger-does-not-lock-the-project-row) | The milestone lock trigger does not lock the project row | Database | Low | PROPOSED |
+| [ENG-IMP-052](#eng-imp-052-the-incomplete-freeze-test-does-not-execute-the-update) | The incomplete-freeze test does not execute the update | Testing | Low | PROPOSED |
+| [ENG-IMP-053](#eng-imp-053-invite-readiness-does-not-recheck-catalogue-codes) | Invite readiness does not recheck catalogue codes | Backend | Low | PROPOSED |
+| [ENG-IMP-054](#eng-imp-054-revision-reason-codes-and-detail-bound-are-unspecified) | Revision reason codes and detail bound are unspecified | Backend | Low | PROPOSED |
+| [ENG-IMP-055](#eng-imp-055-milestone-transition-tests-do-not-cover-every-source-and-outcome) | Milestone transition tests do not cover every source and outcome | Testing | Low | PROPOSED |
+| [ENG-IMP-056](#eng-imp-056-the-state-trigger-does-not-bind-a-resume-exit-to-the-stored-state) | The state trigger does not bind a resume exit to the stored state | Database | Low | PROPOSED |
+| [ENG-IMP-057](#eng-imp-057-resume-does-not-recheck-funding-or-submission-facts) | Resume does not recheck funding or submission facts | Backend | Low | PROPOSED |
+| [ENG-IMP-058](#eng-imp-058-escrow-facts-are-not-re-identified-against-the-milestone) | Escrow facts are not re-identified against the milestone | Backend | Medium | PROPOSED |
+| [ENG-IMP-059](#eng-imp-059-interruption-events-and-superseded-milestones-are-incomplete) | Interruption events and superseded milestones are incomplete | Backend | Low | PROPOSED |
+| [ENG-IMP-060](#eng-imp-060-the-concurrent-start-test-does-not-resubmit-the-losing-key) | The concurrent start test does not resubmit the losing key | Testing | Low | PROPOSED |
+| [ENG-IMP-061](#eng-imp-061-escrow-audit-rows-do-not-store-amount-and-currency-as-columns) | Escrow audit rows do not store amount and currency as columns | Database | Low | PROPOSED |
+| [ENG-IMP-062](#eng-imp-062-the-application-role-owns-the-ledger-table) | The application role owns the ledger table | Security | Medium | PROPOSED |
+| [ENG-IMP-063](#eng-imp-063-the-ledger-poster-does-not-write-allocation-projections) | The ledger poster does not write allocation projections | Database | Medium | PROPOSED |
+| [ENG-IMP-064](#eng-imp-064-the-created-escrow-guard-watches-only-three-projections) | The created-escrow guard watches only three projections | Security | Low | PROPOSED |
+| [ENG-IMP-065](#eng-imp-065-refund-execution-does-not-see-holds-or-the-unallocated-pool) | Refund execution does not see holds or the unallocated pool | Escrow | Medium | PROPOSED |
+| [ENG-IMP-066](#eng-imp-066-the-refund-journal-does-not-reference-a-funding-payment) | The refund journal does not reference a funding Payment | Escrow | Medium | PROPOSED |
+| [ENG-IMP-067](#eng-imp-067-a-settled-allocation-with-a-release-stays-funded) | A settled allocation with a release stays funded | Escrow | Low | PROPOSED |
+| [ENG-IMP-068](#eng-imp-068-upload-session-duration-rate-and-concurrency-stay-open) | Upload session duration, rate, and concurrency stay open | Assets | Medium | PROPOSED |
+| [ENG-IMP-069](#eng-imp-069-image-and-archive-inspection-is-header-only) | Image and archive inspection is header-only | Assets | Medium | PROPOSED |
+| [ENG-IMP-070](#eng-imp-070-local-adapter-part-cap-is-an-inode-guard) | Local adapter part cap is an inode guard | Assets | Low | PROPOSED |
+| [ENG-IMP-071](#eng-imp-071-r2-completion-does-not-scan-provider-bytes) | R2 completion does not scan provider bytes | Assets | High | PROPOSED |
+| [ENG-IMP-072](#eng-imp-072-upload-completion-does-not-re-check-the-live-project-relationship) | Upload completion does not re-check the live project relationship | Assets | Medium | IMPLEMENTED |
+| [ENG-IMP-073](#eng-imp-073-completion-does-not-evaluate-the-duration-helper) | Completion does not evaluate the duration helper | Assets | Low | PROPOSED |
+| [ENG-IMP-074](#eng-imp-074-asset-audit-update-rejection-is-not-asserted) | Asset audit update rejection is not asserted | Assets | Low | PROPOSED |
+| [ENG-IMP-075](#eng-imp-075-seller-acceptance-does-not-repeat-the-fee-schedule) | Seller acceptance does not repeat the fee schedule | Escrow | Low | PROPOSED |
+| [ENG-IMP-076](#eng-imp-076-commission-helper-repeats-the-snapshot-rate) | Commission helper repeats the snapshot rate | Escrow | Low | PROPOSED |
+| [ENG-IMP-077](#eng-imp-077-fee-snapshot-immutability-test-does-not-delete) | Fee-snapshot immutability test does not delete | Testing | Low | PROPOSED |
+| [ENG-IMP-078](#eng-imp-078-seller-commission-timing-names-release) | Seller commission timing names release | Escrow | Low | PROPOSED |
+| [ENG-IMP-079](#eng-imp-079-the-cashfree-order-call-holds-the-funding-transaction) | The Cashfree order call holds the funding transaction | Payments | Medium | IMPLEMENTED |
+| [ENG-IMP-080](#eng-imp-080-expired-funding-attempts-are-not-cancelled-by-a-clock) | Expired funding attempts are not cancelled by a clock | Payments | Low | PROPOSED |
+| [ENG-IMP-081](#eng-imp-081-funding-confirmation-locks-the-project-after-the-payment) | Funding confirmation locks the project after the payment | Payments | Low | PROPOSED |
+| [ENG-IMP-082](#eng-imp-082-funding-confirmation-does-not-enqueue-allocationfunded) | Funding confirmation does not enqueue AllocationFunded | Escrow | Low | PROPOSED |
+| [ENG-IMP-083](#eng-imp-083-a-cashfree-5xx-marks-the-funding-attempt-failed) | A Cashfree 5xx marks the funding attempt failed | Payments | Low | IMPLEMENTED |
+| [ENG-IMP-084](#eng-imp-084-unused-direct-insert-repository-functions-remain) | Unused direct-insert repository functions remain | Users and profiles | Low | PROPOSED |
+| [ENG-IMP-085](#eng-imp-085-eng-imp-007-still-names-the-removed-creation-routes) | ENG-IMP-007 still names the removed creation routes | Documentation | Low | PROPOSED |
+| [ENG-IMP-086](#eng-imp-086-governed-role-grant-and-revoke-wait-on-step-up-assurance) | Governed role grant and revoke wait on step-up assurance | Authorization | High once the proof is decided | PROPOSED |
+| [ENG-IMP-087](#eng-imp-087-bootstrap-does-not-lock-the-user-row) | Bootstrap does not lock the user row | Authorization | Low | PROPOSED |
+| [ENG-IMP-088](#eng-imp-088-the-revocation-fixture-does-not-write-a-role-audit-row) | The revocation fixture does not write a role audit row | Authorization | Low | PROPOSED |
+| [ENG-IMP-089](#eng-imp-089-cashfree-order-creation-omits-customer_details) | Cashfree order creation omits customer_details | Payments | Low | PROPOSED |
+| [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
 | [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
@@ -623,7 +664,7 @@ Copy this template for each new entry:
 | Risk of doing nothing | An implementer either builds revocation ad hoc inside `MVP-009` or ships reset without invalidating stolen tokens, the scenario reset exists to handle. |
 | Implementation risk | None for the documentation change |
 | Estimated scope | S (planning) |
-| Dependencies | Product/Architecture decision. Does not block `MVP-001`. `MVP-009` is already blocked on the email provider, so this does not change its current status. |
+| Dependencies | Product/Architecture decision. Does not block `MVP-001`. `MVP-009` is already blocked on the email provider, so this does not change its current status. **Update 2026-10-07:** the email provider is now selected (Resend, MVP-043 merged), so this decision is the remaining blocker for `MVP-009` (#11). |
 | Product behavior impact | No: the behavior is specified; only its planning is missing |
 | Specification impact | Yes: plan document |
 | Migration impact | Possibly, once decided (authentication-version column or session table) |
@@ -2826,6 +2867,36 @@ Copy this template for each new entry:
 | Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
 | Resolution | — |
 
+### ENG-IMP-090 Full MVP frontend screen set from pull request #72 is preserved, unmerged
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-090 |
+| Title | Full MVP frontend screen set from pull request #72 is preserved, unmerged |
+| Date identified | 2026-10-06 |
+| Identified by | Repository consolidation for technical handover (Claude Code), reviewing pull request #72 |
+| Category | Frontend, UX, Architecture |
+| Affected subsystem | Frontend application |
+| Current state | `main`'s frontend is one module (`frontend/src/App.tsx`) with screens for auth, Discover, profile detail, project create/list/detail, and milestone lock. Most backend capabilities from MVP-014 onward (invitations, transitions, amendments, funding intent, messaging, notifications) have no screen. Pull request #72 (branch `frontend/full-mvp-screens`, tag `archive/pr-72-full-mvp-screens`, commit `391c896`) built a feature-folder frontend (`features/`, `ui/`, `nav/`, `lib/`), about 40 screens, and a retro-modern theme. Most screens run on an in-memory preview store (`frontend/src/demo/`). |
+| Evidence / problem | #72 branched from `5174e20` (MVP-014). Against `main` `9bda4b7`, its live project creation omits the per-milestone `revision_allowance` and `deliverable_definition` that MVP-017 requires, and defaults revisions to 0. Its seller invitation is sent from Draft, which MVP-015 forbids. It replaces MVP-017's create-project screen. It reuses `EDR-010` and `ENG-IMP-036`–`040`, which `main` already uses. It treats the rating scale as undecided, but the 2026-10-01 decision is 1–5. It loads Google Fonts. It was closed without merge on 2026-10-06; the screen-by-screen disposition is a comment on #72. |
+| Suggested improvement | Under an approved frontend issue (with an EDR for the layout and any router or state library), reuse #72's folder layout, `ui/` primitives, and the screen designs whose backends now exist: invitations and acceptance, project transitions, amendments, messaging, and notifications. Wire them to the real API. Do not reuse the preview store. Keep MVP-017's money, catalogue, and allowance rules. Treat the visual theme as a separate product/design decision. |
+| Expected benefit | The backend capabilities already built become usable and testable in the browser. A reviewer can walk the negotiation flow without the HTTP API. |
+| Risk of doing nothing | Backend-only capabilities stay untested from the user's side. The prototype drifts further from the API contracts. |
+| Implementation risk | Medium. The work is a frontend restructure. It must not regress the existing screens or the money-parsing rules (Handbook §12). |
+| Estimated scope | L |
+| Dependencies | None for the screens whose backends exist. Screens for deliverables, release, payout, disputes, ratings, and verification wait on their `MVP-*` items. |
+| Product behavior impact | No new product rules. UI exposure of existing API behavior only. |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Neutral. Frontend hiding never replaces backend authorization (Handbook §8). |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | After the four open implementation pull requests merge |
+| Status | PROPOSED |
+| Related GitHub Issue | — (no `MVP-*` item covers a frontend restructure) |
+| Related PR | [#72](https://github.com/xela-ash/Music_app/pull/72) (closed, unmerged) |
+| Resolution | — |
+
 ### ENG-IMP-091 CI cannot exercise privilege-based database protections
 
 | Field | Value |
@@ -2942,3 +3013,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.40 | 2026-10-01 | Added `ENG-IMP-068` through `ENG-IMP-071` (all PROPOSED) from MVP-010. None are authorized. | Engineering |
 | 0.7.41 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
 | 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |
+| 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's status changed. The only content change is a dated note in `ENG-IMP-016` Dependencies: with the email provider selected, it is now `MVP-009`'s remaining blocker. None is authorized. | Engineering |
