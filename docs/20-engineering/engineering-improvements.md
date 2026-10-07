@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.34 |
-| Last Reviewed | 2026-10-06 |
+| Version | 0.7.39 |
+| Last Reviewed | 2026-10-07 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -129,6 +129,9 @@ Copy this template for each new entry:
 | [ENG-IMP-022](#eng-imp-022-handbook-current-state-snapshots-predate-mvp-001-and-mvp-002) | Handbook current-state snapshots predate MVP-001 and MVP-002 | Documentation | Low | PROPOSED |
 | [ENG-IMP-023](#eng-imp-023-outbox-dispatcher-has-no-process-runner-transport-or-alerting) | Outbox dispatcher has no process runner, transport, or alerting | Reliability, Observability, Architecture | Medium | PROPOSED |
 | [ENG-IMP-024](#eng-imp-024-shared-infrastructure-helper-edge-cases-from-the-mvp-003-review) | Shared infrastructure helper edge cases from the MVP-003 review | Reliability, Security, Maintainability | Low | PROPOSED |
+| [ENG-IMP-025](#eng-imp-025-ci-does-not-typecheck-or-build-the-frontend) | CI does not typecheck or build the frontend | CI/CD, Testing | Low | PROPOSED |
+| [ENG-IMP-026](#eng-imp-026-github-actions-are-referenced-by-major-tag) | GitHub Actions are referenced by major tag | CI/CD, Security | Low | PROPOSED |
+| [ENG-IMP-027](#eng-imp-027-ci-workflow-guard-test-does-not-run-if-the-backend-test-job-is-removed) | CI workflow guard test does not run if the backend-test job is removed | CI/CD, Testing | Low | PROPOSED |
 | [ENG-IMP-028](#eng-imp-028-future-authenticatable-statuses-are-not-covered-by-an-http-test) | Future authenticatable statuses are not covered by an HTTP test | Testing | Low | PROPOSED |
 | [ENG-IMP-029](#eng-imp-029-projectcreate-seller-eligibility-is-a-boolean-the-caller-supplies) | project.create seller eligibility is a boolean the caller supplies | Authorization | Low | PROPOSED |
 | [ENG-IMP-030](#eng-imp-030-profile-search-uses-an-unindexed-leading-wildcard) | Profile search uses an unindexed leading wildcard | Database, Performance | Low | PROPOSED |
@@ -151,6 +154,7 @@ Copy this template for each new entry:
 | [ENG-IMP-047](#eng-imp-047-amendment-relationship-checks-are-not-in-authorize) | Amendment relationship checks are not in authorize() | Authorization | Low | PROPOSED |
 | [ENG-IMP-048](#eng-imp-048-amendment-transition-table-is-not-called-by-the-service) | Amendment transition table is not called by the service | Maintainability | Low | PROPOSED |
 | [ENG-IMP-049](#eng-imp-049-a-matching-later-snapshot-can-move-the-agreed-pointer-without-an-amendment) | A matching later snapshot can move the agreed pointer without an amendment | Database | Low | PROPOSED |
+| [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -792,7 +796,7 @@ Copy this template for each new entry:
 | Identified by | Cursor autonomous build, while implementing MVP-002 (GitHub issue #4) |
 | Category | Documentation |
 | Affected subsystem | Documentation |
-| Current state | [Handbook §5.1](engineering-handbook.md#51-current-verified-2026-09-25) still describes `backend/Index.js` as the whole backend. [Handbook §14](engineering-handbook.md#14-testing-strategy) still says no tests exist and that `backend/package.json`'s `test` script is a placeholder that exits 1. |
+| Current state | [Handbook §5.1](engineering-handbook.md#51-current-verified-2026-09-25) still describes `backend/Index.js` as the whole backend. [Handbook §14](engineering-handbook.md#14-testing-strategy) still says no tests exist and that `backend/package.json`'s `test` script is a placeholder that exits 1. After MVP-004, that section also still says CI is future work, while `.github/workflows/ci.yml` exists. |
 | Evidence / problem | MVP-001 split the backend into domain modules. MVP-002's `npm test` runs the smoke suite, and `frontend` has `pnpm test`. A later agent that trusts the handbook's "Current" paragraphs will plan against a repository that no longer exists. The Build Record is the implementation record; the handbook's current-state notes were not refreshed because MVP-002 does not change an engineering standard. |
 | Suggested improvement | Refresh the handbook's "Current" snapshots in one documentation pass after the corresponding build-record sections are verified. Do not change the required standards in the same edit unless a standard actually changed. |
 | Expected benefit | The next implementer does not rebuild the module split or the test harness. |
@@ -870,6 +874,96 @@ Copy this template for each new entry:
 | Status | PROPOSED |
 | Related GitHub Issue | [#5](https://github.com/xela-ash/Music_app/issues/5) (found in review; not implemented) |
 | Related PR | [#60](https://github.com/xela-ash/Music_app/pull/60) |
+| Resolution | — |
+
+### ENG-IMP-025 CI does not typecheck or build the frontend
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-025 |
+| Title | CI does not typecheck or build the frontend |
+| Date identified | 2026-09-28 |
+| Identified by | Cursor autonomous build, while implementing MVP-004 (GitHub issue #6) |
+| Category | CI/CD, Testing |
+| Affected subsystem | Frontend, CI |
+| Current state | `.github/workflows/ci.yml` runs `pnpm lint` and `pnpm test`. It does not run `pnpm build` (`tsc -b && vite build`). |
+| Evidence / problem | MVP-004's work column lists lint, backend test, frontend test, and a migration dry-run. A TypeScript error that ESLint and Vitest do not catch can merge. Local `pnpm build` is still a manual check. |
+| Suggested improvement | Add a frontend job that runs `pnpm build` once a later issue authorizes it. |
+| Expected benefit | Type errors and Vite build failures fail the pull request. |
+| Risk of doing nothing | A merged frontend change can fail the production build. |
+| Implementation risk | Low. The script already exists. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (found during implementation; not part of the acceptance criteria) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-026 GitHub Actions are referenced by major tag
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-026 |
+| Title | GitHub Actions are referenced by major tag |
+| Date identified | 2026-09-28 |
+| Identified by | Cursor autonomous build, while implementing MVP-004 (GitHub issue #6) |
+| Category | CI/CD, Security |
+| Affected subsystem | CI |
+| Current state | `.github/workflows/ci.yml` uses `actions/checkout@v4`, `actions/setup-node@v4`, and `pnpm/action-setup@v4`. |
+| Evidence / problem | A mutable major tag can move to a new commit without a repository change. The workflow grants `contents: read` only, which limits the blast radius, but it does not pin the action source. |
+| Suggested improvement | Pin each action to a full commit SHA and update those pins in a dedicated change. |
+| Expected benefit | CI runs a reviewed action revision. |
+| Risk of doing nothing | A compromised or broken tag update runs on the next pull request. |
+| Implementation risk | Low. Renovate or a manual pin update. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Minor positive once pinned |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A dedicated CI-hardening change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (found during implementation; not part of the acceptance criteria) |
+| Related PR | — |
+| Resolution | — |
+
+### ENG-IMP-027 CI workflow guard test does not run if the backend-test job is removed
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-027 |
+| Title | CI workflow guard test does not run if the backend-test job is removed |
+| Date identified | 2026-09-28 |
+| Identified by | Independent review of MVP-004 pull request #61, commit `00e9d7b` |
+| Category | CI/CD, Testing |
+| Affected subsystem | CI, Testing |
+| Current state | `backend/test/ci-workflow.test.js` asserts that `.github/workflows/ci.yml` still defines `lint`, `frontend-test`, `backend-test`, and `migration-dry-run`. `npm test` runs only in the `backend-test` job. |
+| Evidence / problem | Deleting the `backend-test` job would also delete the process that runs this test. The other three jobs could stay green. Deleting one of those three jobs still fails `backend-test`, because the test file runs there. |
+| Suggested improvement | Run the workflow-structure test in a job that does not depend on `backend-test`, or add a second copy of that check to another job. |
+| Expected benefit | Removing the backend test job cannot silently drop its own guard. |
+| Risk of doing nothing | Low. The job is visible in the workflow file and in review. |
+| Implementation risk | Low. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | A later CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (review finding; not part of the acceptance criteria) |
+| Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
 | Resolution | — |
 
 ### ENG-IMP-028 Future authenticatable statuses are not covered by an HTTP test
@@ -2072,6 +2166,126 @@ Copy this template for each new entry:
 | Related PR | [#96](https://github.com/xela-ash/Music_app/pull/96) |
 | Resolution | — |
 
+### ENG-IMP-075 Seller acceptance does not repeat the fee schedule
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-075 |
+| Title | Seller acceptance does not repeat the fee schedule |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 implementation |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | Funding intent returns schedule `2026-10-01` to the Buyer. Seller acceptance of a proposal does not include that schedule. `buyer_acknowledged_at` and `seller_acknowledged_at` stay null. |
+| Evidence / problem | Escrow §19.4 says the snapshot is disclosed to the Seller before acceptance. The 2026-10-01 decision requires disclosure before funding, which the funding-intent response does. Acceptance happens before that response exists, so this item does not invent a second disclosure surface. |
+| Suggested improvement | When a later item can show the recorded schedule on seller acceptance, store the seller acknowledgment time on the snapshot that funding then freezes. |
+| Expected benefit | The Seller sees the same immutable lines before agreeing to the Project. |
+| Risk of doing nothing | The Buyer still receives the snapshot before funding. The Seller does not see it on the acceptance response. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | A seller-facing acceptance response that can carry the schedule. This entry does not authorize that response. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a seller acceptance disclosure surface |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-076 Commission helper repeats the snapshot rate
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-076 |
+| Title | Commission helper repeats the snapshot rate |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | `sellerCommissionMinor` multiplies by a hardcoded `1000n`. `FEE_LINES[0].rate_bps` is also `1000`. |
+| Evidence / problem | The two constants match the recorded schedule today. A later edit could change one and leave the other. |
+| Suggested improvement | Read the seller-commission basis points from the snapshotted line when a release item computes the fee. |
+| Expected benefit | The posted fee cannot drift from the row the escrow references. |
+| Risk of doing nothing | Both values are `1000` on schedule `2026-10-01`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | The release item that posts the commission. This entry does not authorize that posting. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With MVP-028 |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-077 Fee-snapshot immutability test does not delete
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-077 |
+| Title | Fee-snapshot immutability test does not delete |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Testing |
+| Affected subsystem | Escrow |
+| Current state | `funding-intent.http.test.js` rejects an `UPDATE` of `fee_lines`. It does not issue a `DELETE`. |
+| Evidence / problem | The same trigger function rejects both. The test proves the update path only. |
+| Suggested improvement | Add a `DELETE` assertion next to the update assertion. |
+| Expected benefit | A trigger that stopped rejecting deletes would fail the suite. |
+| Risk of doing nothing | `DELETE` is still rejected by `escrow_fee_snapshots_no_delete`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None. This entry does not authorize the extra assertion by itself. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With a later escrow test change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
+### ENG-IMP-078 Seller commission timing names release
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-078 |
+| Title | Seller commission timing names release |
+| Date identified | 2026-10-01 |
+| Identified by | MVP-027 independent review |
+| Category | Escrow |
+| Affected subsystem | Escrow |
+| Current state | The seller line stores `timing: "release"` and `basis: "seller_award"`. |
+| Evidence / problem | Escrow §19.2 says the commission is taken at release or award. The funding-intent command does not post it. |
+| Suggested improvement | When the release item posts the commission, keep the basis as the seller award, including a dispute award that is not a milestone release. |
+| Expected benefit | A split award still uses the snapshotted 10% line. |
+| Risk of doing nothing | No commission is posted by this item. The basis already says `seller_award`. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | MVP-028. This entry does not authorize a fee journal. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | None |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | With the release posting |
+| Status | PROPOSED |
+| Related GitHub Issue | [#29](https://github.com/xela-ash/Music_app/issues/29) |
+| Related PR | [#101](https://github.com/xela-ash/music_app/pull/101) |
+| Resolution | — |
+
 ### ENG-IMP-079 The Cashfree order call holds the funding transaction
 
 | Field | Value |
@@ -2402,6 +2616,36 @@ Copy this template for each new entry:
 | Related PR | [#103](https://github.com/xela-ash/music_app/pull/103) |
 | Resolution | — |
 
+### ENG-IMP-091 CI cannot exercise privilege-based database protections
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-091 |
+| Title | CI cannot exercise privilege-based database protections |
+| Date identified | 2026-10-06 |
+| Identified by | Independent review of the MVP-004 reconciliation, pull request #61, commit `36a7d88` |
+| Category | CI/CD, Testing, Security |
+| Affected subsystem | CI, Testing, Escrow |
+| Current state | In `.github/workflows/ci.yml` the `postgres:16` service is created with `POSTGRES_USER: musicapp`, so the application role `musicapp` is that container's superuser. Migration `020_escrow_ledger_posting.sql` both adds append-only triggers on `escrow_ledger` and runs `REVOKE UPDATE, DELETE, TRUNCATE ON escrow_ledger FROM musicapp`. In the Cursor image, `musicapp` is an ordinary role created by `.cursor/lib/postgres.sh`. |
+| Evidence / problem | A superuser bypasses privilege checks, so CI tests the trigger layer only. A regression that dropped the `REVOKE`, or a future protection that relies only on privileges, would stay green in CI. |
+| Suggested improvement | In the `backend-test` job, create a non-superuser application role (for example with a setup step or an init script), run the suite as that role, and keep `MUSICAPP_TEST_ADMIN_USER` as the superuser used only for fixture reset. |
+| Expected benefit | CI runs with the same privilege split as the Cursor environment and production. |
+| Risk of doing nothing | Low today, because every current ledger protection is also enforced by a trigger. |
+| Implementation risk | Low. |
+| Estimated scope | S |
+| Dependencies | MVP-004 |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Minor positive: privilege-based protections become testable in CI |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | The next CI change |
+| Status | PROPOSED |
+| Related GitHub Issue | [#6](https://github.com/xela-ash/Music_app/issues/6) (review finding; not part of the acceptance criteria) |
+| Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -2409,7 +2653,7 @@ The initial review confirmed the following gaps in the code. Each is already own
 | Observation | Owner |
 |---|---|
 | `backend/Index.js` and `frontend/src/App.tsx` are single-module tiers | [System Architecture §5](../01-foundation/system-architecture.md#5-current-code-organization-vs-the-modularity-principle); backend: MVP-001 |
-| No automated tests or CI | MVP-002, MVP-004 |
+| Automated tests and CI were absent at the initial review | Closed for the harness by MVP-002 and for the workflow by MVP-004. Remaining coverage gaps stay with the findings that own them, including `SEC-PROJECTS-019` |
 | `POST /users` and `POST /profiles` are removed. `GET /users` stays unauthenticated. | `SEC-001` / MVP-005; `SEC-AUTH-008` |
 | Open CORS, no rate limiting, no JWT algorithm allowlist, weak secret accepted | `SEC-AUTH-004`, `SEC-AUTH-005`, `SEC-AUTH-009`, `SEC-AUTH-006` ([Authentication](../02-users-roles-permissions/authentication.md)) |
 | Account status was not re-checked on protected routes | Current `requireAuth` routes reload `users.status` in MVP-006. `SEC-AUTH-002` stays in `authentication.md` until Product/Architecture updates that document. |
@@ -2476,7 +2720,12 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.28 | 2026-10-01 | Added `ENG-IMP-086` (PROPOSED): governed role grant and revoke wait on the undecided step-up proof. Not authorized. | Engineering |
 | 0.7.29 | 2026-10-01 | Added `ENG-IMP-087` and `ENG-IMP-088` (both PROPOSED) from the MVP-008 review. Neither is authorized. | Engineering |
 | 0.7.30 | 2026-10-02 | Added `ENG-IMP-041` (PROPOSED): email fan-out does not call the email adapter. Not authorized. | Engineering |
-| 0.7.31 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
-| 0.7.32 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
-| 0.7.33 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
-| 0.7.34 | 2026-10-06 | Reconciled MVP-025 with `main` after MVP-043 and renumbered this branch's rows to `0.7.31`–`0.7.33`. Records what those rows omit: `ENG-IMP-083` was set to IMPLEMENTED by the second review repair, and `ENG-IMP-089` (PROPOSED) was added. Neither change authorizes further work. | Engineering |
+| 0.7.31 | 2026-10-06 | MVP-004 reconciled with `main`: added `ENG-IMP-025` (PROPOSED, CI does not run `pnpm build`), `ENG-IMP-026` (PROPOSED, Actions referenced by major tag), and `ENG-IMP-027` (PROPOSED, the workflow-structure test runs only inside `backend-test`), all first recorded on pull request #61 on 2026-09-28. Noted in `ENG-IMP-022` that Handbook §14 still calls CI future work. None is authorized. | Engineering |
+| 0.7.32 | 2026-10-06 | Added `ENG-IMP-091` (PROPOSED) from the independent review of the MVP-004 reconciliation: CI runs as the database superuser, so privilege-based protections are not exercised there. Not authorized. | Engineering |
+| 0.7.33 | 2026-10-01 | Added `ENG-IMP-075` (PROPOSED): seller acceptance does not repeat the fee schedule. Not authorized. `ENG-IMP-068` through `ENG-IMP-074` remain on the unmerged MVP-010 branch. | Engineering |
+| 0.7.34 | 2026-10-01 | Added `ENG-IMP-076`, `ENG-IMP-077`, and `ENG-IMP-078` (all PROPOSED) from the MVP-027 review. None are authorized. | Engineering |
+| 0.7.35 | 2026-10-07 | Reconciled MVP-027 with `main` after MVP-043 and MVP-004; this branch's rows are renumbered to `0.7.33`–`0.7.34`. No entry status changed. No application behavior changed by the reconciliation. | Engineering |
+| 0.7.36 | 2026-10-01 | Added `ENG-IMP-079` and `ENG-IMP-080` (both PROPOSED) from MVP-025. Neither is authorized. `ENG-IMP-068` through `ENG-IMP-078` remain on unmerged pull requests #98 and #101. | Engineering |
+| 0.7.37 | 2026-10-01 | Set `ENG-IMP-079` to IMPLEMENTED in the MVP-025 review repair. Added `ENG-IMP-081` and `ENG-IMP-082` (both PROPOSED). Neither is authorized. | Engineering |
+| 0.7.38 | 2026-10-01 | Added `ENG-IMP-083` (PROPOSED) from the MVP-025 re-review. Not authorized. | Engineering |
+| 0.7.39 | 2026-10-07 | Reconciled MVP-025 with `main` after MVP-043, MVP-004, and MVP-027; this branch's rows are renumbered to `0.7.36`–`0.7.38`. Records what those rows omit: `ENG-IMP-083` was set to IMPLEMENTED by the second review repair, and `ENG-IMP-089` (PROPOSED) was added. Neither authorizes further work. | Engineering |
