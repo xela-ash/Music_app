@@ -210,7 +210,7 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 | Engineering decisions | [EDR-022](#edr-022-local-mock-storage-decimal-byte-limits-and-cloudflare-r2) |
 | Tests | `backend/test/asset-limits.test.js`, `backend/test/asset-storage.test.js`, `backend/test/asset-ingest.http.test.js`, `backend/test/asset-constraints.test.js` |
 | Last materially changed | MVP-010 (2026-10-01) |
-| Next | MVP-011 (retention, holds, and deletion), on the critical path to MVP-020. Live R2 verification waits on credentials. |
+| Next | MVP-011 (retention, holds, and deletion), a dependency of critical-path item MVP-020. Live R2 verification waits on credentials. |
 
 ### 4.10 Projects
 
