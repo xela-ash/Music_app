@@ -176,12 +176,12 @@ Health checks: `curl localhost:4000/` and `curl localhost:4000/db-health`.
 | Stage | Merged | Not started |
 |---|---|---|
 | 0 Foundation | MVP-001 module layout, MVP-002 test harness, MVP-003 idempotency/outbox/inbox, MVP-004 CI | — |
-| 1 Identity | MVP-005 legacy routes removed, MVP-006 live status check, MVP-007 `authorize()`, MVP-008 roles and Administrator bootstrap | MVP-009 password reset and email verification (needs live Resend) |
+| 1 Identity | MVP-005 legacy routes removed, MVP-006 live status check, MVP-007 `authorize()`, MVP-008 roles and Administrator bootstrap | MVP-009 password reset and email verification (live email needs Resend credentials) |
 | 2 Assets/Verification | MVP-010 upload sessions, local and R2 adapters | MVP-011 retention and holds, MVP-012 identity verification |
 | 3 Marketplace | MVP-013 server-side profile search | — |
 | 4 Projects | MVP-014 invitations, MVP-015 state machine and term versions, MVP-016 amendments | — |
 | 5 Milestones | MVP-017 term snapshots, MVP-018 state machine M01–M17, MVP-019 activation | — |
-| 6 Deliverables | — | MVP-020–023 (submission, readiness, revision/approval, non-response) |
+| 6 Deliverables | — (MVP-018 already provides the M05 consumer and the M06/M07 service for MVP-021/022) | MVP-020–023 (submission, readiness, revision/approval, non-response) |
 | 7 Escrow/Payments | MVP-024 funding intent, MVP-025 payment adapter and funding confirmation, MVP-026 ledger, MVP-027 fee schedule | — |
 | 8 Release/Payout | MVP-029 refund execution | MVP-028 release, MVP-030 cancellation outcomes, MVP-052 payout |
 | 9 Disputes | — | MVP-031–037 |
@@ -190,7 +190,50 @@ Health checks: `curl localhost:4000/` and `curl localhost:4000/db-health`.
 | 12 Ratings | — | MVP-044–047 |
 | 13 Hardening | — | MVP-048–051 |
 
-**Ready now:** `MVP-011` and `MVP-012` (both AUTONOMOUS-READY). The critical path (plan §6) continues at `MVP-020`, which needs `MVP-011`. The first full transaction without payout (plan §6 checkpoint A) also needs `MVP-012`, `MVP-028`, `MVP-044`, and `MVP-045`.
+**Ready now:**
+
+- `MVP-011` and `MVP-012` (both AUTONOMOUS-READY).
+- `MVP-009` (EXTERNAL-DEPENDENCY). A human merges it. Live email needs credentials.
+
+The critical path (plan §6) continues at `MVP-020`, which needs `MVP-011`. The first full transaction without payout (plan §6 checkpoint A) also needs `MVP-012`, `MVP-028`, `MVP-044`, and `MVP-045`.
+
+**Open GitHub issues.** All 27 open issues were reviewed individually against `main` `d60bb94` on 2026-10-07. Each one carries a review comment with the evidence.
+
+- **None was closed:** no open issue meets its acceptance criteria, and none is obsolete, superseded, or a duplicate.
+- Every merged item's issue is closed (25).
+- No open issue carries the `blocked` label.
+- Bodies written before the 2026-10-01 decisions (#11, #32, #46, #54) carry a status banner.
+
+| Issue | Item | Title | Classification | Status | Why it stays open |
+|---|---|---|---|---|---|
+| [#11](https://github.com/xela-ash/Music_app/issues/11) | MVP-009 | Password reset and email verification | EXTERNAL-DEPENDENCY | READY | Not started. Buildable against the merged email adapter and mock. Live Resend delivery needs credentials. Session revocation on reset (ENG-IMP-016) has no work item. |
+| [#13](https://github.com/xela-ash/Music_app/issues/13) | MVP-011 | Asset retention, hold, and deletion | AUTONOMOUS-READY | READY | Not started. Unblocks MVP-020, MVP-031, MVP-033, MVP-039. |
+| [#14](https://github.com/xela-ash/Music_app/issues/14) | MVP-012 | Identity verification routes | AUTONOMOUS-READY | READY | Not started. The schema and asset FK exist; no routes. |
+| [#22](https://github.com/xela-ash/Music_app/issues/22) | MVP-020 | Deliverable and Submission model | AUTONOMOUS-READY | Waiting on MVP-011 | Not started. Next critical-path item. |
+| [#23](https://github.com/xela-ash/Music_app/issues/23) | MVP-021 | Submission-to-Milestone readiness | AUTONOMOUS-READY | Waiting on MVP-020 | **Partial.** The M05 consumer exists (MVP-018). The readiness-fact emitter remains. |
+| [#24](https://github.com/xela-ash/Music_app/issues/24) | MVP-022 | Revision requests and Buyer approval | AUTONOMOUS-READY | Waiting on MVP-021 | **Partial.** The tables and the M06/M07 service exist (MVP-018). Routes and Submission linkage remain. |
+| [#25](https://github.com/xela-ash/Music_app/issues/25) | MVP-023 | Buyer non-response (M18) | AUTONOMOUS-READY | Waiting on MVP-022 | Not started. |
+| [#30](https://github.com/xela-ash/Music_app/issues/30) | MVP-028 | Release eligibility and execution | AUTONOMOUS-READY | Waiting on MVP-022, MVP-023 | Not started. The M08 edge, the release ledger rule, and the fee snapshot exist. |
+| [#32](https://github.com/xela-ash/Music_app/issues/32) | MVP-030 | Cancellation financial outcomes | HUMAN-DECISION-REQUIRED | Waiting on MVP-028 | Not started. EQ3 is decided (mutual award). |
+| [#33](https://github.com/xela-ash/Music_app/issues/33) | MVP-031 | Disputes schema | AUTONOMOUS-READY | Waiting on MVP-011, MVP-022 | Not started. |
+| [#34](https://github.com/xela-ash/Music_app/issues/34) | MVP-032 | Dispute eligibility and opening | AUTONOMOUS-READY | Waiting on MVP-031 | Not started. |
+| [#35](https://github.com/xela-ash/Music_app/issues/35) | MVP-033 | Evidence references and Asset holds | AUTONOMOUS-READY | Waiting on MVP-011, MVP-032 | Not started. |
+| [#36](https://github.com/xela-ash/Music_app/issues/36) | MVP-034 | Response and staff review | AUTONOMOUS-READY | Waiting on MVP-032 | Not started. |
+| [#37](https://github.com/xela-ash/Music_app/issues/37) | MVP-035 | Adjudication and resolution instruction | AUTONOMOUS-READY | Waiting on MVP-034 | Not started. |
+| [#38](https://github.com/xela-ash/Music_app/issues/38) | MVP-036 | Escrow resolution-instruction consumer | AUTONOMOUS-READY | Waiting on MVP-035 | Not started. Disputes EQ1 (post-payout recovery) is still open and gates only the manual UX. |
+| [#39](https://github.com/xela-ash/Music_app/issues/39) | MVP-037 | Non-response/dispute race | AUTONOMOUS-READY | Waiting on MVP-023, MVP-032 | Not started. |
+| [#41](https://github.com/xela-ash/Music_app/issues/41) | MVP-039 | Message Asset attachments | AUTONOMOUS-READY | Waiting on MVP-011 | Not started. Attachments are rejected today. |
+| [#42](https://github.com/xela-ash/Music_app/issues/42) | MVP-040 | Dispute-evidence read access | AUTONOMOUS-READY | Waiting on MVP-034 | Not started. |
+| [#46](https://github.com/xela-ash/Music_app/issues/46) | MVP-044 | Rating eligibility and submission | HUMAN-DECISION-REQUIRED | Waiting on MVP-028 | Not started. The scale is decided (1–5). |
+| [#47](https://github.com/xela-ash/Music_app/issues/47) | MVP-045 | Ratings Pending and waiver timeout | AUTONOMOUS-READY | Waiting on MVP-044 | Not started. |
+| [#48](https://github.com/xela-ash/Music_app/issues/48) | MVP-046 | Rating publication and moderation | AUTONOMOUS-READY | Waiting on MVP-044 | Not started. |
+| [#49](https://github.com/xela-ash/Music_app/issues/49) | MVP-047 | Reputation projection | AUTONOMOUS-READY | Waiting on MVP-046 | Not started. |
+| [#50](https://github.com/xela-ash/Music_app/issues/50) | MVP-048 | Concurrency/idempotency audit | AUTONOMOUS-READY | Waiting on MVP-030, -037, -045, -052 | Not started. |
+| [#51](https://github.com/xela-ash/Music_app/issues/51) | MVP-049 | Security-finding closure sweep | AUTONOMOUS-READY | Waiting on MVP-048 | Not started. Some SEC findings are already closed by earlier items. |
+| [#52](https://github.com/xela-ash/Music_app/issues/52) | MVP-050 | Audit-trail completeness | AUTONOMOUS-READY | Waiting on MVP-049 | Not started. |
+| [#53](https://github.com/xela-ash/Music_app/issues/53) | MVP-051 | Vertical-slice end-to-end suite | AUTONOMOUS-READY | Waiting on MVP-050 | Not started. |
+| [#54](https://github.com/xela-ash/Music_app/issues/54) | MVP-052 | Seller payout execution | HUMAN-DECISION-REQUIRED | Waiting on MVP-012, MVP-028 | Not started. PQ3 is decided. Ledger payout rules and a `createPayout` stub exist. |
+
 
 ## 8. What can be exercised, and how
 
@@ -299,7 +342,11 @@ An independent review covered every reconciliation and found no unresolved defec
 
 It is preserved as tag `archive/pr-72-full-mvp-screens` and branch `frontend/full-mvp-screens`, and recorded as [ENG-IMP-090](20-engineering/engineering-improvements.md#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged). The screen-by-screen comparison is on the PR.
 
-**Issues:** #7 and #10 were closed with acceptance evidence. The stale `blocked` label was removed from #29, #46, and #54. Every merged item's issue is closed. Only #11 (MVP-009) keeps `blocked`, because of the external dependency.
+**Issues:**
+
+- #7 and #10 were closed with acceptance evidence.
+- The stale `blocked` label was removed from #29, #46, #54, and #11.
+- After the four merges, 25 issues are closed and 27 are open. Each open issue was reviewed on 2026-10-07; see the table in Section 7.
 
 **Branches:**
 
@@ -311,7 +358,7 @@ It is preserved as tag `archive/pr-72-full-mvp-screens` and branch `frontend/ful
 
 ## 14. How to continue
 
-1. Pick a `READY` item from the [issue index](19-implementation-planning/github-issue-index.md): `MVP-011` (it unblocks critical-path `MVP-020` and also `MVP-031` and `MVP-039`) or `MVP-012`.
+1. Pick a `READY` item from the [issue index](19-implementation-planning/github-issue-index.md): `MVP-011` (it unblocks critical-path `MVP-020`, and also `MVP-031` and `MVP-039`), `MVP-012`, or `MVP-009` (a human merges it).
 2. Follow the nine pre-implementation steps of [`AGENTS.md`](../AGENTS.md) §2 for every item. Update the Build Record, EDRs, and improvements register as §5 requires. The next free identifiers are `EDR-027`, `ENG-IMP-092`, and migration `024`.
 3. Merge `main` into a pull request before expecting CI on it. The four checks are required.
 4. Do not redesign working subsystems ([Handbook §20](20-engineering/engineering-handbook.md#20-refactoring-and-replacement)). Do not decide open product questions in code ([`AGENTS.md`](../AGENTS.md) §4).
