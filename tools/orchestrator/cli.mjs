@@ -160,7 +160,7 @@ function publishReview({ pr, report, sessionId }) {
   }
 }
 
-async function runOnce(commandName, { only, workspace, maxItems }) {
+async function runOnce(commandName, { only, workspace, maxItems, resumePr = null }) {
   const proof = loadProof(root);
   if (!proof?.proved) {
     emit({
@@ -186,7 +186,7 @@ async function runOnce(commandName, { only, workspace, maxItems }) {
     process.exitCode = 2;
     return;
   }
-  if (workspace) {
+  if (workspace && !resumePr) {
     const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: resolvedWorkspace, encoding: "utf8" });
     const main = spawnSync("git", ["rev-parse", "main"], { cwd: root, encoding: "utf8" });
     const porcelain = spawnSync("git", ["status", "--porcelain"], { cwd: resolvedWorkspace, encoding: "utf8" });
@@ -222,6 +222,7 @@ async function runOnce(commandName, { only, workspace, maxItems }) {
       runner: makeRunner(resolvedWorkspace),
       only,
       maxItems,
+      resumePr,
       waitForChecks: ({ pr }) => waitForRequiredChecks(pr),
       publishReview,
       loadGateFacts: (input) =>
@@ -259,7 +260,18 @@ async function once() {
     process.exitCode = 2;
     return;
   }
-  await runOnce("once", { only: "MVP-011", workspace: flag("--workspace"), maxItems: 1 });
+  const resumePr = flag("--pr");
+  if (resumePr && !/^\d+$/.test(resumePr)) {
+    emit({ command: "once", status: "refused", reason: "--pr must be a pull request number" });
+    process.exitCode = 2;
+    return;
+  }
+  await runOnce("once", {
+    only: "MVP-011",
+    workspace: flag("--workspace"),
+    maxItems: 1,
+    resumePr: resumePr ? Number(resumePr) : null,
+  });
 }
 
 const actions = {

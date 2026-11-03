@@ -12,6 +12,7 @@ import { dryRunNextAction, proveFreshContext, runImplementationLoop } from "../l
 import { dryRunPrompt, proofPromptA, proofPromptB, reviewPrompt } from "../lib/prompts.mjs";
 import { selectNext, skippedReadyItems } from "../lib/queue.mjs";
 import { classifyAgentFailure, withRetries } from "../lib/retry.mjs";
+import { extractReport } from "../lib/runner.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const items = loadIssueIndex(path.join(root, config.indexPath));
@@ -191,6 +192,11 @@ test("implementation loop uses a new reviewer and stops at the repair limit", as
   assert.equal(result.results[0].phase, "repair-limit");
   assert.equal(roles.filter((role) => role === "reviewer").length, config.maxRepairRounds + 1);
   assert.equal(roles.filter((role) => role === "repair").length, config.maxRepairRounds);
+});
+
+test("inline implementer report still yields the pull request number", () => {
+  const text = 'Retention tests passed. {"role":"implementer","issue":"MVP-011","pr":110,"head":"abc","commit":"abc","blockers":[],"next_action":"independent review"}MVP-011 is on PR 110.';
+  assert.equal(extractReport(text).pr, 110);
 });
 
 test("dry-run success reads the proof flag", () => {

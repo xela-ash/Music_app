@@ -96,9 +96,13 @@ export async function runImplementationLoop({
   only = null,
   waitForChecks = null,
   publishReview = null,
+  resumePr = null,
 }) {
   const results = [];
   let current = state;
+  if (resumePr && only && current.items?.[only]?.status === "blocked") {
+    current = recordItem(current, only, { status: "implemented", blocker: "", pr: Number(resumePr) });
+  }
   while (results.length < maxItems) {
     const control = readControl();
     if (control.mode !== "running") {
@@ -108,7 +112,9 @@ export async function runImplementationLoop({
     const item = selectNext(visible, current);
     if (item && only && item.id !== only) return { state: current, results, stopped: "restricted" };
     if (!item) return { state: current, results, stopped: "idle" };
-    current = recordItem(current, item.id, { status: "running", phase: "implement" });
+    current = recordItem(current, item.id, { status: "running", phase: resumePr ? "review" : "implement" });
+    let pr = resumePr ? Number(resumePr) : null;
+    if (!pr) {
     const implemented = await freshRun(runner, {
       role: "implementer",
       mode: "agent",
@@ -136,7 +142,8 @@ export async function runImplementationLoop({
       results.push({ issue: item.id, status: "blocked", phase: "implement" });
       continue;
     }
-    const pr = implementReport.pr;
+    pr = implementReport.pr;
+    }
     let reviewReport = null;
     let repairs = 0;
     while (reviewReport === null) {

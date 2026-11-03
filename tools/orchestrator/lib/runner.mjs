@@ -26,18 +26,44 @@ export function parseAgentResult(stdout) {
   throw new Error("Agent stdout did not contain a result session");
 }
 
-export function extractReport(text) {
-  const lines = String(text || "").split("\n");
-  let report = null;
-  for (const line of lines) {
-    const trimmed = line.trim().replace(/^```(?:json)?/, "").replace(/```$/, "");
-    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) continue;
-    try {
-      const value = JSON.parse(trimmed);
-      if (value && typeof value.role === "string") report = value;
-    } catch {
-      // Narrative lines are ignored. The contract is one JSON object.
+function parseObjectAt(source, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === "\"") inString = false;
+      continue;
     }
+    if (character === "\"") inString = true;
+    else if (character === "{") depth += 1;
+    else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(source.slice(start, index + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export function extractReport(text) {
+  const source = String(text || "");
+  let report = null;
+  let from = 0;
+  while (from < source.length) {
+    const start = source.indexOf("{\"role\"", from);
+    if (start === -1) break;
+    const value = parseObjectAt(source, start);
+    if (value && typeof value.role === "string") report = value;
+    from = start + 8;
   }
   return report;
 }
