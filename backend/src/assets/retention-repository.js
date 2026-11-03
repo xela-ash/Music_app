@@ -51,6 +51,8 @@ async function lockAssetById(client, assetId) {
 }
 
 async function countActiveBindings(client, assetId) {
+  // Domain Asset FKs that still require availability (§18.3 / Handbook §13):
+  // project bindings, profiles.profile_photo_asset_id, verification_documents.asset_id.
   const project = await client.query(
     `SELECT COUNT(*)::int AS count FROM asset_project_bindings WHERE asset_id = $1`,
     [assetId]
@@ -59,7 +61,11 @@ async function countActiveBindings(client, assetId) {
     `SELECT COUNT(*)::int AS count FROM profiles WHERE profile_photo_asset_id = $1`,
     [assetId]
   );
-  return project.rows[0].count + profile.rows[0].count;
+  const verification = await client.query(
+    `SELECT COUNT(*)::int AS count FROM verification_documents WHERE asset_id = $1`,
+    [assetId]
+  );
+  return project.rows[0].count + profile.rows[0].count + verification.rows[0].count;
 }
 
 async function insertHold(client, row) {
@@ -391,6 +397,9 @@ async function listUnboundAssets(client, graceSeconds) {
        )
        AND NOT EXISTS (
          SELECT 1 FROM profiles p WHERE p.profile_photo_asset_id = a.id
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM verification_documents v WHERE v.asset_id = a.id
        )
        AND COALESCE(a.ready_at, a.updated_at) + make_interval(secs => $1) <= clock_timestamp()`,
     [graceSeconds]

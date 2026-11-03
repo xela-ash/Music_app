@@ -98,6 +98,25 @@ async function createReadyAsset({ withBinding = false } = {}) {
   };
 }
 
+async function bindVerificationDocument(userId, assetId) {
+  const verification = await pool.query(
+    `INSERT INTO profile_verifications (external_id, user_id, status)
+     VALUES ($1, $2, 'submitted')
+     RETURNING id`,
+    [hexId("ver"), userId]
+  );
+  await pool.query(
+    `INSERT INTO verification_documents (
+       external_id, user_id, verification_id, doc_type, doc_side, country,
+       asset_id, file_mime_type, is_current, status
+     ) VALUES (
+       $1, $2, $3, 'selfie', 'selfie', 'IN',
+       $4, 'image/jpeg', true, 'uploaded'
+     )`,
+    [hexId("vdoc"), userId, verification.rows[0].id, assetId]
+  );
+}
+
 describe("asset retention holds and deletion", () => {
   before(() => {
     ensureMigrated();
@@ -298,6 +317,38 @@ describe("asset retention holds and deletion", () => {
         }),
       (error) => error.status === 409 && error.body.code === "active_binding"
     );
+  });
+
+  it("§18.3: verification_documents.asset_id is an active binding for soft-delete and orphan detection", async () => {
+    const fixture = await createReadyAsset();
+    await bindVerificationDocument(fixture.userId, fixture.assetId);
+
+    await assert.rejects(
+      () =>
+        requestSoftDelete({
+          assetExternalId: fixture.assetExternalId,
+          actorType: "system",
+          actorId: "retention-test",
+          reasonCode: "verification_bound",
+        }),
+      (error) => error.status === 409 && error.body.code === "active_binding"
+    );
+
+    const unboundSibling = await createReadyAsset();
+    const sweep = await runOrphanDetection();
+    assert.ok(sweep.summary.unbound_asset >= 1);
+
+    const candidates = await pool.query(
+      `SELECT asset_id FROM asset_orphan_candidates
+       WHERE candidate_kind = 'unbound_asset' AND state = 'quarantined'`
+    );
+    const orphanAssetIds = candidates.rows.map((row) => row.asset_id);
+    assert.ok(orphanAssetIds.includes(unboundSibling.assetId));
+    assert.equal(orphanAssetIds.includes(fixture.assetId), false);
+
+    const asset = await pool.query("SELECT state FROM assets WHERE id = $1", [fixture.assetId]);
+    assert.equal(asset.rows[0].state, "ready");
+    assert.equal(local.objectExists(fixture.storageKey), true);
   });
 
   it("SEC-ASSET-009: orphan detection quarantines abandoned staging and untracked objects", async () => {
