@@ -251,6 +251,16 @@ function abortObject() {
   return undefined;
 }
 
+function deleteObject() {
+  const error = new Error("Cloudflare R2 object deletion is not available without live credentials");
+  error.code = "storage_provider_rejected";
+  throw error;
+}
+
+function objectExists() {
+  return false;
+}
+
 module.exports = {
   PROVIDER_KEY,
   REQUIRED_ENV,
@@ -265,5 +275,7 @@ module.exports = {
   inspect,
   readPrefix,
   abortObject,
+  deleteObject,
+  objectExists,
   setTransportForTests,
 };

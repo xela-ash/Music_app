@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.43 |
-| Last Reviewed | 2026-10-07 |
+| Version | 0.7.44 |
+| Last Reviewed | 2026-11-03 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -196,6 +196,7 @@ Copy this template for each new entry:
 | [ENG-IMP-089](#eng-imp-089-cashfree-order-creation-omits-customer_details) | Cashfree order creation omits customer_details | Payments | Low | PROPOSED |
 | [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
 | [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
+| [ENG-IMP-092](#eng-imp-092-retention-policy-grace-seconds-are-an-engineering-placeholder) | Retention policy grace seconds are an engineering placeholder | Assets | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2927,6 +2928,36 @@ Copy this template for each new entry:
 | Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
 | Resolution | — |
 
+### ENG-IMP-092 Retention policy grace seconds are an engineering placeholder
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-092 |
+| Title | Retention policy grace seconds are an engineering placeholder |
+| Date identified | 2026-11-03 |
+| Identified by | MVP-011 implementer |
+| Category | Assets, Compliance |
+| Affected subsystem | Assets / retention |
+| Current state | Migration `024` seeds `asset_retention_policies` row `mvp_default` / `2026-11-03` with `orphan_grace_seconds`, `staging_grace_seconds`, `replacement_grace_seconds`, and `soft_delete_grace_seconds` all set to `0`. Soft-delete and orphan detection read those values. |
+| Evidence / problem | Assets §18.1 leaves exact retention durations open and forbids embedding one blanket number in code. Zero is a valid policy value for the mechanism, but it is not a product/compliance decision. |
+| Suggested improvement | When Product/Compliance records per-purpose durations, insert a new immutable policy version and retire `2026-11-03` rather than updating the seed row. |
+| Expected benefit | Workers honor the decided grace windows without a code change. |
+| Risk of doing nothing | Soft-delete and orphan reclaim become eligible immediately after the request or purpose grace of zero. |
+| Implementation risk | Low once the durations are decided. |
+| Estimated scope | S |
+| Dependencies | Product/Compliance retention decisions for Assets §18.1 / §30 |
+| Product behavior impact | Yes — changes when physical deletion and orphan reclaim become eligible |
+| Specification impact | No code change until the specification records the durations |
+| Migration impact | Additive policy version insert |
+| Security impact | None by itself |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | When the open retention durations are decided |
+| Status | PROPOSED |
+| Related GitHub Issue | [#13](https://github.com/xela-ash/Music_app/issues/13) |
+| Related PR | The MVP-011 pull request |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3014,3 +3045,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.41 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
 | 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |
 | 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's status changed. The only content change is a dated note in `ENG-IMP-016` Dependencies: with the email provider selected, it is now `MVP-009`'s remaining blocker. None is authorized. | Engineering |
+| 0.7.44 | 2026-11-03 | Added `ENG-IMP-092` (PROPOSED): seeded retention policy grace seconds are an engineering placeholder until Product/Compliance records durations. Not authorized. | Engineering |
