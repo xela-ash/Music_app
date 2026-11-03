@@ -186,6 +186,10 @@ CREATE INDEX asset_processing_jobs_claimable_idx
   ON asset_processing_jobs (state, available_at, priority)
   WHERE state IN ('pending', 'failed', 'blocked_by_hold');
 
+CREATE INDEX asset_processing_jobs_lease_recovery_idx
+  ON asset_processing_jobs (job_type, lease_expires_at)
+  WHERE state = 'leased';
+
 CREATE TABLE asset_orphan_candidates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   external_id TEXT NOT NULL UNIQUE,

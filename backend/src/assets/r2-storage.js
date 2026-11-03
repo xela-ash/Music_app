@@ -258,7 +258,11 @@ function deleteObject() {
 }
 
 function objectExists() {
-  return false;
+  // Fail closed: absence must not be asserted without a verified provider check
+  // (Assets §18.3/§18.4, BR-ASSET-015). Returning false would quarantine live objects.
+  const error = new Error("Cloudflare R2 object existence is not available without live credentials");
+  error.code = "storage_provider_rejected";
+  throw error;
 }
 
 module.exports = {

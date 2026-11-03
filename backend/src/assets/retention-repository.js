@@ -208,9 +208,18 @@ async function claimJobs(client, row) {
        SELECT id
        FROM asset_processing_jobs
        WHERE job_type = $1
-         AND state IN ('pending', 'failed', 'blocked_by_hold')
-         AND available_at <= clock_timestamp()
-         AND (lease_expires_at IS NULL OR lease_expires_at < clock_timestamp())
+         AND (
+           (
+             state IN ('pending', 'failed', 'blocked_by_hold')
+             AND available_at <= clock_timestamp()
+             AND (lease_expires_at IS NULL OR lease_expires_at < clock_timestamp())
+           )
+           OR (
+             state = 'leased'
+             AND lease_expires_at IS NOT NULL
+             AND lease_expires_at < clock_timestamp()
+           )
+         )
        ORDER BY priority ASC, available_at ASC
        FOR UPDATE SKIP LOCKED
        LIMIT $2

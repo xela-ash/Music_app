@@ -411,6 +411,91 @@ describe("asset retention holds and deletion", () => {
     );
   });
 
+  it("DATA-ASSET-006: expired leased physical_deletion jobs are reclaimed and retried", async () => {
+    const fixture = await createReadyAsset();
+    await requestSoftDelete({
+      assetExternalId: fixture.assetExternalId,
+      actorType: "system",
+      actorId: "retention-test",
+      reasonCode: "lease_recovery",
+    });
+    await pool.query(
+      `UPDATE asset_processing_jobs
+       SET state = 'leased',
+           lease_owner = 'crashed-worker',
+           lease_expires_at = clock_timestamp() - interval '1 second',
+           attempt_count = 1,
+           started_at = clock_timestamp() - interval '1 minute'
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+
+    const run = await runDeletionWorker({ limit: 5, leaseOwner: "recovery-worker" });
+    assert.equal(run.claimed, 1);
+    assert.equal(run.results[0].outcome, "deleted");
+
+    const job = await pool.query(
+      `SELECT state, lease_owner, lease_expires_at FROM asset_processing_jobs
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+    assert.equal(job.rows[0].state, "succeeded");
+    assert.equal(job.rows[0].lease_owner, null);
+    assert.equal(job.rows[0].lease_expires_at, null);
+    assert.equal(local.objectExists(fixture.storageKey), false);
+  });
+
+  it("§18.3: a throw from storage.deleteObject releases the lease as failed for retry", async () => {
+    const fixture = await createReadyAsset();
+    await requestSoftDelete({
+      assetExternalId: fixture.assetExternalId,
+      actorType: "system",
+      actorId: "retention-test",
+      reasonCode: "provider_throw",
+    });
+
+    const originalDelete = local.deleteObject;
+    local.deleteObject = () => {
+      const error = new Error("simulated provider transient failure");
+      error.code = "storage_provider_rejected";
+      throw error;
+    };
+    try {
+      const first = await runDeletionWorker({ limit: 5 });
+      assert.equal(first.claimed, 1);
+      assert.equal(first.results[0].outcome, "failed");
+      assert.equal(first.results[0].code, "storage_provider_rejected");
+
+      const leased = await pool.query(
+        `SELECT state, lease_owner, lease_expires_at, safe_error_code
+         FROM asset_processing_jobs
+         WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+        [fixture.assetId]
+      );
+      assert.equal(leased.rows[0].state, "failed");
+      assert.equal(leased.rows[0].lease_owner, null);
+      assert.equal(leased.rows[0].lease_expires_at, null);
+      assert.equal(leased.rows[0].safe_error_code, "storage_provider_rejected");
+      assert.equal(local.objectExists(fixture.storageKey), true);
+
+      const asset = await pool.query("SELECT state FROM assets WHERE id = $1", [fixture.assetId]);
+      assert.equal(asset.rows[0].state, "deletion_pending");
+    } finally {
+      local.deleteObject = originalDelete;
+    }
+
+    await pool.query(
+      `UPDATE asset_processing_jobs
+       SET available_at = clock_timestamp() - interval '1 second'
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+    const second = await runDeletionWorker({ limit: 5 });
+    assert.equal(second.claimed, 1);
+    assert.equal(second.results[0].outcome, "deleted");
+    assert.equal(local.objectExists(fixture.storageKey), false);
+  });
+
   it("concurrency: parallel hold creates for the same authority keep one active hold", async () => {
     const fixture = await createReadyAsset();
     const command = {

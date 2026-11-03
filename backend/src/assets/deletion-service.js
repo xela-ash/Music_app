@@ -308,6 +308,31 @@ async function processPhysicalDeletionJob(client, job) {
   return { outcome: "deleted", assetExternalId: deleted.external_id };
 }
 
+function providerFailureCode(error) {
+  if (typeof error?.code === "string" && error.code.length > 0 && error.code.length <= 100) {
+    return error.code;
+  }
+  return "provider_transient_failure";
+}
+
+async function markJobTransientFailure(job, error) {
+  const exhausted = job.attempt_count >= job.maximum_attempts;
+  const safeErrorCode = providerFailureCode(error);
+  await withTransaction(async (client) => {
+    await retention.finishJob(client, {
+      jobId: job.id,
+      state: exhausted ? "dead_lettered" : "failed",
+      availableAt: exhausted ? null : new Date(Date.now() + 30_000),
+      safeErrorCode,
+    });
+  });
+  return {
+    jobExternalId: job.external_id,
+    outcome: exhausted ? "dead_lettered" : "failed",
+    code: safeErrorCode,
+  };
+}
+
 async function runDeletionWorker({ limit = 10, leaseOwner = "asset-deletion-worker", leaseSeconds = 30 } = {}) {
   const claimed = await withTransaction(async (client) =>
     retention.claimJobs(client, {
@@ -319,8 +344,13 @@ async function runDeletionWorker({ limit = 10, leaseOwner = "asset-deletion-work
   );
   const results = [];
   for (const job of claimed) {
-    const result = await withTransaction(async (client) => processPhysicalDeletionJob(client, job));
-    results.push({ jobExternalId: job.external_id, ...result });
+    try {
+      const result = await withTransaction(async (client) => processPhysicalDeletionJob(client, job));
+      results.push({ jobExternalId: job.external_id, ...result });
+    } catch (error) {
+      // Claim already committed; a provider throw must release the lease (§18.3 / DATA-ASSET-006).
+      results.push(await markJobTransientFailure(job, error));
+    }
   }
   return { claimed: claimed.length, results };
 }
