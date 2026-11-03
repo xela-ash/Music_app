@@ -29,14 +29,13 @@ export function buildAgentArgs({ mode, workspace, force = false, sandbox, prompt
     "-p",
     "--output-format",
     "json",
-    "--mode",
-    mode,
     "--trust",
     "--workspace",
     workspace,
     "--sandbox",
     sandbox,
   ];
+  if (mode !== "agent") args.push("--mode", mode);
   if (force) args.push("--force");
   args.push(prompt);
   return assertFreshInvocation(args);

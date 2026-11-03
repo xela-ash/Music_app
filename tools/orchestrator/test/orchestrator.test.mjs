@@ -78,6 +78,15 @@ test("agent invocations cannot resume a conversation", () => {
   assert.equal(args.includes("--resume"), false);
   assert.equal(args.includes("--continue"), false);
   assert.equal(args.includes("--force"), false);
+  const implementArgs = buildAgentArgs({
+    mode: "agent",
+    workspace: root,
+    force: true,
+    sandbox: "disabled",
+    prompt: "MusicApp implement",
+  });
+  assert.equal(implementArgs.includes("--mode"), false);
+  assert.equal(implementArgs.includes("--force"), true);
   assert.throws(() => buildAgentArgs({
     mode: "ask",
     workspace: root,
