@@ -13,3 +13,6 @@ pnpm-debug.log*
 
 # Build
 **/dist
+
+# Local orchestrator control state and run logs. Durable status stays in GitHub.
+.orchestrator/
