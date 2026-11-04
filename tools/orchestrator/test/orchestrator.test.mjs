@@ -465,6 +465,68 @@ test("resume reviews an existing pull request without a second implementation", 
   assert.equal(merges.length, 1);
 });
 
+test("stop between implementation and review does not merge", async () => {
+  let calls = 0;
+  const merges = [];
+  const result = await runImplementationLoop({
+    items,
+    state: { items: {} },
+    readControl: () => ({ mode: calls === 0 ? "running" : "stopped" }),
+    maxItems: 1,
+    only: "MVP-011",
+    runner: async (invocation) => {
+      calls += 1;
+      return {
+        exitCode: 0,
+        sessionId: "implement-session",
+        stderr: "",
+        timedOut: false,
+        result: {
+          type: "result",
+          session_id: "implement-session",
+          result: '{"role":"implementer","issue":"MVP-011","pr":110,"head":"abc","commit":"abc","blockers":[],"next_action":"review"}',
+        },
+      };
+    },
+    loadGateFacts: async () => passingFacts(),
+    merge: async () => merges.push(true),
+  });
+  assert.equal(calls, 1);
+  assert.equal(merges.length, 0);
+  assert.equal(result.stopped, "stopped");
+});
+
+test("a human decision stops the item instead of starting a repair", async () => {
+  const roles = [];
+  const merges = [];
+  const result = await runImplementationLoop({
+    items,
+    state: { items: {} },
+    readControl: () => ({ mode: "running" }),
+    maxItems: 1,
+    only: "MVP-011",
+    runner: async (invocation) => {
+      roles.push(invocation.role);
+      const sessionId = `${invocation.role}-session`;
+      const body = invocation.role === "reviewer"
+        ? '{"role":"reviewer","issue":"MVP-011","pr":110,"head":"abc","defects":[{"summary":"needs a product decision"}],"improvements":[],"human_decision":true,"external_dependency":false,"spec_ambiguity":false,"next_action":"stop"}'
+        : '{"role":"implementer","issue":"MVP-011","pr":110,"head":"abc","commit":"abc","blockers":[],"next_action":"review"}';
+      return {
+        exitCode: 0,
+        sessionId,
+        stderr: "",
+        timedOut: false,
+        result: { type: "result", session_id: sessionId, result: body },
+      };
+    },
+    loadGateFacts: async () => passingFacts(),
+    merge: async () => merges.push(true),
+  });
+  assert.deepEqual(roles, ["implementer", "reviewer"]);
+  assert.equal(merges.length, 0);
+  assert.equal(result.results[0].phase, "escalation");
+});
+
 test("pause stops before the next agent execution", async () => {
   const result = await runImplementationLoop({
     items,

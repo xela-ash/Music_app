@@ -112,9 +112,17 @@ export async function runImplementationLoop({
     const item = selectNext(visible, current);
     if (item && only && item.id !== only) return { state: current, results, stopped: "restricted" };
     if (!item) return { state: current, results, stopped: "idle" };
+    const beforeItem = readControl();
+    if (beforeItem.mode !== "running") {
+      return { state: current, results, stopped: beforeItem.mode };
+    }
     current = recordItem(current, item.id, { status: "running", phase: resumePr ? "review" : "implement" });
     let pr = resumePr ? Number(resumePr) : null;
     if (!pr) {
+    const beforeImplement = readControl();
+    if (beforeImplement.mode !== "running") {
+      return { state: current, results, stopped: beforeImplement.mode };
+    }
     const implemented = await freshRun(runner, {
       role: "implementer",
       mode: "agent",
@@ -147,6 +155,10 @@ export async function runImplementationLoop({
     let reviewReport = null;
     let repairs = 0;
     while (reviewReport === null) {
+      const beforeReview = readControl();
+      if (beforeReview.mode !== "running") {
+        return { state: current, results, stopped: beforeReview.mode };
+      }
       const reviewRun = await freshRun(runner, {
         role: "reviewer",
         mode: "ask",
@@ -176,6 +188,10 @@ export async function runImplementationLoop({
           break;
         }
         repairs += 1;
+        const beforeInvalidRepair = readControl();
+        if (beforeInvalidRepair.mode !== "running") {
+          return { state: current, results, stopped: beforeInvalidRepair.mode };
+        }
         const repairRun = await freshRun(runner, {
           role: "repair",
           mode: "agent",
@@ -196,6 +212,14 @@ export async function runImplementationLoop({
         }
         continue;
       }
+      if (report.human_decision || report.external_dependency || report.spec_ambiguity) {
+        current = recordItem(current, item.id, {
+          status: "blocked",
+          blocker: "Review requires a human decision, an external dependency, or a specification decision",
+        });
+        results.push({ issue: item.id, pr, status: "blocked", phase: "escalation" });
+        break;
+      }
       const defects = report.defects;
       if (defects.length === 0) {
         const checks = waitForChecks ? await waitForChecks({ pr }) : { passing: true, failed: [], pending: [] };
@@ -211,6 +235,10 @@ export async function runImplementationLoop({
         }
         if (checks.failed.length > 0 && repairs < config.maxRepairRounds) {
           repairs += 1;
+          const beforeCheckRepair = readControl();
+          if (beforeCheckRepair.mode !== "running") {
+            return { state: current, results, stopped: beforeCheckRepair.mode };
+          }
           const repairRun = await freshRun(runner, {
             role: "repair",
             mode: "agent",
@@ -245,6 +273,10 @@ export async function runImplementationLoop({
         break;
       }
       repairs += 1;
+      const beforeRepair = readControl();
+      if (beforeRepair.mode !== "running") {
+        return { state: current, results, stopped: beforeRepair.mode };
+      }
       const repairRun = await freshRun(runner, {
         role: "repair",
         mode: "agent",
@@ -275,6 +307,10 @@ export async function runImplementationLoop({
       });
       results.push({ issue: item.id, pr, status: "blocked", phase: "review-session" });
       continue;
+    }
+    const beforeMerge = readControl();
+    if (beforeMerge.mode !== "running") {
+      return { state: current, results, stopped: beforeMerge.mode };
     }
     if (publishReview) await publishReview({ pr, report: reviewReport, sessionId: reviewSession });
     const facts = await loadGateFacts({ item, pr, review: reviewReport });
