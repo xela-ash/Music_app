@@ -166,9 +166,49 @@ export async function runImplementationLoop({
         break;
       }
       const report = extractReport(reviewRun.result?.result);
-      const defects = report?.defects || [];
-      if (report && defects.length === 0) {
+      if (!report || report.role !== "reviewer" || report.pr !== pr) {
+        if (repairs >= config.maxRepairRounds) {
+          current = recordItem(current, item.id, {
+            status: "blocked",
+            blocker: "Reviewer did not return a valid structured report",
+          });
+          results.push({ issue: item.id, status: "blocked", phase: "review-report" });
+          break;
+        }
+        repairs += 1;
+        const repairRun = await freshRun(runner, {
+          role: "repair",
+          mode: "agent",
+          force: true,
+          sandbox: "disabled",
+          timeoutMs: 50 * 60 * 1000,
+          prompt: repairPrompt(item, pr, [{ summary: "Reviewer returned no valid structured report" }]),
+        });
+        current = recordItem(current, item.id, {
+          phase: "repair",
+          pr,
+          attempt: attemptRecord("repair", repairRun),
+        });
+        if (repairRun.exitCode !== 0) {
+          current = recordItem(current, item.id, { status: "blocked", blocker: "Repair execution failed" });
+          results.push({ issue: item.id, status: "blocked", phase: "repair" });
+          break;
+        }
+        continue;
+      }
+      const defects = report.defects;
+      if (defects.length === 0) {
         const checks = waitForChecks ? await waitForChecks({ pr }) : { passing: true, failed: [], pending: [] };
+        if ((checks.failed.length > 0 || checks.pending.length > 0) && !(checks.failed.length > 0 && repairs < config.maxRepairRounds)) {
+          current = recordItem(current, item.id, {
+            status: "blocked",
+            blocker: checks.failed.length > 0
+              ? `Required checks failed: ${checks.failed.join(", ")}`
+              : `Required checks still pending: ${checks.pending.join(", ")}`,
+          });
+          results.push({ issue: item.id, pr, status: "blocked", phase: "checks" });
+          break;
+        }
         if (checks.failed.length > 0 && repairs < config.maxRepairRounds) {
           repairs += 1;
           const repairRun = await freshRun(runner, {
@@ -211,7 +251,7 @@ export async function runImplementationLoop({
         force: true,
         sandbox: "disabled",
         timeoutMs: 50 * 60 * 1000,
-        prompt: repairPrompt(item, pr, defects.length > 0 ? defects : [{ summary: "Reviewer returned no structured report" }]),
+        prompt: repairPrompt(item, pr, defects),
       });
       current = recordItem(current, item.id, {
         phase: "repair",

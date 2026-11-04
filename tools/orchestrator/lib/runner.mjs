@@ -54,6 +54,42 @@ function parseObjectAt(source, start) {
   return null;
 }
 
+function positiveInteger(value) {
+  return Number.isInteger(value) && value > 0;
+}
+
+export function validateReport(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.role === "proof") {
+    return value.result === "ACK" || value.result === "NO_PRIOR_CONTEXT" ? value : null;
+  }
+  if (value.role === "implementer" || value.role === "repair") {
+    if (typeof value.issue !== "string" || value.issue.length === 0) return null;
+    if (!positiveInteger(value.pr)) return null;
+    if (typeof value.head !== "string" || value.head.length === 0) return null;
+    if (typeof value.commit !== "string" || value.commit.length === 0) return null;
+    if (!Array.isArray(value.blockers)) return null;
+    if (typeof value.next_action !== "string" || value.next_action.length === 0) return null;
+    return value;
+  }
+  if (value.role === "reviewer") {
+    if (typeof value.issue !== "string" || value.issue.length === 0) return null;
+    if (!positiveInteger(value.pr)) return null;
+    if (typeof value.head !== "string" || value.head.length === 0) return null;
+    if (!Array.isArray(value.defects)) return null;
+    if (value.defects.some((defect) => !defect || typeof defect.summary !== "string" || defect.summary.length === 0)) {
+      return null;
+    }
+    if (!Array.isArray(value.improvements)) return null;
+    if (typeof value.human_decision !== "boolean") return null;
+    if (typeof value.external_dependency !== "boolean") return null;
+    if (typeof value.spec_ambiguity !== "boolean") return null;
+    if (typeof value.next_action !== "string" || value.next_action.length === 0) return null;
+    return value;
+  }
+  return null;
+}
+
 export function extractReport(text) {
   const source = String(text || "");
   let report = null;
@@ -61,8 +97,8 @@ export function extractReport(text) {
   while (from < source.length) {
     const start = source.indexOf("{\"role\"", from);
     if (start === -1) break;
-    const value = parseObjectAt(source, start);
-    if (value && typeof value.role === "string") report = value;
+    const value = validateReport(parseObjectAt(source, start));
+    if (value) report = value;
     from = start + 8;
   }
   return report;

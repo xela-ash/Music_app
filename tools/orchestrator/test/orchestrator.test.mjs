@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -355,4 +356,189 @@ test("gate facts fail closed when the head reviewed is stale", () => {
   assert.equal(gates.passed, false);
   assert.ok(gates.failures.some((failure) => failure.id === 6));
   assert.ok(gates.failures.some((failure) => failure.id === 13));
+});
+
+test("a later malformed object does not replace a valid embedded report", () => {
+  const text = [
+    'Retention tests passed.',
+    '{"role":"implementer","issue":"MVP-011","pr":110,"head":"abc","commit":"abc","blockers":[],"next_action":"review"}',
+    'MVP-011 is on PR 110.',
+    '{"role":"implementer","pr":"not-a-number"}',
+  ].join(" ");
+  assert.equal(extractReport(text).pr, 110);
+  assert.equal(extractReport("I opened pull request 110 without a report"), null);
+  assert.equal(extractReport('{"role":"reviewer","defects":[]}'), null);
+});
+
+test("malformed reviewer output does not merge", async () => {
+  const merges = [];
+  const result = await runImplementationLoop({
+    items,
+    state: { items: {} },
+    readControl: () => ({ mode: "running" }),
+    maxItems: 1,
+    only: "MVP-011",
+    runner: async (invocation) => ({
+      exitCode: 0,
+      sessionId: `${invocation.role}-session`,
+      stderr: "",
+      timedOut: false,
+      result: {
+        type: "result",
+        session_id: `${invocation.role}-session`,
+        result: invocation.role === "reviewer"
+          ? "Review complete. No defects. {\"role\":\"reviewer\"}"
+          : '{"role":"implementer","issue":"MVP-011","pr":110,"head":"abc","commit":"abc","blockers":[],"next_action":"review"}',
+      },
+    }),
+    loadGateFacts: async () => passingFacts(),
+    merge: async () => merges.push(true),
+  });
+  assert.equal(merges.length, 0);
+  assert.equal(result.results[0].status, "blocked");
+  assert.equal(result.results[0].phase, "review-report");
+});
+
+test("resume reviews an existing pull request without a second implementation", async () => {
+  const roles = [];
+  const merges = [];
+  const resumed = await runImplementationLoop({
+    items,
+    state: {
+      items: {
+        "MVP-011": {
+          status: "blocked",
+          pr: 110,
+          attempts: [{ role: "implementer", sessionId: "implement-session", exitCode: 0 }],
+        },
+      },
+    },
+    readControl: () => ({ mode: "running" }),
+    maxItems: 1,
+    only: "MVP-011",
+    resumePr: 110,
+    waitForChecks: async () => ({ passing: true, failed: [], pending: [] }),
+    runner: async (invocation) => {
+      roles.push(invocation.role);
+      return {
+        exitCode: 0,
+        sessionId: "review-session",
+        stderr: "",
+        timedOut: false,
+        result: {
+          type: "result",
+          session_id: "review-session",
+          result: '{"role":"reviewer","issue":"MVP-011","pr":110,"head":"abc","defects":[],"improvements":[],"human_decision":false,"external_dependency":false,"spec_ambiguity":false,"next_action":"merge"}',
+        },
+      };
+    },
+    loadGateFacts: async () => passingFacts(),
+    merge: async (args) => merges.push(args),
+  });
+  assert.deepEqual(roles, ["reviewer"]);
+  assert.equal(resumed.results[0].status, "merged");
+  assert.equal(merges.length, 1);
+
+  const missingImplementer = await runImplementationLoop({
+    items,
+    state: { items: { "MVP-011": { status: "blocked", attempts: [] } } },
+    readControl: () => ({ mode: "running" }),
+    maxItems: 1,
+    only: "MVP-011",
+    resumePr: 110,
+    waitForChecks: async () => ({ passing: true, failed: [], pending: [] }),
+    runner: async () => ({
+      exitCode: 0,
+      sessionId: "review-only",
+      stderr: "",
+      timedOut: false,
+      result: {
+        type: "result",
+        session_id: "review-only",
+        result: '{"role":"reviewer","issue":"MVP-011","pr":110,"head":"abc","defects":[],"improvements":[],"human_decision":false,"external_dependency":false,"spec_ambiguity":false,"next_action":"merge"}',
+      },
+    }),
+    loadGateFacts: async () => passingFacts(),
+    merge: async () => merges.push("unexpected"),
+  });
+  assert.equal(missingImplementer.results[0].phase, "review-session");
+  assert.equal(merges.length, 1);
+});
+
+test("pause stops before the next agent execution", async () => {
+  const result = await runImplementationLoop({
+    items,
+    state: { items: {} },
+    readControl: () => ({ mode: "paused" }),
+    maxItems: 1,
+    runner: async () => {
+      throw new Error("paused loop must not start an agent");
+    },
+    loadGateFacts: async () => passingFacts(),
+    merge: async () => {
+      throw new Error("paused loop must not merge");
+    },
+  });
+  assert.equal(result.stopped, "paused");
+  assert.equal(result.results.length, 0);
+});
+
+test("continuous start stays disabled and a human-gated item is not executed", async () => {
+  const start = spawnSync(process.execPath, ["tools/orchestrator/cli.mjs", "start"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.notEqual(start.status, 0);
+  assert.match(start.stdout, /continuous loop is disabled/);
+  const wrongItem = spawnSync(process.execPath, ["tools/orchestrator/cli.mjs", "once", "--only", "MVP-012"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.notEqual(wrongItem.status, 0);
+  assert.match(wrongItem.stdout, /only --only MVP-011/);
+
+  const merges = [];
+  const human = await runImplementationLoop({
+    items: items.filter((item) => item.id === "MVP-009"),
+    state: { items: {} },
+    readControl: () => ({ mode: "running" }),
+    maxItems: 1,
+    runner: async () => {
+      throw new Error("human-gated item must not start an agent");
+    },
+    loadGateFacts: async () => passingFacts({ classification: "EXTERNAL-DEPENDENCY" }),
+    merge: async () => merges.push(true),
+  });
+  assert.equal(human.stopped, "idle");
+  assert.equal(merges.length, 0);
+});
+
+test("failed required checks do not merge after the repair budget is spent", async () => {
+  const merges = [];
+  const result = await runImplementationLoop({
+    items,
+    state: { items: {} },
+    readControl: () => ({ mode: "running" }),
+    maxItems: 1,
+    only: "MVP-011",
+    waitForChecks: async () => ({ passing: false, failed: ["backend-test"], pending: [] }),
+    runner: async (invocation) => ({
+      exitCode: 0,
+      sessionId: `${invocation.role}-session`,
+      stderr: "",
+      timedOut: false,
+      result: {
+        type: "result",
+        session_id: `${invocation.role}-session`,
+        result: invocation.role === "reviewer"
+          ? '{"role":"reviewer","issue":"MVP-011","pr":110,"head":"abc","defects":[],"improvements":[],"human_decision":false,"external_dependency":false,"spec_ambiguity":false,"next_action":"merge"}'
+          : '{"role":"implementer","issue":"MVP-011","pr":110,"head":"abc","commit":"abc","blockers":[],"next_action":"review"}',
+      },
+    }),
+    loadGateFacts: async () => passingFacts(),
+    merge: async () => merges.push(true),
+  });
+  assert.equal(merges.length, 0);
+  assert.equal(result.results[0].status, "blocked");
+  assert.equal(result.results[0].phase, "checks");
 });
