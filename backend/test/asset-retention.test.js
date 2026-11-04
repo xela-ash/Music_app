@@ -547,6 +547,175 @@ describe("asset retention holds and deletion", () => {
     assert.equal(local.objectExists(fixture.storageKey), false);
   });
 
+  it("DATA-ASSET-006: holds and grace polls do not consume the provider deletion retry budget", async () => {
+    const fixture = await createReadyAsset();
+    const hold = await createHold({
+      assetExternalId: fixture.assetExternalId,
+      holdType: "dispute",
+      authorityActorType: "system",
+      authorityActorId: "dispute-service",
+      authorityReference: "dispute:retry-budget",
+      reasonCode: "evidence_preservation",
+    });
+    await requestSoftDelete({
+      assetExternalId: fixture.assetExternalId,
+      actorType: "system",
+      actorId: "retention-test",
+      reasonCode: "retry_budget",
+    });
+    await pool.query(
+      `UPDATE asset_processing_jobs
+       SET maximum_attempts = 2
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+
+    for (let poll = 0; poll < 4; poll += 1) {
+      const held = await runDeletionWorker({ limit: 5 });
+      assert.equal(held.results[0].outcome, "blocked_by_hold");
+      await pool.query(
+        `UPDATE asset_processing_jobs
+         SET available_at = clock_timestamp() - interval '1 second'
+         WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+        [fixture.assetId]
+      );
+    }
+
+    await releaseHold({
+      holdExternalId: hold.hold.external_id,
+      actorType: "system",
+      actorId: "dispute-service",
+      releaseReasonCode: "case_closed",
+    });
+    await pool.query(
+      `UPDATE assets
+       SET retention_eligible_at = clock_timestamp() + interval '1 day'
+       WHERE id = $1`,
+      [fixture.assetId]
+    );
+    for (let poll = 0; poll < 4; poll += 1) {
+      const deferred = await runDeletionWorker({ limit: 5 });
+      assert.equal(deferred.results[0].outcome, "grace_period");
+      await pool.query(
+        `UPDATE asset_processing_jobs
+         SET available_at = clock_timestamp() - interval '1 second'
+         WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+        [fixture.assetId]
+      );
+    }
+
+    const untouched = await pool.query(
+      `SELECT attempt_count, state FROM asset_processing_jobs
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+    assert.equal(untouched.rows[0].attempt_count, 0);
+    assert.equal(untouched.rows[0].state, "pending");
+
+    await pool.query(
+      `UPDATE assets SET retention_eligible_at = clock_timestamp() - interval '1 second' WHERE id = $1`,
+      [fixture.assetId]
+    );
+    const originalDelete = local.deleteObject;
+    local.deleteObject = () => {
+      const error = new Error("provider still failing");
+      error.code = "storage_provider_rejected";
+      throw error;
+    };
+    try {
+      const firstFailure = await runDeletionWorker({ limit: 5 });
+      assert.equal(firstFailure.results[0].outcome, "failed");
+      assert.equal(firstFailure.results[0].attemptCount, 1);
+      await pool.query(
+        `UPDATE asset_processing_jobs
+         SET available_at = clock_timestamp() - interval '1 second'
+         WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+        [fixture.assetId]
+      );
+      const secondFailure = await runDeletionWorker({ limit: 5 });
+      assert.equal(secondFailure.results[0].outcome, "dead_lettered");
+      assert.equal(secondFailure.results[0].attemptCount, 2);
+    } finally {
+      local.deleteObject = originalDelete;
+    }
+
+    const exhausted = await pool.query(
+      `SELECT state, attempt_count FROM asset_processing_jobs
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+    assert.equal(exhausted.rows[0].state, "dead_lettered");
+    assert.equal(exhausted.rows[0].attempt_count, 2);
+    const asset = await pool.query("SELECT state FROM assets WHERE id = $1", [fixture.assetId]);
+    assert.equal(asset.rows[0].state, "deletion_pending");
+    assert.equal(local.objectExists(fixture.storageKey), true);
+  });
+
+  it("DATA-ASSET-006: one provider failure after hold release still leaves retry budget for deletion", async () => {
+    const fixture = await createReadyAsset();
+    const hold = await createHold({
+      assetExternalId: fixture.assetExternalId,
+      holdType: "legal",
+      authorityActorType: "administrator",
+      authorityActorId: "admin-1",
+      authorityReference: "legal:retry-1",
+      reasonCode: "litigation_hold",
+    });
+    await requestSoftDelete({
+      assetExternalId: fixture.assetExternalId,
+      actorType: "system",
+      actorId: "retention-test",
+      reasonCode: "after_hold",
+    });
+    await runDeletionWorker({ limit: 5 });
+    await releaseHold({
+      holdExternalId: hold.hold.external_id,
+      actorType: "administrator",
+      actorId: "admin-1",
+      releaseReasonCode: "matter_closed",
+    });
+    await pool.query(
+      `UPDATE assets SET retention_eligible_at = clock_timestamp() - interval '1 second' WHERE id = $1`,
+      [fixture.assetId]
+    );
+    await pool.query(
+      `UPDATE asset_processing_jobs
+       SET available_at = clock_timestamp() - interval '1 second'
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+
+    const originalDelete = local.deleteObject;
+    local.deleteObject = () => {
+      const error = new Error("one transient provider failure");
+      error.code = "storage_provider_rejected";
+      throw error;
+    };
+    try {
+      const failed = await runDeletionWorker({ limit: 5 });
+      assert.equal(failed.results[0].outcome, "failed");
+      assert.equal(failed.results[0].attemptCount, 1);
+    } finally {
+      local.deleteObject = originalDelete;
+    }
+    await pool.query(
+      `UPDATE asset_processing_jobs
+       SET available_at = clock_timestamp() - interval '1 second'
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+    const deleted = await runDeletionWorker({ limit: 5 });
+    assert.equal(deleted.results[0].outcome, "deleted");
+    const job = await pool.query(
+      `SELECT state, attempt_count FROM asset_processing_jobs
+       WHERE asset_id = $1 AND job_type = 'physical_deletion'`,
+      [fixture.assetId]
+    );
+    assert.equal(job.rows[0].state, "succeeded");
+    assert.equal(job.rows[0].attempt_count, 1);
+    assert.equal(local.objectExists(fixture.storageKey), false);
+  });
+
   it("concurrency: parallel hold creates for the same authority keep one active hold", async () => {
     const fixture = await createReadyAsset();
     const command = {

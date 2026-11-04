@@ -197,6 +197,7 @@ Copy this template for each new entry:
 | [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
 | [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
 | [ENG-IMP-092](#eng-imp-092-retention-policy-grace-seconds-are-an-engineering-placeholder) | Retention policy grace seconds are an engineering placeholder | Assets | Medium | PROPOSED |
+| [ENG-IMP-093](#eng-imp-093-orphan-sweep-does-not-schedule-itself-or-emit-every-18-4-candidate) | Orphan sweep does not schedule itself or emit every §18.4 candidate | Assets | Medium | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2958,6 +2959,36 @@ Copy this template for each new entry:
 | Related PR | The MVP-011 pull request |
 | Resolution | — |
 
+### ENG-IMP-093 Orphan sweep does not schedule itself or emit every §18.4 candidate
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-093 |
+| Title | Orphan sweep does not schedule itself or emit every §18.4 candidate |
+| Date identified | 2026-11-04 |
+| Identified by | MVP-011 independent review |
+| Category | Assets |
+| Affected subsystem | Assets / retention |
+| Current state | `runDeletionWorker` and `runOrphanDetection` run when a caller invokes them. The orphan sweep quarantines abandoned staging, unbound Assets, missing provider objects, and untracked local keys. It does not emit `invalid_binding` or parentless-variant candidates, and it does not delete a quarantined candidate after grace. |
+| Evidence / problem | Assets §18.4 names those extra candidate kinds, and `INT-ASSET-008` describes scheduled policy evaluation. No numeric schedule is decided (Assets §30). The MVP-011 acceptance criteria are the hold block and hold release. |
+| Suggested improvement | Add the missing candidate kinds when their domain foreign keys exist, and run the two workers from an operations scheduler once a cadence is specified. |
+| Expected benefit | Orphan detection matches the full §18.4 inventory without a human invocation. |
+| Risk of doing nothing | Invalid bindings and parentless variants are not quarantined until a later item, and the workers do not run unless something calls them. |
+| Implementation risk | Medium. A scheduler and extra candidate kinds are not part of the MVP-011 acceptance criteria. |
+| Estimated scope | M |
+| Dependencies | A decided schedule, and domain tables for the bindings §18.4 would reconcile |
+| Product behavior impact | Yes, if the extra candidates or a schedule change when bytes are reclaimed |
+| Specification impact | None until a schedule is specified |
+| Migration impact | None for the missing caller. Candidate kinds already include `invalid_binding`. |
+| Security impact | Unreclaimed orphans remain a cost and privacy risk already named by `SEC-ASSET-009` |
+| Performance impact | A schedule would add recurring database and storage reads |
+| Priority suggestion | Medium |
+| Recommended timing | After MVP-011, when operations selects a cadence |
+| Status | PROPOSED |
+| Related GitHub Issue | [#13](https://github.com/xela-ash/Music_app/issues/13) |
+| Related PR | [#110](https://github.com/xela-ash/Music_app/pull/110) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3046,3 +3077,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |
 | 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's status changed. The only content change is a dated note in `ENG-IMP-016` Dependencies: with the email provider selected, it is now `MVP-009`'s remaining blocker. None is authorized. | Engineering |
 | 0.7.44 | 2026-11-03 | Added `ENG-IMP-092` (PROPOSED): seeded retention policy grace seconds are an engineering placeholder until Product/Compliance records durations. Not authorized. | Engineering |
+| 0.7.45 | 2026-11-04 | Added `ENG-IMP-093` (PROPOSED): the orphan and deletion workers are not scheduled, and the sweep does not emit every §18.4 candidate kind. Not authorized. | Engineering |

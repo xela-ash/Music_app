@@ -261,27 +261,14 @@ async function processPhysicalDeletionJob(client, job) {
     storage.deleteObject(object.storage_key);
     const exists = storage.objectExists(object.storage_key);
     if (exists) {
-      const nextAttempt = job.attempt_count >= job.maximum_attempts;
-      await retention.finishJob(client, {
-        jobId: job.id,
-        state: nextAttempt ? "dead_lettered" : "failed",
-        availableAt: nextAttempt ? null : new Date(Date.now() + 30_000),
-        safeErrorCode: "provider_object_still_present",
-      });
-      return { outcome: nextAttempt ? "dead_lettered" : "failed", code: "provider_object_still_present" };
+      return failDeletionAttempt(client, job, "provider_object_still_present");
     }
     await retention.markStorageAbsent(client, object.id);
   }
 
   const deleted = await retention.markAssetDeleted(client, asset.id);
   if (!deleted) {
-    await retention.finishJob(client, {
-      jobId: job.id,
-      state: "failed",
-      availableAt: new Date(Date.now() + 30_000),
-      safeErrorCode: "delete_race",
-    });
-    return { outcome: "failed", code: "delete_race" };
+    return failDeletionAttempt(client, job, "delete_race");
   }
   await retention.finishJob(client, { jobId: job.id, state: "succeeded" });
   await repository.insertAudit(client, {
@@ -315,21 +302,28 @@ function providerFailureCode(error) {
   return "provider_transient_failure";
 }
 
-async function markJobTransientFailure(job, error) {
-  const exhausted = job.attempt_count >= job.maximum_attempts;
-  const safeErrorCode = providerFailureCode(error);
-  await withTransaction(async (client) => {
-    await retention.finishJob(client, {
-      jobId: job.id,
-      state: exhausted ? "dead_lettered" : "failed",
-      availableAt: exhausted ? null : new Date(Date.now() + 30_000),
-      safeErrorCode,
-    });
+async function failDeletionAttempt(client, job, safeErrorCode) {
+  const attempt = await retention.recordDeletionFailure(client, job.id);
+  const exhausted = attempt.attempt_count >= attempt.maximum_attempts;
+  await retention.finishJob(client, {
+    jobId: job.id,
+    state: exhausted ? "dead_lettered" : "failed",
+    availableAt: exhausted ? null : new Date(Date.now() + 30_000),
+    safeErrorCode,
   });
   return {
-    jobExternalId: job.external_id,
     outcome: exhausted ? "dead_lettered" : "failed",
     code: safeErrorCode,
+    attemptCount: attempt.attempt_count,
+  };
+}
+
+async function markJobTransientFailure(job, error) {
+  const safeErrorCode = providerFailureCode(error);
+  const result = await withTransaction(async (client) => failDeletionAttempt(client, job, safeErrorCode));
+  return {
+    jobExternalId: job.external_id,
+    ...result,
   };
 }
 

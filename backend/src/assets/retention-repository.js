@@ -235,7 +235,6 @@ async function claimJobs(client, row) {
          lease_owner = $3,
          lease_expires_at = clock_timestamp() + make_interval(secs => $4),
          started_at = COALESCE(started_at, clock_timestamp()),
-         attempt_count = attempt_count + 1,
          updated_at = clock_timestamp()
      FROM claimable
      WHERE j.id = claimable.id
@@ -281,6 +280,18 @@ async function markAssetDeleted(client, assetId) {
     [assetId]
   );
   return result.rows[0] ?? null;
+}
+
+async function recordDeletionFailure(client, jobId) {
+  const result = await client.query(
+    `UPDATE asset_processing_jobs
+     SET attempt_count = attempt_count + 1,
+         updated_at = clock_timestamp()
+     WHERE id = $1
+     RETURNING attempt_count, maximum_attempts`,
+    [jobId]
+  );
+  return result.rows[0];
 }
 
 async function finishJob(client, row) {
@@ -431,6 +442,7 @@ module.exports = {
   softDeleteAsset,
   enqueueJob,
   claimJobs,
+  recordDeletionFailure,
   listStorageObjects,
   markStorageAbsent,
   markAssetDeleted,
