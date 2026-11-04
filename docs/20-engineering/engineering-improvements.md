@@ -196,6 +196,8 @@ Copy this template for each new entry:
 | [ENG-IMP-089](#eng-imp-089-cashfree-order-creation-omits-customer_details) | Cashfree order creation omits customer_details | Payments | Low | PROPOSED |
 | [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
 | [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
+| [ENG-IMP-094](#eng-imp-094-merge-gates-treat-omitted-review-flags-as-clear) | Merge gates treat omitted review flags as clear | Orchestrator | Low | PROPOSED |
+| [ENG-IMP-095](#eng-imp-095-orchestrator-scope-gate-does-not-name-secret-paths) | Orchestrator scope gate does not name secret paths | Orchestrator | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2927,6 +2929,68 @@ Copy this template for each new entry:
 | Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
 | Resolution | — |
 
+### ENG-IMP-094 Merge gates treat omitted review flags as clear
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-094 |
+| Title | Merge gates treat omitted review flags as clear |
+| Date identified | 2026-11-04 |
+| Identified by | Independent review of pull request #111 |
+| Category | Orchestrator |
+| Affected subsystem | `tools/orchestrator` |
+| Current state | Gates 10–12 treat a review as clear unless `human_decision`, `external_dependency`, or `spec_ambiguity` is exactly `true`. A report that omits those fields therefore passes those gates. The report parser used by the loop requires the three booleans before a review can proceed. |
+| Evidence / problem | `evaluateGates` can be called with a partial review object. That path is fail-open for a missing flag even though the loop's parser is fail-closed. |
+| Suggested improvement | Treat a missing or non-boolean flag as a gate failure. |
+| Expected benefit | A caller that skips the parser cannot treat an incomplete review as clear. |
+| Risk of doing nothing | Low while every merge goes through the validated loop report. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None for product authorization. It tightens orchestrator merge control only. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before unattended operation |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
+| Resolution | — |
+
+`ENG-IMP-092` and `ENG-IMP-093` are allocated on pull request #110 and are not part of this branch.
+
+### ENG-IMP-095 Orchestrator scope gate does not name secret paths
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-095 |
+| Title | Orchestrator scope gate does not name secret paths |
+| Date identified | 2026-11-04 |
+| Identified by | Independent review of pull request #111 |
+| Category | Orchestrator |
+| Affected subsystem | `tools/orchestrator` |
+| Current state | Gate 14 rejects `.vscode/` and `tools/orchestrator/`. It does not reject `.env` or another secret-shaped path. The diff under review contains neither. |
+| Evidence / problem | A future product pull request that adds a secret file would not fail this gate for that reason alone. |
+| Suggested improvement | Reject known secret paths such as `.env`, `.env.*`, and credential files before merge. |
+| Expected benefit | The scope gate matches the existing prohibition on committing secrets. |
+| Risk of doing nothing | Low. Review and normal git hygiene still apply, and this branch does not add a secret. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Closes a gate gap only. It does not change application security. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before unattended operation |
+| Status | PROPOSED |
+| Related GitHub Issue | — |
+| Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3014,3 +3078,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.41 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
 | 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |
 | 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's status changed. The only content change is a dated note in `ENG-IMP-016` Dependencies: with the email provider selected, it is now `MVP-009`'s remaining blocker. None is authorized. | Engineering |
+| 0.7.44 | 2026-11-04 | Added `ENG-IMP-094` and `ENG-IMP-095` (both PROPOSED) from the independent review of the stateless orchestrator. Neither is authorized. `ENG-IMP-092` and `ENG-IMP-093` stay reserved for pull request #110. | Engineering |
