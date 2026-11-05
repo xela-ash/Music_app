@@ -1,8 +1,8 @@
 {
   "name": "MusicApp Cloud",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
+    "dockerfile": ".cursor/Dockerfile",
+    "context": "."
   },
   "user": "ubuntu",
   "install": "chmod +x .cursor/*.sh .cursor/lib/*.sh && ./.cursor/install.sh",

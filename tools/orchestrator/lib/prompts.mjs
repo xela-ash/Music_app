@@ -125,3 +125,12 @@ export function repairPrompt(item, pr, defects) {
     'Final JSON shape: {"role":"implementer","issue":"MVP-NNN","pr":0,"head":"sha","commit":"sha","blockers":[],"next_action":"short"}',
   ].join("\n");
 }
+
+export function cloudProofPrompt() {
+  return [
+    "MusicApp cloud controller freshness check.",
+    "Do not edit files, commit, push, open a pull request, or merge.",
+    "Do not read secrets or print credentials.",
+    'Reply with exactly this JSON and nothing else: {"role":"proof","result":"ACK"}',
+  ].join("\n");
+}

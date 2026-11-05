@@ -26,6 +26,16 @@ export function mergeCommand(prNumber) {
   return args;
 }
 
+export function secretOrEditorPath(filePath) {
+  const normalized = String(filePath || "").replaceAll("\\", "/");
+  const base = normalized.split("/").pop() || "";
+  if (normalized === ".vscode" || normalized.startsWith(".vscode/")) return true;
+  if (base === ".env" || base.startsWith(".env.")) return true;
+  if (base.endsWith(".pem") || base.endsWith(".key") || base.endsWith(".p12")) return true;
+  if (/credentials|service-account|secret/i.test(base)) return true;
+  return false;
+}
+
 function fail(id, reason) {
   return { id, name: MERGE_GATES[id - 1].name, reason };
 }
@@ -60,21 +70,19 @@ export function evaluateGates(facts) {
   if (facts.unresolvedThreads !== 0) {
     failures.push(fail(9, "A blocking review thread is unresolved"));
   }
-  if (facts.humanDecision) {
-    failures.push(fail(10, "A human decision was encountered"));
+  if (facts.humanDecision !== false) {
+    failures.push(fail(10, "Review did not explicitly clear the human-decision flag"));
   }
-  if (facts.externalDependency) {
-    failures.push(fail(11, "An external dependency is unresolved"));
+  if (facts.externalDependency !== false) {
+    failures.push(fail(11, "Review did not explicitly clear the external-dependency flag"));
   }
-  if (facts.specAmbiguity) {
-    failures.push(fail(12, "Specification ambiguity remains"));
+  if (facts.specAmbiguity !== false) {
+    failures.push(fail(12, "Review did not explicitly clear the specification-ambiguity flag"));
   }
   if (!facts.engineeringRecords) {
     failures.push(fail(13, "Build Record or required EDR update is missing"));
   }
-  const forbidden = (facts.changedPaths || []).filter(
-    (filePath) => filePath === ".vscode" || filePath.startsWith(".vscode/"),
-  );
+  const forbidden = (facts.changedPaths || []).filter((filePath) => secretOrEditorPath(filePath));
   if (forbidden.length > 0 || facts.scopeOk === false) {
     failures.push(fail(14, "Diff contains forbidden or out-of-scope paths"));
   }

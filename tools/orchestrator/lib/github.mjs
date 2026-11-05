@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { config } from "../config.mjs";
+import { secretOrEditorPath } from "./gates.mjs";
 
 function runGh(args) {
   const result = spawnSync("gh", args, { encoding: "utf8" });
@@ -64,8 +65,9 @@ export function gateFactsFromPullRequest({ item, review, pr, threadsUnresolved, 
   });
   const decisionRecorded = /EDR-\d+|No significant engineering decision/i.test(body);
   const recordsPresent = !codeChanged || changedPaths.includes("docs/20-engineering/engineering-build-record.md");
-  const allowedPath = (filePath) =>
-    filePath !== ".vscode" && !filePath.startsWith(".vscode/") && !filePath.startsWith("tools/orchestrator/");
+  const governancePath = (filePath) =>
+    filePath.startsWith("tools/orchestrator/") || filePath === ".github/workflows/orchestrator.yml";
+  const allowedPath = (filePath) => !secretOrEditorPath(filePath) && !governancePath(filePath);
   return {
     classification: item.classification,
     dependenciesMerged,
@@ -78,9 +80,9 @@ export function gateFactsFromPullRequest({ item, review, pr, threadsUnresolved, 
       pr.baseRefName === "main" && pr.mergeStateStatus !== "BEHIND" && pr.mergeStateStatus !== "DIRTY",
     mergeable: pr.mergeable,
     unresolvedThreads: threadsUnresolved,
-    humanDecision: review?.human_decision === true,
-    externalDependency: review?.external_dependency === true,
-    specAmbiguity: review?.spec_ambiguity === true,
+    humanDecision: review?.human_decision,
+    externalDependency: review?.external_dependency,
+    specAmbiguity: review?.spec_ambiguity,
     engineeringRecords: recordsPresent && decisionRecorded,
     changedPaths,
     scopeOk: changedPaths.every(allowedPath),

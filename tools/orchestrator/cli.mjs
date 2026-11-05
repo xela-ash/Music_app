@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.mjs";
 import { applyGitHubIssues, findStatusConflicts, loadIssueIndex } from "./lib/catalog.mjs";
 import { fetchOpenIssueSnapshot, loadGateFacts, waitForRequiredChecks } from "./lib/github.mjs";
+import { createCloudClient } from "./lib/cloud-api.mjs";
+import { executeCloudTick } from "./lib/cloud-tick.mjs";
 import { dryRunNextAction, invocationArgs, proveFreshContext, runDryItem, runImplementationLoop } from "./lib/loop.mjs";
+import { cloudProofPrompt, implementPrompt, repairPrompt, reviewPrompt } from "./lib/prompts.mjs";
 import { selectNext, skippedReadyItems } from "./lib/queue.mjs";
 import { agentLogDir, resolveAgentBin, runAgent } from "./lib/runner.mjs";
 import {
@@ -245,6 +248,67 @@ async function runOnce(commandName, { only, workspace, maxItems, resumePr = null
   }
 }
 
+function promptForDispatch(catalog, dispatch) {
+  if (dispatch.role === "proof") return cloudProofPrompt();
+  const item = catalog.liveItems.find((candidate) => candidate.id === dispatch.issue);
+  if (!item) return "";
+  if (dispatch.role === "reviewer") return reviewPrompt(item, dispatch.pr || 0);
+  if (dispatch.role === "repair") return repairPrompt(item, dispatch.pr || 0, [{ summary: "Continue the recorded repair." }]);
+  return implementPrompt(item);
+}
+
+async function tick() {
+  const action = flag("--action") || "tick";
+  if (!["tick", "prove", "stop", "arm"].includes(action)) {
+    emit({ command: "tick", status: "refused", reason: "--action must be tick, prove, stop, or arm" });
+    process.exitCode = 2;
+    return;
+  }
+  if (action === "arm") {
+    saveControl(root, "running", null);
+    emit({ command: "tick", status: "armed", reason: "Product dispatch stays off until ORCHESTRATOR_CLOUD_TRIAL is set. Merge stays off." });
+    return;
+  }
+  const controllerRunId = process.env.GITHUB_RUN_ID || "";
+  if (!controllerRunId) {
+    emit({ command: "tick", status: "blocked", reason: "missing controller run id" });
+    process.exitCode = 1;
+    return;
+  }
+  const catalog = loadCatalog();
+  const state = loadState(root);
+  const control = action === "stop" ? { mode: "stopped" } : loadControl(root);
+  if (action !== "stop" && control.mode !== "running") {
+    emit({ command: "tick", status: "halt", reason: `control is ${control.mode}` });
+    return;
+  }
+  if (action !== "stop" && !process.env.CURSOR_API_KEY) {
+    emit({ command: "tick", status: "blocked", reason: "CURSOR_API_KEY is required" });
+    process.exitCode = 1;
+    return;
+  }
+  const client = process.env.CURSOR_API_KEY
+    ? createCloudClient({ fetchImpl: globalThis.fetch, apiKey: process.env.CURSOR_API_KEY })
+    : { cancelRun: async () => {} };
+  const trialId = process.env.ORCHESTRATOR_CLOUD_TRIAL || "";
+  const item = trialId ? catalog.liveItems.find((candidate) => candidate.id === trialId) || null : null;
+  const result = await executeCloudTick({
+    client,
+    state,
+    control: action === "stop" ? { mode: "running" } : control,
+    action,
+    controllerRunId,
+    item,
+    allowMerge: process.env.ORCHESTRATOR_ALLOW_MERGE === "true",
+    promptFor: (dispatch) => promptForDispatch(catalog, dispatch),
+  });
+  saveState(root, result.state);
+  if (action === "stop" && result.effect.type !== "blocked") saveControl(root, "stopped", null);
+  const failed = result.effect.type === "blocked";
+  emit({ command: "tick", status: result.effect.type, reason: result.effect.reason || "", recovered: Boolean(result.effect.recovered) });
+  if (failed) process.exitCode = 1;
+}
+
 function start() {
   emit({
     command: "start",
@@ -282,6 +346,7 @@ const actions = {
   "dry-run": dryRun,
   once,
   start,
+  tick,
   pause() {
     saveControl(root, "paused", null);
     emit({ command: "pause", status: "paused", effect: "Takes effect before the next agent execution. The current execution is left running." });
@@ -298,6 +363,7 @@ const actions = {
         "node tools/orchestrator/cli.mjs prove-fresh",
         "node tools/orchestrator/cli.mjs dry-run",
         "node tools/orchestrator/cli.mjs once --only MVP-011 --workspace <clean main worktree>",
+        "node tools/orchestrator/cli.mjs tick --action tick",
         "node tools/orchestrator/cli.mjs start",
         "node tools/orchestrator/cli.mjs pause",
         "node tools/orchestrator/cli.mjs stop",

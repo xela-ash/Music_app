@@ -3,7 +3,7 @@ import path from "node:path";
 import { config } from "../config.mjs";
 
 export function orchestratorPaths(root) {
-  const dir = path.join(root, ".orchestrator");
+  const dir = process.env.ORCHESTRATOR_STATE_DIR || path.join(root, ".orchestrator");
   return {
     dir,
     control: path.join(dir, "control.json"),

@@ -32,8 +32,30 @@ Transient agent failures (timeouts, rate limits, connection resets) retry twice.
 
 Merge uses `gh pr merge --squash` only after all 15 gates in `AGENTS.md` section 5.1 pass. The command never includes `--admin`. Required checks are `lint`, `frontend-test`, `backend-test`, and `migration-dry-run`.
 
+## Cloud controller
+
+GitHub Actions runs the controller. The laptop CLI is not the production path. `start` remains disabled. A schedule, a successful CI run, or a manual dispatch runs one tick. The concurrency group `musicapp-orchestrator` keeps overlapping runs from dispatching the same work. Each tick persists state on the branch `orchestrator/controller-state`.
+
+The controller creates a new Cloud Agent for every implementation, review, repair, and proof. It never posts a follow-up run to an existing agent. Review and repair therefore do not inherit the implementer's conversation. `autoCreatePR` is false, and the agent does not push to `main`.
+
+Manual actions are `arm`, `tick`, `prove`, and `stop`. `arm` only records that ticks may run. `prove` launches one read-only agent. `stop` cancels the active run and refuses later ticks until `arm` is dispatched again. Product work stays idle until the repository variable `ORCHESTRATOR_CLOUD_TRIAL` names one MVP id. Unattended merge stays off unless `ORCHESTRATOR_ALLOW_MERGE` is set to `true` in an environment that has already passed review. This workflow does not set it. A pull request that changes `tools/orchestrator/` or this workflow cannot pass the scope gate, so the controller cannot merge its own governance changes.
+
+The tick fails closed when the Cursor API key is missing, the agent or run status is missing, the API errors, the reply is malformed, usage is missing, review flags are not explicit `false`, the head SHA is stale, CI is incomplete, a secret-shaped path appears, or another controller lock is still current. At most one agent is active. At most four new agents are recorded in a day. The recorded token total stops new work at 2,000,000 tokens. Those are controller limits, not a billing cap.
+
+Cursor bills Cloud Agents at the selected model's rate, from the plan's included usage and then from on-demand usage. There is no separate VM charge. The account spend limit in the Cursor dashboard is the dollar control, and a run will not start without about $2 of headroom under that limit. Leaving the trial variable unset, the daily dispatch cap, and the token ceiling are the repository-side safeguards. Do not raise them to start unattended implementation.
+
+### Secrets and access
+
+Create a Cursor API key at Cursor Dashboard → API Keys, or use a service-account key. Store it as the Actions secret `CURSOR_API_KEY`. Do not put the value in the repository, the workflow log, or an agent prompt. The workflow checks that the secret is non-empty and never prints it.
+
+The Cursor account that owns the key must be connected to `xela-ash/Music_app`. Cloud agents use `.cursor/environment.json` and `.cursor/Dockerfile`, which install Node, pnpm, and the isolated PostgreSQL test cluster. No GitHub token is injected into the agent environment by this controller.
+
+```bash
+gh secret set CURSOR_API_KEY --repo xela-ash/Music_app
+```
+
 ## Tests
 
 ```bash
-node --test tools/orchestrator/test/orchestrator.test.mjs
+node --test tools/orchestrator/test/orchestrator.test.mjs tools/orchestrator/test/cloud.test.mjs
 ```
