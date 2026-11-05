@@ -257,6 +257,24 @@ function abortObject(key) {
   fs.rmSync(objectDir(key), { recursive: true, force: true });
 }
 
+function deleteObject(key) {
+  assertKey(key);
+  fs.rmSync(objectDir(key), { recursive: true, force: true });
+}
+
+function objectExists(key) {
+  assertKey(key);
+  return fs.existsSync(objectDir(key));
+}
+
+function listObjectKeys() {
+  const root = path.join(storageRoot(), "objects");
+  if (!fs.existsSync(root)) {
+    return [];
+  }
+  return fs.readdirSync(root).filter((name) => /^[a-f0-9]{32}$/.test(name));
+}
+
 module.exports = {
   PROVIDER_KEY,
   BUCKET,
@@ -271,4 +289,7 @@ module.exports = {
   inspect,
   readPrefix,
   abortObject,
+  deleteObject,
+  objectExists,
+  listObjectKeys,
 };

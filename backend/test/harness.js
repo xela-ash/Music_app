@@ -14,6 +14,9 @@ const BACKEND_ROOT = path.join(__dirname, "..");
 // teardown clears rows without replaying migrations.
 const APPLICATION_TABLES = [
   "asset_audit_events",
+  "asset_orphan_candidates",
+  "asset_processing_jobs",
+  "asset_retention_holds",
   "asset_variants",
   "asset_storage_objects",
   "asset_project_bindings",

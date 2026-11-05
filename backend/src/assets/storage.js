@@ -67,6 +67,14 @@ function abortObject(key) {
   return current().abortObject(key);
 }
 
+function deleteObject(key) {
+  return current().deleteObject(key);
+}
+
+function objectExists(key) {
+  return current().objectExists(key);
+}
+
 function presignPart(input) {
   if (providerName() !== "r2") {
     const error = new Error("This storage provider accepts part bytes on the upload route");
@@ -87,5 +95,7 @@ module.exports = {
   inspect,
   readPrefix,
   abortObject,
+  deleteObject,
+  objectExists,
   presignPart,
 };

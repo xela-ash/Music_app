@@ -64,6 +64,31 @@ test("R2 selection without credentials fails closed and does not call the networ
   });
 });
 
+test("R2 objectExists fails closed and does not claim absence (BR-ASSET-015, §18.3/§18.4)", async () => {
+  await withR2Env(async () => {
+    process.env.ASSET_STORAGE_PROVIDER = "r2";
+    process.env.R2_ACCOUNT_ID = "account-id";
+    process.env.R2_ACCESS_KEY_ID = "access-key";
+    process.env.R2_SECRET_ACCESS_KEY = SECRET;
+    process.env.R2_BUCKET = "musicapp-assets";
+    let calls = 0;
+    r2.setTransportForTests(async () => {
+      calls += 1;
+      throw new Error("transport must not be called for stub existence");
+    });
+    assert.throws(() => storage.objectExists("a".repeat(32)), {
+      code: "storage_provider_rejected",
+    });
+    assert.throws(() => r2.objectExists("a".repeat(32)), {
+      code: "storage_provider_rejected",
+    });
+    assert.throws(() => storage.deleteObject("a".repeat(32)), {
+      code: "storage_provider_rejected",
+    });
+    assert.equal(calls, 0);
+  });
+});
+
 test("a configured R2 part grant is a direct URL and does not contain the secret", async () => {
   await withR2Env(async () => {
     process.env.ASSET_STORAGE_PROVIDER = "r2";

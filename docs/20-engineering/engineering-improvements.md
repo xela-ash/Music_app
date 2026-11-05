@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.43 |
-| Last Reviewed | 2026-10-07 |
+| Version | 0.7.44 |
+| Last Reviewed | 2026-11-03 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -196,8 +196,10 @@ Copy this template for each new entry:
 | [ENG-IMP-089](#eng-imp-089-cashfree-order-creation-omits-customer_details) | Cashfree order creation omits customer_details | Payments | Low | PROPOSED |
 | [ENG-IMP-090](#eng-imp-090-full-mvp-frontend-screen-set-from-pull-request-72-is-preserved-unmerged) | Full MVP frontend screen set from pull request #72 is preserved, unmerged | Frontend, UX, Architecture | Medium | PROPOSED |
 | [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
-| [ENG-IMP-094](#eng-imp-094-merge-gates-treat-omitted-review-flags-as-clear) | Merge gates treat omitted review flags as clear | Orchestrator | Low | PROPOSED |
-| [ENG-IMP-095](#eng-imp-095-orchestrator-scope-gate-does-not-name-secret-paths) | Orchestrator scope gate does not name secret paths | Orchestrator | Low | PROPOSED |
+| [ENG-IMP-092](#eng-imp-092-retention-policy-grace-seconds-are-an-engineering-placeholder) | Retention policy grace seconds are an engineering placeholder | Assets | Medium | PROPOSED |
+| [ENG-IMP-093](#eng-imp-093-orphan-sweep-does-not-schedule-itself-or-emit-every-18-4-candidate) | Orphan sweep does not schedule itself or emit every §18.4 candidate | Assets | Medium | PROPOSED |
+| [ENG-IMP-094](#eng-imp-094-merge-gates-treat-omitted-review-flags-as-clear) | Merge gates treat omitted review flags as clear | Orchestrator | Low | IMPLEMENTED |
+| [ENG-IMP-095](#eng-imp-095-orchestrator-scope-gate-does-not-name-secret-paths) | Orchestrator scope gate does not name secret paths | Orchestrator | Low | IMPLEMENTED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2929,6 +2931,67 @@ Copy this template for each new entry:
 | Related PR | [#61](https://github.com/xela-ash/Music_app/pull/61) |
 | Resolution | — |
 
+### ENG-IMP-092 Retention policy grace seconds are an engineering placeholder
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-092 |
+| Title | Retention policy grace seconds are an engineering placeholder |
+| Date identified | 2026-11-03 |
+| Identified by | MVP-011 implementer |
+| Category | Assets, Compliance |
+| Affected subsystem | Assets / retention |
+| Current state | Migration `024` seeds `asset_retention_policies` row `mvp_default` / `2026-11-03` with `orphan_grace_seconds`, `staging_grace_seconds`, `replacement_grace_seconds`, and `soft_delete_grace_seconds` all set to `0`. Soft-delete and orphan detection read those values. |
+| Evidence / problem | Assets §18.1 leaves exact retention durations open and forbids embedding one blanket number in code. Zero is a valid policy value for the mechanism, but it is not a product/compliance decision. |
+| Suggested improvement | When Product/Compliance records per-purpose durations, insert a new immutable policy version and retire `2026-11-03` rather than updating the seed row. |
+| Expected benefit | Workers honor the decided grace windows without a code change. |
+| Risk of doing nothing | Soft-delete and orphan reclaim become eligible immediately after the request or purpose grace of zero. |
+| Implementation risk | Low once the durations are decided. |
+| Estimated scope | S |
+| Dependencies | Product/Compliance retention decisions for Assets §18.1 / §30 |
+| Product behavior impact | Yes — changes when physical deletion and orphan reclaim become eligible |
+| Specification impact | No code change until the specification records the durations |
+| Migration impact | Additive policy version insert |
+| Security impact | None by itself |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | When the open retention durations are decided |
+| Status | PROPOSED |
+| Related GitHub Issue | [#13](https://github.com/xela-ash/Music_app/issues/13) |
+| Related PR | The MVP-011 pull request |
+| Resolution | — |
+
+### ENG-IMP-093 Orphan sweep does not schedule itself or emit every §18.4 candidate
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-093 |
+| Title | Orphan sweep does not schedule itself or emit every §18.4 candidate |
+| Date identified | 2026-11-04 |
+| Identified by | MVP-011 independent review |
+| Category | Assets |
+| Affected subsystem | Assets / retention |
+| Current state | `runDeletionWorker` and `runOrphanDetection` run when a caller invokes them. The orphan sweep quarantines abandoned staging, unbound Assets, missing provider objects, and untracked local keys. It does not emit `invalid_binding` or parentless-variant candidates, and it does not delete a quarantined candidate after grace. |
+| Evidence / problem | Assets §18.4 names those extra candidate kinds, and `INT-ASSET-008` describes scheduled policy evaluation. No numeric schedule is decided (Assets §30). The MVP-011 acceptance criteria are the hold block and hold release. |
+| Suggested improvement | Add the missing candidate kinds when their domain foreign keys exist, and run the two workers from an operations scheduler once a cadence is specified. |
+| Expected benefit | Orphan detection matches the full §18.4 inventory without a human invocation. |
+| Risk of doing nothing | Invalid bindings and parentless variants are not quarantined until a later item, and the workers do not run unless something calls them. |
+| Implementation risk | Medium. A scheduler and extra candidate kinds are not part of the MVP-011 acceptance criteria. |
+| Estimated scope | M |
+| Dependencies | A decided schedule, and domain tables for the bindings §18.4 would reconcile |
+| Product behavior impact | Yes, if the extra candidates or a schedule change when bytes are reclaimed |
+| Specification impact | None until a schedule is specified |
+| Migration impact | None for the missing caller. Candidate kinds already include `invalid_binding`. |
+| Security impact | Unreclaimed orphans remain a cost and privacy risk already named by `SEC-ASSET-009` |
+| Performance impact | A schedule would add recurring database and storage reads |
+| Priority suggestion | Medium |
+| Recommended timing | After MVP-011, when operations selects a cadence |
+| Status | PROPOSED |
+| Related GitHub Issue | [#13](https://github.com/xela-ash/Music_app/issues/13) |
+| Related PR | [#110](https://github.com/xela-ash/Music_app/pull/110) |
+| Resolution | — |
+
+
 ### ENG-IMP-094 Merge gates treat omitted review flags as clear
 
 | Field | Value |
@@ -2939,8 +3002,8 @@ Copy this template for each new entry:
 | Identified by | Independent review of pull request #111 |
 | Category | Orchestrator |
 | Affected subsystem | `tools/orchestrator` |
-| Current state | Gates 10–12 treat a review as clear unless `human_decision`, `external_dependency`, or `spec_ambiguity` is exactly `true`. A report that omits those fields therefore passes those gates. The report parser used by the loop requires the three booleans before a review can proceed. |
-| Evidence / problem | `evaluateGates` can be called with a partial review object. That path is fail-open for a missing flag even though the loop's parser is fail-closed. |
+| Current state | Gates 10–12 pass only when the review set each of `human_decision`, `external_dependency`, and `spec_ambiguity` to `false`. A missing or non-boolean flag fails the gate. |
+| Evidence / problem | The previous gate treated a missing flag as clear. The cloud controller now refuses that review before merge. |
 | Suggested improvement | Treat a missing or non-boolean flag as a gate failure. |
 | Expected benefit | A caller that skips the parser cannot treat an incomplete review as clear. |
 | Risk of doing nothing | Low while every merge goes through the validated loop report. |
@@ -2954,12 +3017,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | Low |
 | Recommended timing | Before unattended operation |
-| Status | PROPOSED |
+| Status | IMPLEMENTED |
 | Related GitHub Issue | — |
 | Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
-| Resolution | — |
-
-`ENG-IMP-092` and `ENG-IMP-093` are allocated on pull request #110 and are not part of this branch.
+| Resolution | `evaluateGates` requires an explicit `false` for gates 10–12. |
 
 ### ENG-IMP-095 Orchestrator scope gate does not name secret paths
 
@@ -2971,8 +3032,8 @@ Copy this template for each new entry:
 | Identified by | Independent review of pull request #111 |
 | Category | Orchestrator |
 | Affected subsystem | `tools/orchestrator` |
-| Current state | Gate 14 rejects `.vscode/` and `tools/orchestrator/`. It does not reject `.env` or another secret-shaped path. The diff under review contains neither. |
-| Evidence / problem | A future product pull request that adds a secret file would not fail this gate for that reason alone. |
+| Current state | Gate 14 rejects `.vscode/`, `tools/orchestrator/`, the orchestrator workflow, and secret-shaped paths such as `.env`, `.pem`, and credential files. |
+| Evidence / problem | The previous gate did not name secret paths. A pull request that adds one now fails closed. |
 | Suggested improvement | Reject known secret paths such as `.env`, `.env.*`, and credential files before merge. |
 | Expected benefit | The scope gate matches the existing prohibition on committing secrets. |
 | Risk of doing nothing | Low. Review and normal git hygiene still apply, and this branch does not add a secret. |
@@ -2986,10 +3047,10 @@ Copy this template for each new entry:
 | Performance impact | None |
 | Priority suggestion | Low |
 | Recommended timing | Before unattended operation |
-| Status | PROPOSED |
+| Status | IMPLEMENTED |
 | Related GitHub Issue | — |
 | Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
-| Resolution | — |
+| Resolution | Gate 14 rejects secret-shaped paths and orchestrator workflow changes. |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
 
@@ -3078,4 +3139,6 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.41 | 2026-10-01 | Added `ENG-IMP-072`, `ENG-IMP-073`, and `ENG-IMP-074` (all PROPOSED) from the MVP-010 review. None are authorized. | Engineering |
 | 0.7.42 | 2026-10-07 | Reconciled MVP-010 with `main` after MVP-043, MVP-004, MVP-027, and MVP-025; this branch's rows are renumbered to `0.7.40`–`0.7.41`. Records what those rows omit: `ENG-IMP-072` was set to IMPLEMENTED by the second MVP-010 review repair (completion re-checks the live relationship). `ENG-IMP-068`–`071`, `073`, and `074` stay PROPOSED. Rows that call these entries unmerged predate this merge. None is authorized. | Engineering |
 | 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's status changed. The only content change is a dated note in `ENG-IMP-016` Dependencies: with the email provider selected, it is now `MVP-009`'s remaining blocker. None is authorized. | Engineering |
-| 0.7.44 | 2026-11-04 | Added `ENG-IMP-094` and `ENG-IMP-095` (both PROPOSED) from the independent review of the stateless orchestrator. Neither is authorized. `ENG-IMP-092` and `ENG-IMP-093` stay reserved for pull request #110. | Engineering |
+| 0.7.44 | 2026-11-03 | Added `ENG-IMP-092` (PROPOSED): seeded retention policy grace seconds are an engineering placeholder until Product/Compliance records durations. Not authorized. | Engineering |
+| 0.7.45 | 2026-11-04 | Added `ENG-IMP-093` (PROPOSED): the orphan and deletion workers are not scheduled, and the sweep does not emit every §18.4 candidate kind. Not authorized. | Engineering |
+| 0.7.46 | 2026-11-05 | Reconciled the orchestrator branch with `main` after MVP-011. `ENG-IMP-094` and `ENG-IMP-095` are IMPLEMENTED by the cloud-controller gates: omitted review flags and secret-shaped paths fail closed. Neither entry authorizes further work. | Engineering |
