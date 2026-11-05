@@ -1,0 +1,90 @@
+name: Orchestrator
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: arm records running without launching an agent. tick polls one cloud agent. prove launches one read-only agent. stop cancels the active run.
+        required: true
+        type: choice
+        options:
+          - tick
+          - prove
+          - stop
+          - arm
+        default: tick
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+concurrency:
+  group: musicapp-orchestrator
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+jobs:
+  tick:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout the controller
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Refuse a missing Cursor key
+        if: inputs.action != 'arm'
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          if [ -z "$CURSOR_API_KEY" ]; then
+            echo "CURSOR_API_KEY is not configured. The controller fails closed."
+            exit 1
+          fi
+
+      - name: Prepare the durable state branch
+        run: |
+          set -euo pipefail
+          git fetch origin orchestrator/controller-state || true
+          if git rev-parse --verify origin/orchestrator/controller-state >/dev/null 2>&1; then
+            git worktree add "$RUNNER_TEMP/orchestrator-state" origin/orchestrator/controller-state
+          else
+            git worktree add --detach "$RUNNER_TEMP/orchestrator-state" HEAD
+            git -C "$RUNNER_TEMP/orchestrator-state" checkout --orphan orchestrator/controller-state
+            git -C "$RUNNER_TEMP/orchestrator-state" rm -r --cached . >/dev/null 2>&1 || true
+            find "$RUNNER_TEMP/orchestrator-state" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          fi
+
+      - name: Run one controller tick
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          ORCHESTRATOR_STATE_DIR: ${{ runner.temp }}/orchestrator-state
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          ORCHESTRATOR_CLOUD_TRIAL: ${{ vars.ORCHESTRATOR_CLOUD_TRIAL }}
+        run: |
+          set -euo pipefail
+          action="${{ github.event.inputs.action || 'tick' }}"
+          node tools/orchestrator/cli.mjs tick --action "$action"
+
+      - name: Publish controller state
+        run: |
+          set -euo pipefail
+          git -C "$RUNNER_TEMP/orchestrator-state" add -A
+          if git -C "$RUNNER_TEMP/orchestrator-state" diff --cached --quiet; then
+            echo "No state change."
+            exit 0
+          fi
+          git -C "$RUNNER_TEMP/orchestrator-state" -c user.name="musicapp-orchestrator" -c user.email="orchestrator@users.noreply.github.com" commit -m "Record orchestrator tick"
+          git -C "$RUNNER_TEMP/orchestrator-state" push origin HEAD:orchestrator/controller-state

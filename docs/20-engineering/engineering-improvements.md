@@ -198,6 +198,8 @@ Copy this template for each new entry:
 | [ENG-IMP-091](#eng-imp-091-ci-cannot-exercise-privilege-based-database-protections) | CI cannot exercise privilege-based database protections | CI/CD, Testing, Security | Low | PROPOSED |
 | [ENG-IMP-092](#eng-imp-092-retention-policy-grace-seconds-are-an-engineering-placeholder) | Retention policy grace seconds are an engineering placeholder | Assets | Medium | PROPOSED |
 | [ENG-IMP-093](#eng-imp-093-orphan-sweep-does-not-schedule-itself-or-emit-every-18-4-candidate) | Orphan sweep does not schedule itself or emit every §18.4 candidate | Assets | Medium | PROPOSED |
+| [ENG-IMP-094](#eng-imp-094-merge-gates-treat-omitted-review-flags-as-clear) | Merge gates treat omitted review flags as clear | Orchestrator | Low | IMPLEMENTED |
+| [ENG-IMP-095](#eng-imp-095-orchestrator-scope-gate-does-not-name-secret-paths) | Orchestrator scope gate does not name secret paths | Orchestrator | Low | IMPLEMENTED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -2989,6 +2991,67 @@ Copy this template for each new entry:
 | Related PR | [#110](https://github.com/xela-ash/Music_app/pull/110) |
 | Resolution | — |
 
+
+### ENG-IMP-094 Merge gates treat omitted review flags as clear
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-094 |
+| Title | Merge gates treat omitted review flags as clear |
+| Date identified | 2026-11-04 |
+| Identified by | Independent review of pull request #111 |
+| Category | Orchestrator |
+| Affected subsystem | `tools/orchestrator` |
+| Current state | Gates 10–12 pass only when the review set each of `human_decision`, `external_dependency`, and `spec_ambiguity` to `false`. A missing or non-boolean flag fails the gate. |
+| Evidence / problem | The previous gate treated a missing flag as clear. The cloud controller now refuses that review before merge. |
+| Suggested improvement | Treat a missing or non-boolean flag as a gate failure. |
+| Expected benefit | A caller that skips the parser cannot treat an incomplete review as clear. |
+| Risk of doing nothing | Low while every merge goes through the validated loop report. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None for product authorization. It tightens orchestrator merge control only. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before unattended operation |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | — |
+| Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
+| Resolution | `evaluateGates` requires an explicit `false` for gates 10–12. |
+
+### ENG-IMP-095 Orchestrator scope gate does not name secret paths
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-095 |
+| Title | Orchestrator scope gate does not name secret paths |
+| Date identified | 2026-11-04 |
+| Identified by | Independent review of pull request #111 |
+| Category | Orchestrator |
+| Affected subsystem | `tools/orchestrator` |
+| Current state | Gate 14 rejects `.vscode/`, `tools/orchestrator/`, the orchestrator workflow, and secret-shaped paths such as `.env`, `.pem`, and credential files. |
+| Evidence / problem | The previous gate did not name secret paths. A pull request that adds one now fails closed. |
+| Suggested improvement | Reject known secret paths such as `.env`, `.env.*`, and credential files before merge. |
+| Expected benefit | The scope gate matches the existing prohibition on committing secrets. |
+| Risk of doing nothing | Low. Review and normal git hygiene still apply, and this branch does not add a secret. |
+| Implementation risk | Low |
+| Estimated scope | S |
+| Dependencies | None |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | Closes a gate gap only. It does not change application security. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | Before unattended operation |
+| Status | IMPLEMENTED |
+| Related GitHub Issue | — |
+| Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
+| Resolution | Gate 14 rejects secret-shaped paths and orchestrator workflow changes. |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3078,3 +3141,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.43 | 2026-10-07 | Repository consolidation for technical handover (pull request #109). Added `ENG-IMP-090` (PROPOSED): pull request #72's frontend screen set is closed unmerged and preserved as tag `archive/pr-72-full-mvp-screens`. Regenerated the Section 5.1 index from the entries: it had stopped at `ENG-IMP-049` apart from a few rows, so it now lists all 91 entries with their current status. No entry's status changed. The only content change is a dated note in `ENG-IMP-016` Dependencies: with the email provider selected, it is now `MVP-009`'s remaining blocker. None is authorized. | Engineering |
 | 0.7.44 | 2026-11-03 | Added `ENG-IMP-092` (PROPOSED): seeded retention policy grace seconds are an engineering placeholder until Product/Compliance records durations. Not authorized. | Engineering |
 | 0.7.45 | 2026-11-04 | Added `ENG-IMP-093` (PROPOSED): the orphan and deletion workers are not scheduled, and the sweep does not emit every §18.4 candidate kind. Not authorized. | Engineering |
+| 0.7.46 | 2026-11-05 | Reconciled the orchestrator branch with `main` after MVP-011. `ENG-IMP-094` and `ENG-IMP-095` are IMPLEMENTED by the cloud-controller gates: omitted review flags and secret-shaped paths fail closed. Neither entry authorizes further work. | Engineering |
