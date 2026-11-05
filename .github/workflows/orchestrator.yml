@@ -61,9 +61,10 @@ jobs:
           if git rev-parse --verify origin/orchestrator/controller-state >/dev/null 2>&1; then
             git worktree add "$RUNNER_TEMP/orchestrator-state" origin/orchestrator/controller-state
           else
-            git worktree add --detach "$RUNNER_TEMP/orchestrator-state" origin/main
+            git worktree add --detach "$RUNNER_TEMP/orchestrator-state" HEAD
             git -C "$RUNNER_TEMP/orchestrator-state" checkout --orphan orchestrator/controller-state
-            git -C "$RUNNER_TEMP/orchestrator-state" rm -rf .
+            git -C "$RUNNER_TEMP/orchestrator-state" rm -r --cached . >/dev/null 2>&1 || true
+            find "$RUNNER_TEMP/orchestrator-state" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           fi
 
       - name: Run one controller tick
