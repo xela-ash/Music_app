@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "baseline": "42f7570aed008a369fd63795b86df4d2544b456f",
+  "items": {},
+  "updatedAt": "2026-11-24T06:25:43.751Z",
+  "dispatches": [
+    {
+      "issue": "proof",
+      "role": "proof",
+      "at": "2026-11-24T06:25:39.951Z"
+    }
+  ],
+  "lock": {
+    "runId": "45340338923",
+    "until": "2026-11-24T06:45:39.951Z"
+  },
+  "dispatch": {
+    "issue": "proof",
+    "role": "proof",
+    "attempt": 1,
+    "prUrl": null,
+    "agentId": "bc-43809325-7e8c-42cf-a8f5-13a3817715b3",
+    "runId": "run-af02b5dd-b644-4145-9648-25991bd0b800",
+    "status": "RUNNING",
+    "at": "2026-11-24T06:25:39.951Z"
+  }
+}
