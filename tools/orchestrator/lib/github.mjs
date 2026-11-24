@@ -111,6 +111,51 @@ export function waitForRequiredChecks(prNumber, { attempts = 80, intervalMs = 30
   })();
 }
 
+export function ensurePullRequest({ issue, branch, head, commit }) {
+  if (typeof branch !== "string" || branch === "main" || branch.startsWith("-") || branch.includes("..")) {
+    throw new Error("pull request recovery failed");
+  }
+  const open = JSON.parse(runGh([
+    "pr",
+    "list",
+    "--repo",
+    config.repo,
+    "--head",
+    branch,
+    "--state",
+    "open",
+    "--json",
+    "number",
+  ]));
+  if (Number.isInteger(open[0]?.number) && open[0].number > 0) return open[0].number;
+  const stamp = commit || head || "the pushed commit";
+  const body = [
+    String(issue || "implementation"),
+    "",
+    `Recovered from \`${branch}\` at \`${stamp}\`.`,
+    "",
+    "The implementation agent pushed this commit and did not report a pull request number. This pull request was opened from that existing branch.",
+    "Independent review, required CI checks, and the human-decision gates still apply. This recovery does not merge.",
+  ].join("\n");
+  const url = runGh([
+    "pr",
+    "create",
+    "--repo",
+    config.repo,
+    "--base",
+    "main",
+    "--head",
+    branch,
+    "--title",
+    `${issue} recovered implementation`,
+    "--body",
+    body,
+  ]).trim();
+  const match = url.match(/\/pull\/(\d+)\s*$/);
+  if (!match) throw new Error("pull request recovery failed");
+  return Number(match[1]);
+}
+
 export function loadGateFacts({ item, pr, review, dependenciesMerged }) {
   const view = JSON.parse(
     runGh([

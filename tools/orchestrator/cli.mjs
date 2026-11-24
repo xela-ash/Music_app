@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.mjs";
 import { applyGitHubIssues, findStatusConflicts, loadIssueIndex } from "./lib/catalog.mjs";
-import { fetchOpenIssueSnapshot, loadGateFacts, waitForRequiredChecks } from "./lib/github.mjs";
+import { ensurePullRequest, fetchOpenIssueSnapshot, loadGateFacts, waitForRequiredChecks } from "./lib/github.mjs";
 import { createCloudClient } from "./lib/cloud-api.mjs";
 import { executeCloudTick } from "./lib/cloud-tick.mjs";
 import { dryRunNextAction, invocationArgs, proveFreshContext, runDryItem, runImplementationLoop } from "./lib/loop.mjs";
@@ -301,6 +301,7 @@ async function tick() {
     item,
     allowMerge: process.env.ORCHESTRATOR_ALLOW_MERGE === "true",
     promptFor: (dispatch) => promptForDispatch(catalog, dispatch),
+    openPullRequest: (effect) => ensurePullRequest(effect),
   });
   saveState(root, result.state);
   if (action === "stop" && result.effect.type !== "blocked") saveControl(root, "stopped", null);

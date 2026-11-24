@@ -213,3 +213,254 @@ test("omitted review flags and secret paths fail the merge gates", () => {
   });
   assert.ok(secret.failures.some((failure) => failure.id === 14));
 });
+
+const head = "6d75c886d95ee206bcdd4838c99270446a333d9e";
+const noPullRequest = `{"role":"implementer","issue":"MVP-012","pr":0,"head":"${head}","commit":"${head}","branch":"cursor/musicapp-mvp-012-implementer-00d0","blockers":[],"next_action":"review"}`;
+
+function agentClient(bodies) {
+  return {
+    async createAgent(body) {
+      bodies.push(body);
+      return { agent: { id: body.agentId }, run: { id: "run-new", status: "CREATING" } };
+    },
+  };
+}
+
+test("only a fresh implementation agent requests automatic pull request creation", async () => {
+  const bodies = [];
+  const client = agentClient(bodies);
+  const implementer = await executeCloudTick({
+    ...base({ item: { id: "MVP-012" } }),
+    client,
+    promptFor: () => "implement",
+    openPullRequest: async () => {
+      throw new Error("review must not open a pull request");
+    },
+  });
+  assert.equal(bodies[0].autoCreatePR, true);
+  assert.equal(bodies[0].mode, "agent");
+
+  const reviewer = await executeCloudTick({
+    ...base({
+      state: { ...implementer.state, dispatch: null, items: { "MVP-012": { phase: "review", pr: 120, attempts: [] } } },
+      item: { id: "MVP-012" },
+    }),
+    client,
+    promptFor: () => "review",
+  });
+  assert.equal(bodies[1].autoCreatePR, false);
+  assert.equal(bodies[1].mode, "plan");
+  assert.match(bodies[1].repos[0].prUrl, /\/pull\/120$/);
+
+  const repair = await executeCloudTick({
+    ...base({
+      state: {
+        dispatches: [],
+        items: { "MVP-012": { phase: "repair", pr: 120, attempts: [{ role: "reviewer", sessionId: "bc-review" }] } },
+      },
+      item: { id: "MVP-012" },
+    }),
+    client,
+    promptFor: () => "repair",
+  });
+  assert.equal(bodies[2].autoCreatePR, false);
+  assert.equal(bodies[2].mode, "agent");
+  assert.match(bodies[2].repos[0].prUrl, /\/pull\/120$/);
+
+  const proof = await executeCloudTick({
+    ...base({ action: "prove" }),
+    client,
+    promptFor: () => "proof",
+  });
+  assert.equal(proof.effect.dispatch.role, "proof");
+  assert.equal(bodies[3].autoCreatePR, false);
+  assert.equal(bodies[3].mode, "plan");
+  assert.equal(bodies[3].repos[0].prUrl, undefined);
+});
+
+test("completed code without a pull request is recovered once and does not merge", async () => {
+  const finished = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest,
+      git: { branches: [{ repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0" }] },
+    },
+    usageTokens: 10,
+  }));
+  assert.equal(finished.effect.type, "open-pr");
+  assert.notEqual(finished.effect.reason, "malformed response");
+  assert.equal(finished.state.dispatch, null);
+  assert.equal(finished.state.items["MVP-012"].phase, "recover-pr");
+  assert.equal(finished.state.items["MVP-012"].branch, "cursor/musicapp-mvp-012-implementer-00d0");
+
+  const again = reduceCloudTick(base({
+    state: {
+      ...finished.state,
+      dispatches: Array.from({ length: 4 }, () => ({ issue: "MVP-012", role: "implementer", at: "2026-11-05T00:00:00Z" })),
+    },
+    item: { id: "MVP-012" },
+  }));
+  assert.equal(again.effect.type, "open-pr");
+  assert.equal(again.effect.dispatch, undefined);
+
+  let opened = 0;
+  const recovered = await executeCloudTick({
+    ...base({ state: finished.state, item: { id: "MVP-012" } }),
+    client: agentClient([]),
+    promptFor: () => "implement",
+    openPullRequest: async (effect) => {
+      opened += 1;
+      assert.equal(effect.branch, "cursor/musicapp-mvp-012-implementer-00d0");
+      assert.equal(effect.commit, head);
+      return 112;
+    },
+  });
+  assert.equal(opened, 1);
+  assert.equal(recovered.effect.phase, "review");
+  assert.equal(recovered.state.items["MVP-012"].pr, 112);
+
+  const review = await executeCloudTick({
+    ...base({ state: { ...recovered.state, dispatch: null }, item: { id: "MVP-012" } }),
+    client: agentClient([]),
+    promptFor: () => "review",
+  });
+  assert.equal(review.effect.dispatch.role, "reviewer");
+  assert.match(review.effect.dispatch.prUrl, /\/pull\/112$/);
+
+  const denied = reduceCloudTick(base({
+    state: {
+      ...recovered.state,
+      dispatch: null,
+      items: {
+        "MVP-012": {
+          ...recovered.state.items["MVP-012"],
+          phase: "gates",
+          attempts: [
+            { role: "implementer", sessionId: "bc-impl" },
+            { role: "reviewer", sessionId: "bc-review" },
+          ],
+        },
+      },
+    },
+    item: { id: "MVP-012" },
+    gates: { passed: true },
+    allowMerge: false,
+  }));
+  assert.equal(denied.effect.reason, "unattended merge is disabled");
+  assert.notEqual(denied.effect.type, "merge");
+});
+
+test("a missing branch or a reported blocker does not dispatch another implementation agent", () => {
+  const blocked = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest.replace('"blockers":[]', '"blockers":["approval required"]'),
+    },
+    usageTokens: 4,
+  }));
+  assert.equal(blocked.effect.reason, "completed without pull request");
+  assert.equal(blocked.state.items["MVP-012"].phase, "recover-pr");
+  const recorded = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest.replace('"blockers":[]', '"blockers":["approval required"]'),
+      git: { branches: [{ repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0", prUrl: "https://github.com/xela-ash/Music_app/pull/112" }] },
+    },
+    usageTokens: 1,
+  }));
+  assert.equal(recorded.effect.reason, "completed without pull request");
+  assert.equal(recorded.state.items["MVP-012"].pr, undefined);
+  assert.equal(recorded.state.dispatch, null);
+  const retry = reduceCloudTick(base({ state: blocked.state, item: { id: "MVP-012" } }));
+  assert.equal(retry.effect.type, "blocked");
+  assert.equal(retry.effect.reason, "completed without pull request");
+  assert.equal(retry.state.dispatch, null);
+});
+
+test("an existing pull request is kept for repair and when the run already recorded one", () => {
+  const repair = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      items: { "MVP-012": { phase: "repair", pr: 112, head: "older", attempts: [] } },
+      dispatch: { issue: "MVP-012", role: "repair", attempt: 1, agentId: "bc-repair", runId: "run-r" },
+    },
+    observation: { disposition: "finished", result: noPullRequest.replace('"role":"implementer"', '"role":"repair"') },
+    usageTokens: 3,
+  }));
+  assert.equal(repair.effect.phase, "review");
+  assert.equal(repair.state.items["MVP-012"].pr, 112);
+  assert.notEqual(repair.effect.type, "open-pr");
+
+  const adopted = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest,
+      git: {
+        branches: [{
+          repoUrl: "https://github.com/xela-ash/Music_app",
+          branch: "cursor/musicapp-mvp-012-implementer-00d0",
+          prUrl: "https://github.com/xela-ash/Music_app/pull/112",
+        }],
+      },
+    },
+    usageTokens: 3,
+  }));
+  assert.equal(adopted.effect.phase, "review");
+  assert.equal(adopted.state.items["MVP-012"].pr, 112);
+  assert.notEqual(adopted.effect.type, "open-pr");
+});
+
+test("pull request recovery failure stays on the same branch and does not create an agent", async () => {
+  const bodies = [];
+  const failed = await executeCloudTick({
+    ...base({
+      state: {
+        dispatches: [],
+        items: {
+          "MVP-012": {
+            phase: "recover-pr",
+            status: "implemented",
+            branch: "cursor/musicapp-mvp-012-implementer-00d0",
+            head,
+            commit: head,
+            attempts: [],
+          },
+        },
+      },
+      item: { id: "MVP-012" },
+    }),
+    client: agentClient(bodies),
+    promptFor: () => "implement",
+    openPullRequest: async () => {
+      throw new Error("github unavailable");
+    },
+  });
+  assert.equal(failed.effect.reason, "pull request recovery failed");
+  assert.equal(failed.state.items["MVP-012"].phase, "recover-pr");
+  assert.equal(bodies.length, 0);
+  const retry = await executeCloudTick({
+    ...base({ state: failed.state, item: { id: "MVP-012" } }),
+    client: agentClient(bodies),
+    promptFor: () => "implement",
+    openPullRequest: async () => 112,
+  });
+  assert.equal(bodies.length, 0);
+  assert.equal(retry.state.items["MVP-012"].pr, 112);
+  assert.equal(retry.state.items["MVP-012"].phase, "review");
+});

@@ -96,6 +96,35 @@ export function interpretCloudRun(run) {
   return { disposition: "invalid", reason: "missing agent status" };
 }
 
+function pullNumber(url) {
+  const match = String(url || "").match(/\/pull\/(\d+)(?:\/|\s|$)/);
+  if (!match) return null;
+  const number = Number(match[1]);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+export function pushedBranch(git, repoUrl) {
+  const branches = Array.isArray(git?.branches) ? git.branches : [];
+  const ownerRepo = String(repoUrl || "").replace(/\.git$/, "").split("/").slice(-2).join("/");
+  const rows = branches.filter((row) => {
+    if (!row || typeof row !== "object") return false;
+    if (!row.repoUrl || !ownerRepo) return true;
+    return String(row.repoUrl).replace(/\.git$/, "").endsWith(ownerRepo);
+  });
+  let adopted = null;
+  let branch = null;
+  for (const row of rows) {
+    const pr = pullNumber(row.prUrl);
+    if (pr && !adopted) adopted = pr;
+    if (!branch && typeof row.branch === "string" && row.branch.length > 0 && row.branch !== "main") {
+      branch = row.branch;
+    }
+  }
+  if (adopted) return { branch, pr: adopted };
+  if (!branch) return null;
+  return { branch, pr: null };
+}
+
 export function usageTokens(usage) {
   const total = usage?.totalUsage?.totalTokens;
   if (!Number.isFinite(total) || total < 0) return null;

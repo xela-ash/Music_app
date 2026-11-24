@@ -90,18 +90,38 @@ export function validateReport(value) {
   return null;
 }
 
-export function extractReport(text) {
+function scanRoleObjects(text, accept) {
   const source = String(text || "");
   let report = null;
   let from = 0;
   while (from < source.length) {
     const start = source.indexOf("{\"role\"", from);
     if (start === -1) break;
-    const value = validateReport(parseObjectAt(source, start));
-    if (value) report = value;
+    const accepted = accept(parseObjectAt(source, start));
+    if (accepted) report = accepted;
     from = start + 8;
   }
   return report;
+}
+
+export function extractReport(text) {
+  return scanRoleObjects(text, validateReport);
+}
+
+export function extractCompletedWithoutPullRequest(text) {
+  return scanRoleObjects(text, (value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    if (value.role !== "implementer" && value.role !== "repair") return null;
+    if (positiveInteger(value.pr)) return null;
+    if (value.issue === "MVP-NNN") return null;
+    if (value.head === "sha" && value.commit === "sha" && (value.branch == null || value.branch === "cursor/branch")) return null;
+    if (typeof value.issue !== "string" || value.issue.length === 0) return null;
+    if (typeof value.head !== "string" || value.head.length === 0) return null;
+    if (typeof value.commit !== "string" || value.commit.length === 0) return null;
+    if (!Array.isArray(value.blockers)) return null;
+    if (typeof value.next_action !== "string" || value.next_action.length === 0) return null;
+    return value;
+  });
 }
 
 function clip(value, max = 500) {

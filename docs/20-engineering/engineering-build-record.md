@@ -6,8 +6,8 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.22.12 |
-| Last Reviewed | 2026-11-03 |
+| Version | 0.22.17 |
+| Last Reviewed | 2026-11-24 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
 
@@ -927,6 +927,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | The MVP-011 pull request on `mvp-011-asset-retention` |
 | Status | ACTIVE |
 
+### EDR-029 Recover a finished implementation that has no pull request
+
+| Field | Value |
+|---|---|
+| ID | EDR-029 |
+| Date | 2026-11-24 |
+| Issue | No MVP item. Controller recovery for the MVP-012 Cloud Agent result. `EDR-028` stays the product decision on `cursor/musicapp-mvp-012-implementer-00d0`. |
+| Decision | Request automatic pull-request creation only for a fresh implementation agent. A finished implementation with pushed code and no pull request number is recovered by opening one pull request for that branch, or by keeping a pull request the run or a repair already has. That result is not a malformed response and does not start another agent. |
+| Context | The MVP-012 Cloud Agent finished at `6d75c886d95ee206bcdd4838c99270446a333d9e` on `cursor/musicapp-mvp-012-implementer-00d0` and reported `pr: 0`. `autoCreatePR` was false for every role, so opening the pull request asked for user approval. The controller required a positive pull request number, recorded a malformed response, and the next tick recovered the same finished agent. |
+| Options considered | (1) Keep `autoCreatePR` false and keep rejecting `pr: 0`. The same finished run fails again on every tick. (2) Set `autoCreatePR` true for proof, review, and repair as well. Those runs would open extra pull requests. (3) Chosen: `autoCreatePR` is true only for the implementer role. A completion whose pull request number is missing or zero, with an empty blocker list and a non-main branch, enters `recover-pr` and opens one pull request. An open pull request for that branch is reused. Repair keeps the recorded number. A missing branch or a reported blocker stays blocked on `recover-pr` and does not dispatch a replacement agent. |
+| Chosen approach | `executeCloudTick` sends `autoCreatePR: true` only when the role is `implementer`. Proof and review stay in plan mode with `autoCreatePR: false`. Repair stays in agent mode on the recorded pull request URL with `autoCreatePR: false`. The tick calls `gh pr create` only for `recover-pr`. `start` remains disabled. The workflow does not set `ORCHESTRATOR_ALLOW_MERGE`, and the tick does not call `gh pr merge`. |
+| Why | The implementation commit was already on the remote branch. Repeating the agent could not create the missing pull request without the same approval, and it spent another dispatch on an unchanged run. One controller-opened pull request preserves independent review and the existing merge gates. |
+| Trade-offs | The recovered pull request body records the branch and commit. It does not by itself satisfy the acceptance-mapping merge gate. `workOnCurrentBranch` stays false, including for repair. Unattended merge stays off. |
+| Affected components | `tools/orchestrator/lib/cloud-tick.mjs`, `tools/orchestrator/lib/cloud-api.mjs`, `tools/orchestrator/lib/runner.mjs`, `tools/orchestrator/lib/github.mjs`, `tools/orchestrator/lib/prompts.mjs`, `tools/orchestrator/cli.mjs`, `.github/workflows/orchestrator.yml`, `tools/orchestrator/test/cloud.test.mjs` |
+| Reversal / migration considerations | Setting `autoCreatePR` back to false restores the approval block for a fresh implementation. Removing `recover-pr` makes a zero pull request number a malformed response again. No schema or product data migration. |
+| Related specification IDs | None. This does not change product authorization or money movement. |
+| Related PR / commit | The orchestrator pull-request recovery pull request |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -958,6 +977,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-025](#edr-025-remove-the-legacy-creation-routes) | Remove the legacy creation routes | ACTIVE | 2026-10-01 |
 | [EDR-026](#edr-026-first-administrator-bootstrap) | First Administrator bootstrap | ACTIVE | 2026-10-01 |
 | [EDR-027](#edr-027-internal-retention-holds-deletion-worker-and-orphan-sweep) | Internal retention holds, deletion worker, and orphan sweep | ACTIVE | 2026-11-03 |
+| [EDR-029](#edr-029-recover-a-finished-implementation-that-has-no-pull-request) | Recover a finished implementation that has no pull request | ACTIVE | 2026-11-24 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -1024,6 +1044,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-11-03 | MVP-011 review repair / GitHub issue #13 | Soft-delete and unbound-orphan inventory include `verification_documents.asset_id` with the other live domain Asset FKs so a verification-bound Asset is not treated as unbound while §18.3 still requires availability. | Assets, testing | None | None | None | `BR-ASSET-015`, `SEC-ASSET-009` | `backend/test/asset-retention.test.js` | EDR-027 | None | [#110](https://github.com/xela-ash/Music_app/pull/110) | The verification-binding repair commit on `mvp-011-asset-retention` |
 | 2026-11-04 | MVP-011 review repair / GitHub issue #13 | `claimJobs` no longer increments `attempt_count`. Hold blocks and grace deferrals leave the budget unchanged. Only a failed provider deletion increments it, and exhaustion dead-letters that job without deleting the Asset. | Assets, testing | None | None | None | `DATA-ASSET-006`, `BR-ASSET-014`, `BR-ASSET-015` | `backend/test/asset-retention.test.js` | EDR-027 | `ENG-IMP-093` | [#110](https://github.com/xela-ash/Music_app/pull/110) | The retry-budget repair commit on `mvp-011-asset-retention` |
 | 2026-11-05 | Orchestrator cloud controller (no MVP item) | The controller can dispatch one new Cursor Cloud Agent per tick from GitHub Actions. It does not send follow-up prompts, does not merge unless a separate approval variable is set, and fails closed on missing status, malformed output, omitted review flags, secret paths, and orchestration-file changes. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | None | `ENG-IMP-094` and `ENG-IMP-095` IMPLEMENTED | [#111](https://github.com/xela-ash/Music_app/pull/111) | The cloud-controller commits on `orchestrator-stateless-loop` |
+| 2026-11-24 | Orchestrator pull-request recovery (no MVP item) | A fresh implementation agent requests automatic pull-request creation. Proof, review, and repair do not. A finished implementation with pushed code and no pull request number opens one pull request for that branch, or keeps the pull request already recorded, and does not start another agent. Unattended merge stays off. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-029 | None | The orchestrator pull-request recovery pull request | The recovery commit on `orchestrator-pr-recovery` |
 
 ## 8. Version history
 
@@ -1085,3 +1106,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.22.14 | 2026-11-03 | Recorded the MVP-011 review repair: `countActiveBindings` / `listUnboundAssets` include `verification_documents.asset_id`. Section 4.9. | Engineering |
 | 0.22.15 | 2026-11-04 | Recorded the MVP-011 review repair: hold and grace polls do not consume the physical-deletion retry budget. Section 4.9 and EDR-027. | Engineering |
 | 0.22.16 | 2026-11-05 | Recorded the cloud orchestrator controller. Section 7. No product behavior changed. | Engineering |
+| 0.22.17 | 2026-11-24 | Recorded orchestrator pull-request recovery for a finished implementation with no pull request. EDR-029. No product behavior changed. | Engineering |

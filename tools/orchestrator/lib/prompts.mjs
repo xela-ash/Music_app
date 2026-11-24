@@ -79,7 +79,7 @@ export function implementPrompt(item) {
     "MusicApp stateless orchestrator, implementation run.",
     COMMON_LIMITS,
     "Follow AGENTS.md. Implement only this issue. Do not merge.",
-    "Create one branch from origin/main. Commit, push, and open one pull request against main. Do not merge.",
+    "Create one branch from origin/main. Commit and push that branch. Do not open a pull request yourself, and do not merge. The controller opens one pull request for this fresh implementation.",
     "The pull request body must contain the MVP id, an Acceptance section, and a test file path for every acceptance criterion.",
     "The body must also name an EDR id, or include the sentence \"No significant engineering decision\".",
     "Update docs/20-engineering/engineering-build-record.md when implementation reality changes.",
@@ -87,7 +87,7 @@ export function implementPrompt(item) {
     itemHeader(item),
     "Read:",
     readingList(item),
-    'Final JSON shape: {"role":"implementer","issue":"MVP-NNN","pr":0,"head":"sha","commit":"sha","blockers":[],"next_action":"short"}',
+    'Final JSON shape: {"role":"implementer","issue":"MVP-NNN","pr":0,"head":"sha","commit":"sha","branch":"cursor/branch","blockers":[],"next_action":"short"}',
   ].join("\n");
 }
 
@@ -96,7 +96,7 @@ export function reviewPrompt(item, pr) {
     "MusicApp stateless orchestrator, independent review.",
     COMMON_LIMITS,
     "You did not implement this pull request. Review the current diff only.",
-    "Do not edit files, push, or merge. A DEFECT blocks. An IMPROVEMENT does not.",
+    "Do not edit files, push, open a pull request, or merge. A DEFECT blocks. An IMPROVEMENT does not.",
     "Set head to the current pull request head SHA.",
     "Set human_decision, external_dependency, or spec_ambiguity true only when AGENTS.md section 4 requires a stop.",
     itemHeader(item),
@@ -115,7 +115,7 @@ export function repairPrompt(item, pr, defects) {
     "MusicApp stateless orchestrator, repair run.",
     COMMON_LIMITS,
     "You are a new agent. The defect list below is the only prior outcome you receive.",
-    "Do not merge. Push fixes to the existing pull request branch.",
+    "Do not merge and do not open a pull request. Push fixes to the existing pull request branch.",
     itemHeader(item),
     `Pull request: #${pr}`,
     "Defects:",
