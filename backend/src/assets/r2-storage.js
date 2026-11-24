@@ -241,6 +241,12 @@ function inspect() {
   return null;
 }
 
+function readObject() {
+  const error = new Error("Cloudflare R2 object reads are not available without live credentials");
+  error.code = "storage_provider_rejected";
+  throw error;
+}
+
 function readPrefix() {
   const error = new Error("Cloudflare R2 prefix inspection is not available without a completed object");
   error.code = "storage_provider_rejected";
@@ -277,6 +283,7 @@ module.exports = {
   assemblyReady,
   completeMultipart,
   inspect,
+  readObject,
   readPrefix,
   abortObject,
   deleteObject,

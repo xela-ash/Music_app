@@ -12,6 +12,9 @@ const {
   PROJECT_CREATE,
   PROJECT_LIST,
   PROJECT_LOCK_MILESTONES,
+  VERIFICATION_DECIDE,
+  VERIFICATION_READ,
+  VERIFICATION_SUBMIT,
   authorize,
 } = require("../src/authorization/authorize");
 const projectsRepository = require("../src/projects/repository");
@@ -304,6 +307,45 @@ describe("authorize role commands (BR-AUTHZ-034, BR-ROLE-016, BR-ROLE-017)", () 
         activePlatformRoles: ["moderator", "administrator"],
       }),
       { allowed: false, status: 403, error: "step-up required" }
+    );
+  });
+});
+
+describe("authorize verification commands (BR-IDENTITY-004, BR-IDENTITY-015)", () => {
+  it("lets the owner submit and hides another user's verification", () => {
+    assert.deepEqual(
+      authorize(actor(BUYER), VERIFICATION_SUBMIT, { ownerUserId: BUYER }),
+      { allowed: true, obligations: {} }
+    );
+    assert.deepEqual(
+      authorize(actor(BUYER), VERIFICATION_SUBMIT, { ownerUserId: SELLER }),
+      { allowed: false, status: 403, error: "Forbidden" }
+    );
+    assert.deepEqual(
+      authorize(actor(OUTSIDER), VERIFICATION_READ, { ownerUserId: BUYER, activePlatformRoles: [] }),
+      { allowed: false, status: 404, error: "Verification not found" }
+    );
+  });
+
+  it("lets an Administrator review and decide, and denies a Moderator", () => {
+    assert.deepEqual(
+      authorize(actor(SELLER), VERIFICATION_READ, {
+        ownerUserId: BUYER,
+        activePlatformRoles: ["administrator"],
+      }),
+      { allowed: true, obligations: {} }
+    );
+    assert.deepEqual(
+      authorize(actor(SELLER), VERIFICATION_DECIDE, { activePlatformRoles: ["administrator"] }),
+      { allowed: true, obligations: {} }
+    );
+    assert.deepEqual(
+      authorize(actor(SELLER), VERIFICATION_READ, { queue: true, activePlatformRoles: ["moderator"] }),
+      { allowed: false, status: 403, error: "Forbidden" }
+    );
+    assert.deepEqual(
+      authorize(actor(SELLER), VERIFICATION_DECIDE, { activePlatformRoles: ["moderator"] }),
+      { allowed: false, status: 403, error: "Forbidden" }
     );
   });
 });

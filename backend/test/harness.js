@@ -51,6 +51,8 @@ const APPLICATION_TABLES = [
   "milestone_approvals",
   "project_milestones",
   "projects",
+  "verification_access_grants",
+  "verification_audit_events",
   "verification_documents",
   "profile_verifications",
   "auth_credentials",

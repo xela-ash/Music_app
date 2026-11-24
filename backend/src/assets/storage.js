@@ -63,6 +63,10 @@ function readPrefix(key, length) {
   return current().readPrefix(key, length);
 }
 
+function readObject(key) {
+  return current().readObject(key);
+}
+
 function abortObject(key) {
   return current().abortObject(key);
 }
@@ -93,6 +97,7 @@ module.exports = {
   writePart,
   completeMultipart,
   inspect,
+  readObject,
   readPrefix,
   abortObject,
   deleteObject,
