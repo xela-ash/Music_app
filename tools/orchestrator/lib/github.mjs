@@ -165,14 +165,23 @@ export function recoveredPullRequestBody({ issue, branch, commit, entries }) {
   return body;
 }
 
-export function acceptanceCriteriaMapped(body, issue, criteria) {
+export function containsIssueId(text, issue) {
+  if (typeof issue !== "string" || !/^MVP-\d+$/.test(issue)) return false;
+  return new RegExp(`(?:^|[^A-Za-z0-9])${issue}(?!\\d)`).test(String(text || ""));
+}
+
+export function acceptanceCriteriaMapped(body, issue, criteria, changedPaths) {
   if (!acceptanceMapped(body, issue)) return false;
-  if (!Array.isArray(criteria) || criteria.length === 0) return false;
+  if (!Array.isArray(criteria) || criteria.length === 0 || !Array.isArray(changedPaths)) return false;
+  const changed = new Set(changedPaths);
+  const lines = String(body).split("\n");
   return criteria.every((criterion) => {
-    const index = String(body).indexOf(criterion);
+    const index = lines.findIndex((line) => line.trim() === `- ${criterion}`);
     if (index < 0) return false;
-    const after = String(body).slice(index, index + criterion.length + 240);
-    return /\b[\w./-]+\.test\.[A-Za-z0-9]+\b/.test(after);
+    const testLine = lines.slice(index + 1, index + 4).find((line) => /^\s*Test:\s+([\w./-]+\.test\.[A-Za-z0-9]+)\s*$/.test(line));
+    if (!testLine) return false;
+    const test = testLine.match(/Test:\s+([\w./-]+\.test\.[A-Za-z0-9]+)/)[1];
+    return changed.has(test);
   });
 }
 
@@ -184,41 +193,38 @@ export function verifyRecoveredPullRequest(pr, expected) {
   if (pr.headRefName !== expected.branch) return false;
   if (!/^[0-9a-f]{40}$/i.test(expected.commit || "")) return false;
   if (String(pr.headRefOid || "").toLowerCase() !== String(expected.commit).toLowerCase()) return false;
-  if (typeof expected.issue !== "string" || !expected.issue || !`${pr.title || ""}\n${pr.body || ""}`.includes(expected.issue)) {
-    return false;
-  }
+  if (!containsIssueId(`${pr.title || ""}\n${pr.body || ""}`, expected.issue)) return false;
   return Number.isInteger(pr.number) && pr.number > 0;
 }
 
-export function selectRecoveredPullRequest(candidates, expected, { allowCreate, entries, changedPaths } = {}) {
-  const identity = (candidates || []).filter((pr) => verifyRecoveredPullRequest(pr, expected));
-  if (expected?.candidate && identity.some((pr) => pr.number !== expected.candidate)) {
-    return { error: "pull request identity does not match" };
-  }
-  const matched = expected?.candidate ? identity.filter((pr) => pr.number === expected.candidate) : identity;
-  if (matched.length > 1) return { error: "pull request identity does not match" };
-  if (matched.length === 1) {
-    if (acceptanceCriteriaMapped(matched[0].body || "", expected.issue, expected.criteria)) {
-      return { number: matched[0].number };
-    }
-    const verified = verifiedAcceptanceEntries(expected.criteria, entries, changedPaths);
-    const body = verified && recoveredPullRequestBody({
-      issue: expected.issue,
-      branch: expected.branch,
-      commit: expected.commit,
-      entries: verified,
-    });
-    if (!body) return { error: "acceptance mapping is missing" };
-    return { update: matched[0].number, body };
-  }
-  if (allowCreate !== true) return { error: "repair pull request was not found" };
+function mappedBody(expected, entries, changedPaths) {
   const verified = verifiedAcceptanceEntries(expected.criteria, entries, changedPaths);
-  const body = verified && recoveredPullRequestBody({
+  return verified && recoveredPullRequestBody({
     issue: expected.issue,
     branch: expected.branch,
     commit: expected.commit,
     entries: verified,
   });
+}
+
+export function selectRecoveredPullRequest(candidates, expected, { allowCreate, entries, changedPaths } = {}) {
+  const identity = (candidates || []).filter((pr) => verifyRecoveredPullRequest(pr, expected));
+  const mapped = identity.filter((pr) => acceptanceCriteriaMapped(pr.body || "", expected.issue, expected.criteria, changedPaths));
+  if (expected?.candidate) {
+    const chosen = mapped.filter((pr) => pr.number === expected.candidate);
+    if (chosen.length === 1) return { number: chosen[0].number };
+    return { error: allowCreate === true ? "pull request identity does not match" : "repair pull request was not found" };
+  }
+  if (mapped.length > 1) return { error: "pull request identity does not match" };
+  if (mapped.length === 1) return { number: mapped[0].number };
+  if (identity.length > 1) return { error: "pull request identity does not match" };
+  if (identity.length === 1) {
+    const body = mappedBody(expected, entries, changedPaths);
+    if (!body) return { error: "acceptance mapping is missing" };
+    return { update: identity[0].number, body };
+  }
+  if (allowCreate !== true) return { error: "repair pull request was not found" };
+  const body = mappedBody(expected, entries, changedPaths);
   if (!body) return { error: "acceptance mapping is missing" };
   return { create: true, body };
 }
@@ -261,14 +267,11 @@ export function ensurePullRequest(effect, dependencies = {}) {
     "--json",
     "number,title,body,headRefOid,headRefName,url",
   ])).map((pr) => ({ ...pr, url: pr.url || pullRequestUrl(pr.number) }));
-  let changedPaths = [];
-  if (Array.isArray(effect.acceptance) && effect.acceptance.length > 0) {
-    const compare = JSON.parse(exec([
-      "api",
-      `repos/${config.repo}/compare/main...${effect.commit}`,
-    ]));
-    changedPaths = (compare.files || []).map((file) => file.filename).filter(Boolean);
-  }
+  const compare = JSON.parse(exec([
+    "api",
+    `repos/${config.repo}/compare/main...${effect.commit}`,
+  ]));
+  const changedPaths = (compare.files || []).map((file) => file.filename).filter(Boolean);
   const selected = selectRecoveredPullRequest(listed, {
     repoUrl: config.cloudRepoUrl,
     branch: effect.branch,
@@ -325,7 +328,7 @@ export function ensurePullRequest(effect, dependencies = {}) {
   })) {
     throw new Error("pull request identity does not match");
   }
-  if (!acceptanceCriteriaMapped(viewed.body, effect.issue, criteria)) {
+  if (!acceptanceCriteriaMapped(viewed.body, effect.issue, criteria, changedPaths)) {
     throw new Error("acceptance mapping is missing");
   }
   return number;

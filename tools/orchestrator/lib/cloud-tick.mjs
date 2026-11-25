@@ -307,8 +307,7 @@ function recoverMissingPullRequest(previous, finished, pending, git) {
       : (pushed || reportedBranch ? "pull request identity does not match" : "completed without pull request");
     return blockedRecovery(finished, issue, reason, attempt, head, commit);
   }
-  const stored = Number.isInteger(recorded) && recorded > 0 ? recorded : null;
-  const candidate = role === "repair" ? (stored || pushed?.pr || null) : (pushed?.pr || null);
+  const candidate = role === "repair" && Number.isInteger(recorded) && recorded > 0 ? recorded : null;
   const acceptance = acceptanceEntries(pending.acceptance);
   return {
     state: recordItem(finished, issue, {

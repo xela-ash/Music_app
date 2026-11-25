@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCloudClient, createOrRecover, interpretCloudRun, pushedBranch, usageTokens } from "../lib/cloud-api.mjs";
 import { agentIdFor, executeCloudTick, reduceCloudTick } from "../lib/cloud-tick.mjs";
 import { acceptanceMapped, evaluateGates } from "../lib/gates.mjs";
-import { ensurePullRequest, selectRecoveredPullRequest } from "../lib/github.mjs";
+import { ensurePullRequest, selectRecoveredPullRequest, verifyRecoveredPullRequest } from "../lib/github.mjs";
 
 const now = Date.parse("2026-11-05T00:00:00Z");
 
@@ -448,7 +448,8 @@ test("an existing pull request is kept for repair and when the run already recor
     usageTokens: 3,
   }));
   assert.equal(adopted.effect.type, "open-pr");
-  assert.equal(adopted.effect.candidate, 112);
+  assert.equal(adopted.effect.allowCreate, true);
+  assert.equal(adopted.effect.candidate, null);
   assert.equal(adopted.state.items["MVP-012"].pr, undefined);
   assert.notEqual(adopted.state.items["MVP-012"].phase, "review");
 });
@@ -553,7 +554,7 @@ test("repair does not create a pull request when the stored number is missing", 
     observation: {
       disposition: "finished",
       result: noPullRequest.replace('"role":"implementer"', '"role":"repair"'),
-      git: { branches: [{ repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0" }] },
+      git: { branches: [{ repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0", prUrl: "https://github.com/xela-ash/Music_app/pull/9" }] },
     },
     usageTokens: 2,
   }));
@@ -574,9 +575,35 @@ test("repair does not create a pull request when the stored number is missing", 
   assert.equal(stopped.effect.reason, "repair pull request was not found");
   assert.equal(calls[0].create, undefined);
   assert.equal(stopped.state.items["MVP-012"].pr, undefined);
-  const found = selectRecoveredPullRequest([verifiedPull], recoveryExpected, { allowCreate: false });
+  const paths = ["backend/test/verification.http.test.js"];
+  const found = selectRecoveredPullRequest([verifiedPull], recoveryExpected, { allowCreate: false, changedPaths: paths });
   assert.equal(found.number, 112);
   assert.equal(found.create, undefined);
+  const hinted = selectRecoveredPullRequest([
+    verifiedPull,
+    { ...verifiedPull, number: 9, url: "https://github.com/xela-ash/Music_app/pull/9", headRefOid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+  ], recoveryExpected, { allowCreate: false, changedPaths: paths });
+  assert.equal(hinted.number, 112);
+  const lookalike = {
+    ...verifiedPull,
+    number: 7,
+    url: "https://github.com/xela-ash/Music_app/pull/7",
+    title: "MVP-0120",
+    body: `MVP-0120\n\n## Acceptance\n- ${criterion}\n  Test: backend/test/verification.http.test.js`,
+  };
+  assert.equal(verifyRecoveredPullRequest(lookalike, recoveryExpected), false);
+  assert.equal(selectRecoveredPullRequest([lookalike], recoveryExpected, { allowCreate: false, changedPaths: paths }).error, "repair pull request was not found");
+  const missingFile = selectRecoveredPullRequest([verifiedPull], recoveryExpected, {
+    allowCreate: false,
+    changedPaths: ["backend/test/other.test.js"],
+  });
+  assert.equal(missingFile.number, undefined);
+  assert.equal(missingFile.error, "acceptance mapping is missing");
+  const nested = selectRecoveredPullRequest([{
+    ...verifiedPull,
+    body: "MVP-012\n\n## Acceptance\n- User can save a draft\n  Test: backend/test/verification.http.test.js",
+  }], { ...recoveryExpected, criteria: ["User can save"] }, { allowCreate: false, changedPaths: paths });
+  assert.equal(nested.number, undefined);
 });
 
 test("a recovered pull request maps every acceptance criterion and the merge gate still rejects an unmapped body", async () => {
