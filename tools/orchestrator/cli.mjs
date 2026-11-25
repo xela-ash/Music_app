@@ -301,7 +301,10 @@ async function tick() {
     item,
     allowMerge: process.env.ORCHESTRATOR_ALLOW_MERGE === "true",
     promptFor: (dispatch) => promptForDispatch(catalog, dispatch),
-    openPullRequest: (effect) => ensurePullRequest(effect),
+    openPullRequest: (effect) => {
+      const work = catalog.liveItems.find((candidate) => candidate.id === effect.issue);
+      return ensurePullRequest({ ...effect, issueNumber: work?.issue });
+    },
   });
   saveState(root, result.state);
   if (action === "stop" && result.effect.type !== "blocked") saveControl(root, "stopped", null);

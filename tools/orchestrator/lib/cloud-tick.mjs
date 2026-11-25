@@ -175,6 +175,9 @@ function createForItem(state, item, now, gates, allowMerge) {
         branch: record.branch,
         head: record.head || null,
         commit: record.commit || null,
+        candidate: record.candidate || null,
+        allowCreate: record.allowCreate === true,
+        acceptance: record.acceptance || [],
       },
     };
   }
@@ -254,7 +257,7 @@ export async function executeCloudTick({ client, promptFor, openPullRequest, ...
   return planned;
 }
 
-const SHA = /^[0-9a-f]{7,40}$/i;
+const SHA = /^[0-9a-f]{40}$/i;
 
 function recoveryBranch(value) {
   if (typeof value !== "string" || value.length === 0 || value.length > 200) return null;
@@ -293,54 +296,69 @@ function recoverMissingPullRequest(previous, finished, pending, git) {
       effect: { type: "blocked", reason: "completed without pull request" },
     };
   }
-  if (role === "repair" && Number.isInteger(recorded) && recorded > 0) {
-    return {
-      state: recordItem(finished, issue, {
-        status: "implemented",
-        phase: "review",
-        pr: recorded,
-        head: head || finished.items?.[issue]?.head,
-        attempt,
-      }),
-      effect: { type: "advanced", phase: "review" },
-    };
+  if (!head || !commit || head.toLowerCase() !== commit.toLowerCase()) {
+    return blockedRecovery(finished, issue, "commit sha does not match", attempt, head, commit);
   }
-  if (pushed?.pr) {
-    return {
-      state: recordItem(finished, issue, {
-        status: "implemented",
-        phase: "review",
-        pr: pushed.pr,
-        head: head || finished.items?.[issue]?.head,
-        attempt,
-      }),
-      effect: { type: "advanced", phase: "review" },
-    };
+  const reportedBranch = recoveryBranch(pending.branch);
+  const branch = recoveryBranch(pushed?.branch);
+  if (!branch || (reportedBranch && reportedBranch !== branch)) {
+    const reason = role === "repair"
+      ? "repair pull request was not found"
+      : (pushed || reportedBranch ? "pull request identity does not match" : "completed without pull request");
+    return blockedRecovery(finished, issue, reason, attempt, head, commit);
   }
-  const branch = recoveryBranch(pushed?.branch) || recoveryBranch(pending.branch);
-  if (pending.blockers.length === 0 && branch) {
-    return {
-      state: recordItem(finished, issue, {
-        status: "implemented",
-        phase: "recover-pr",
-        branch,
-        head,
-        commit,
-        attempt,
-      }),
-      effect: { type: "open-pr", issue, branch, head, commit },
-    };
+  const stored = Number.isInteger(recorded) && recorded > 0 ? recorded : null;
+  const candidate = role === "repair" ? (stored || pushed?.pr || null) : (pushed?.pr || null);
+  const acceptance = acceptanceEntries(pending.acceptance);
+  return {
+    state: recordItem(finished, issue, {
+      status: "implemented",
+      phase: "recover-pr",
+      branch,
+      head,
+      commit,
+      candidate,
+      allowCreate: role === "implementer",
+      acceptance,
+      attempt,
+    }),
+    effect: {
+      type: "open-pr",
+      issue,
+      branch,
+      head,
+      commit,
+      candidate,
+      allowCreate: role === "implementer",
+      acceptance,
+    },
+  };
+}
+
+function acceptanceEntries(value) {
+  if (!Array.isArray(value)) return [];
+  const entries = [];
+  for (const entry of value) {
+    if (!entry || typeof entry.criterion !== "string" || typeof entry.test !== "string") return [];
+    const criterion = entry.criterion.trim();
+    const test = entry.test.trim();
+    if (!criterion || !/^[\w./-]+\.test\.[A-Za-z0-9]+$/.test(test)) return [];
+    entries.push({ criterion, test });
   }
+  return entries;
+}
+
+function blockedRecovery(finished, issue, reason, attempt, head, commit) {
   return {
     state: recordItem(finished, issue, {
       status: "blocked",
       phase: "recover-pr",
-      blocker: "completed without pull request",
+      blocker: reason,
       head,
       commit,
       attempt,
     }),
-    effect: { type: "blocked", reason: "completed without pull request" },
+    effect: { type: "blocked", reason },
   };
 }
 
@@ -351,8 +369,14 @@ async function openRecoveredPullRequest(planned, openPullRequest) {
   let pr;
   try {
     pr = await openPullRequest(planned.effect);
-  } catch {
-    return { state: planned.state, effect: { type: "blocked", reason: "pull request recovery failed" } };
+  } catch (error) {
+    const clear = new Set([
+      "repair pull request was not found",
+      "acceptance mapping is missing",
+      "commit sha does not match",
+      "pull request identity does not match",
+    ]);
+    return { state: planned.state, effect: { type: "blocked", reason: clear.has(error?.message) ? error.message : "pull request recovery failed" } };
   }
   if (!Number.isInteger(pr) || pr <= 0) {
     return { state: planned.state, effect: { type: "blocked", reason: "pull request recovery failed" } };

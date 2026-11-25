@@ -103,26 +103,49 @@ function pullNumber(url) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
-export function pushedBranch(git, repoUrl) {
-  const branches = Array.isArray(git?.branches) ? git.branches : [];
-  const ownerRepo = String(repoUrl || "").replace(/\.git$/, "").split("/").slice(-2).join("/");
-  const rows = branches.filter((row) => {
-    if (!row || typeof row !== "object") return false;
-    if (!row.repoUrl || !ownerRepo) return true;
-    return String(row.repoUrl).replace(/\.git$/, "").endsWith(ownerRepo);
-  });
-  let adopted = null;
-  let branch = null;
-  for (const row of rows) {
-    const pr = pullNumber(row.prUrl);
-    if (pr && !adopted) adopted = pr;
-    if (!branch && typeof row.branch === "string" && row.branch.length > 0 && row.branch !== "main") {
-      branch = row.branch;
+export function canonicalRepository(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  let owner;
+  let repo;
+  const scp = text.match(/^git@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/);
+  if (scp) {
+    owner = scp[1];
+    repo = scp[2];
+  } else {
+    let url;
+    try {
+      url = new URL(text);
+    } catch {
+      return null;
     }
+    if (url.protocol !== "https:" || url.hostname !== "github.com") return null;
+    const parts = url.pathname.replace(/\.git$/, "").split("/").filter(Boolean);
+    if (parts.length < 2) return null;
+    owner = parts[0];
+    repo = parts[1];
   }
-  if (adopted) return { branch, pr: adopted };
+  if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) return null;
+  return `https://github.com/${owner}/${repo}`;
+}
+
+export function pushedBranch(git, repoUrl) {
+  const expected = canonicalRepository(repoUrl);
+  if (!expected) return null;
+  const branches = Array.isArray(git?.branches) ? git.branches : [];
+  let branch = null;
+  let pr = null;
+  for (const row of branches) {
+    if (!row || typeof row !== "object") continue;
+    if (canonicalRepository(row.repoUrl) !== expected) continue;
+    if (typeof row.branch !== "string" || row.branch.length === 0 || row.branch === "main") continue;
+    if (!branch) branch = row.branch;
+    if (row.branch !== branch) continue;
+    const number = pullNumber(row.prUrl);
+    if (number && canonicalRepository(row.prUrl) === expected && !pr) pr = number;
+  }
   if (!branch) return null;
-  return { branch, pr: null };
+  return { branch, pr };
 }
 
 export function usageTokens(usage) {

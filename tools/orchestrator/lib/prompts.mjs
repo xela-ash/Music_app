@@ -81,13 +81,14 @@ export function implementPrompt(item) {
     "Follow AGENTS.md. Implement only this issue. Do not merge.",
     "Create one branch from origin/main. Commit and push that branch. Do not open a pull request yourself, and do not merge. The controller opens one pull request for this fresh implementation.",
     "The pull request body must contain the MVP id, an Acceptance section, and a test file path for every acceptance criterion.",
+    "Copy each issue acceptance criterion into acceptance, with the test file in this commit that covers it. Do not invent a criterion or a test path.",
     "The body must also name an EDR id, or include the sentence \"No significant engineering decision\".",
     "Update docs/20-engineering/engineering-build-record.md when implementation reality changes.",
     "Do not change .vscode/ or tools/orchestrator/.",
     itemHeader(item),
     "Read:",
     readingList(item),
-    'Final JSON shape: {"role":"implementer","issue":"MVP-NNN","pr":0,"head":"sha","commit":"sha","branch":"cursor/branch","blockers":[],"next_action":"short"}',
+    'Final JSON shape: {"role":"implementer","issue":"MVP-NNN","pr":0,"head":"sha","commit":"sha","branch":"cursor/branch","blockers":[],"acceptance":[{"criterion":"issue criterion","test":"backend/test/name.test.js"}],"next_action":"short"}',
   ].join("\n");
 }
 

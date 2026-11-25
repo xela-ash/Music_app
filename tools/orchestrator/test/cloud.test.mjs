@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCloudClient, createOrRecover, interpretCloudRun, usageTokens } from "../lib/cloud-api.mjs";
+import { createCloudClient, createOrRecover, interpretCloudRun, pushedBranch, usageTokens } from "../lib/cloud-api.mjs";
 import { agentIdFor, executeCloudTick, reduceCloudTick } from "../lib/cloud-tick.mjs";
-import { evaluateGates } from "../lib/gates.mjs";
+import { acceptanceMapped, evaluateGates } from "../lib/gates.mjs";
+import { ensurePullRequest, selectRecoveredPullRequest } from "../lib/github.mjs";
 
 const now = Date.parse("2026-11-05T00:00:00Z");
 
@@ -389,19 +390,44 @@ test("a missing branch or a reported blocker does not dispatch another implement
   assert.equal(retry.state.dispatch, null);
 });
 
-test("an existing pull request is kept for repair and when the run already recorded one", () => {
+test("an existing pull request is kept for repair and when the run already recorded one", async () => {
   const repair = reduceCloudTick(base({
     state: {
       dispatches: [],
       items: { "MVP-012": { phase: "repair", pr: 112, head: "older", attempts: [] } },
       dispatch: { issue: "MVP-012", role: "repair", attempt: 1, agentId: "bc-repair", runId: "run-r" },
     },
-    observation: { disposition: "finished", result: noPullRequest.replace('"role":"implementer"', '"role":"repair"') },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest.replace('"role":"implementer"', '"role":"repair"'),
+      git: {
+        branches: [{
+          repoUrl: "https://github.com/xela-ash/Music_app",
+          branch: "cursor/musicapp-mvp-012-implementer-00d0",
+          prUrl: "https://github.com/xela-ash/Music_app/pull/112",
+        }],
+      },
+    },
     usageTokens: 3,
   }));
-  assert.equal(repair.effect.phase, "review");
+  assert.equal(repair.effect.type, "open-pr");
+  assert.equal(repair.effect.allowCreate, false);
+  assert.equal(repair.effect.candidate, 112);
+  assert.equal(repair.state.items["MVP-012"].phase, "recover-pr");
   assert.equal(repair.state.items["MVP-012"].pr, 112);
-  assert.notEqual(repair.effect.type, "open-pr");
+
+  const missing = await executeCloudTick({
+    ...base({ state: repair.state, item: { id: "MVP-012" } }),
+    client: agentClient([]),
+    promptFor: () => "repair",
+    openPullRequest: async (effect) => {
+      assert.equal(effect.allowCreate, false);
+      throw new Error("repair pull request was not found");
+    },
+  });
+  assert.equal(missing.effect.reason, "repair pull request was not found");
+  assert.equal(missing.state.items["MVP-012"].phase, "recover-pr");
+  assert.equal(missing.state.items["MVP-012"].pr, 112);
 
   const adopted = reduceCloudTick(base({
     state: {
@@ -421,9 +447,10 @@ test("an existing pull request is kept for repair and when the run already recor
     },
     usageTokens: 3,
   }));
-  assert.equal(adopted.effect.phase, "review");
-  assert.equal(adopted.state.items["MVP-012"].pr, 112);
-  assert.notEqual(adopted.effect.type, "open-pr");
+  assert.equal(adopted.effect.type, "open-pr");
+  assert.equal(adopted.effect.candidate, 112);
+  assert.equal(adopted.state.items["MVP-012"].pr, undefined);
+  assert.notEqual(adopted.state.items["MVP-012"].phase, "review");
 });
 
 test("pull request recovery failure stays on the same branch and does not create an agent", async () => {
@@ -463,4 +490,173 @@ test("pull request recovery failure stays on the same branch and does not create
   assert.equal(bodies.length, 0);
   assert.equal(retry.state.items["MVP-012"].pr, 112);
   assert.equal(retry.state.items["MVP-012"].phase, "review");
+});
+
+const criterion = "A submitted verification reaches `approved`/`rejected` only through an Administrator action, fully audited";
+const recoveryExpected = {
+  repoUrl: "https://github.com/xela-ash/Music_app",
+  branch: "cursor/musicapp-mvp-012-implementer-00d0",
+  commit: head,
+  issue: "MVP-012",
+  criteria: [criterion],
+};
+const verifiedPull = {
+  number: 112,
+  url: "https://github.com/xela-ash/Music_app/pull/112",
+  headRefName: "cursor/musicapp-mvp-012-implementer-00d0",
+  headRefOid: head,
+  title: "[MVP-012] Identity verification routes",
+  body: `MVP-012\n\n## Acceptance\n- ${criterion}\n  Test: backend/test/verification.http.test.js`,
+};
+
+test("a different repository, branch, commit, or issue cannot be adopted", () => {
+  assert.equal(pushedBranch({
+    branches: [{ repoUrl: "https://github.com/notxela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0", prUrl: "https://github.com/notxela-ash/Music_app/pull/9" }],
+  }, "https://github.com/xela-ash/Music_app"), null);
+  const wrong = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest,
+      git: {
+        branches: [{
+          repoUrl: "https://github.com/notxela-ash/Music_app",
+          branch: "cursor/other",
+          prUrl: "https://github.com/notxela-ash/Music_app/pull/9",
+        }],
+      },
+    },
+    usageTokens: 2,
+  }));
+  assert.equal(wrong.effect.reason, "pull request identity does not match");
+  assert.equal(wrong.state.items["MVP-012"].pr, undefined);
+  const later = reduceCloudTick(base({ state: wrong.state, item: { id: "MVP-012" } }));
+  assert.equal(later.effect.reason, "pull request identity does not match");
+  assert.equal(later.state.dispatch, null);
+
+  const mismatched = { ...verifiedPull, headRefOid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" };
+  const selected = selectRecoveredPullRequest([mismatched, { ...verifiedPull, number: 9, url: "https://github.com/xela-ash/Music_app/pull/9", headRefName: "cursor/other" }], recoveryExpected, { allowCreate: true });
+  assert.equal(selected.error, "acceptance mapping is missing");
+  assert.equal(selected.create, undefined);
+});
+
+test("repair does not create a pull request when the stored number is missing", async () => {
+  const finished = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      items: { "MVP-012": { phase: "repair", attempts: [] } },
+      dispatch: { issue: "MVP-012", role: "repair", attempt: 1, agentId: "bc-repair", runId: "run-r" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest.replace('"role":"implementer"', '"role":"repair"'),
+      git: { branches: [{ repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0" }] },
+    },
+    usageTokens: 2,
+  }));
+  assert.equal(finished.effect.allowCreate, false);
+  assert.equal(finished.effect.candidate, null);
+  const calls = [];
+  const stopped = await executeCloudTick({
+    ...base({ state: finished.state, item: { id: "MVP-012" } }),
+    client: agentClient([]),
+    promptFor: () => "repair",
+    openPullRequest: async (effect) => {
+      assert.equal(effect.allowCreate, false);
+      const selected = selectRecoveredPullRequest([], recoveryExpected, { allowCreate: effect.allowCreate, entries: effect.acceptance, changedPaths: [] });
+      calls.push(selected);
+      throw new Error(selected.error);
+    },
+  });
+  assert.equal(stopped.effect.reason, "repair pull request was not found");
+  assert.equal(calls[0].create, undefined);
+  assert.equal(stopped.state.items["MVP-012"].pr, undefined);
+  const found = selectRecoveredPullRequest([verifiedPull], recoveryExpected, { allowCreate: false });
+  assert.equal(found.number, 112);
+  assert.equal(found.create, undefined);
+});
+
+test("a recovered pull request maps every acceptance criterion and the merge gate still rejects an unmapped body", async () => {
+  const issueBody = `# Acceptance Criteria\n\n- [ ] ${criterion}\n- [ ] Every acceptance criterion above is mapped to at least one named test in the PR description\n\n# Testing Requirements\n`;
+  const entries = [{ criterion, test: "backend/test/verification.http.test.js" }];
+  let createdBody = "";
+  const number = await ensurePullRequest({
+    issue: "MVP-012",
+    issueNumber: 14,
+    branch: "cursor/musicapp-mvp-012-implementer-00d0",
+    commit: head,
+    head,
+    allowCreate: true,
+    acceptance: entries,
+  }, {
+    runGh(args) {
+      if (args[0] === "issue") return JSON.stringify({ body: issueBody });
+      if (args[0] === "pr" && args[1] === "list") return "[]";
+      if (args[0] === "api") {
+        return JSON.stringify({ files: [{ filename: "backend/test/verification.http.test.js" }] });
+      }
+      if (args[0] === "pr" && args[1] === "create") {
+        createdBody = args[args.indexOf("--body") + 1];
+        return "https://github.com/xela-ash/Music_app/pull/112\n";
+      }
+      if (args[0] === "pr" && args[1] === "view") {
+        return JSON.stringify({ ...verifiedPull, body: createdBody });
+      }
+      throw new Error(`unexpected gh ${args.join(" ")}`);
+    },
+  });
+  assert.equal(number, 112);
+  assert.equal(acceptanceMapped(createdBody, "MVP-012"), true);
+  assert.match(createdBody, new RegExp(criterion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(createdBody, /backend\/test\/verification\.http\.test\.js/);
+  const mapped = evaluateGates({
+    classification: "AUTONOMOUS-READY",
+    dependenciesMerged: true,
+    acceptanceMapped: acceptanceMapped(createdBody, "MVP-012"),
+    checks: { lint: "passing", "frontend-test": "passing", "backend-test": "passing", "migration-dry-run": "passing" },
+    unresolvedDefects: 0,
+    revalidatedHead: true,
+    basedOnCurrentMain: true,
+    mergeable: "MERGEABLE",
+    unresolvedThreads: 0,
+    humanDecision: false,
+    externalDependency: false,
+    specAmbiguity: false,
+    engineeringRecords: true,
+    changedPaths: ["backend/src/verification/routes.js"],
+    scopeOk: true,
+    protectionAllowsMerge: true,
+  });
+  assert.equal(mapped.failures.some((failure) => failure.id === 3), false);
+  const unmapped = evaluateGates({
+    ...{
+      classification: "AUTONOMOUS-READY",
+      dependenciesMerged: true,
+      checks: { lint: "passing", "frontend-test": "passing", "backend-test": "passing", "migration-dry-run": "passing" },
+      unresolvedDefects: 0,
+      revalidatedHead: true,
+      basedOnCurrentMain: true,
+      mergeable: "MERGEABLE",
+      unresolvedThreads: 0,
+      humanDecision: false,
+      externalDependency: false,
+      specAmbiguity: false,
+      engineeringRecords: true,
+      changedPaths: ["backend/src/verification/routes.js"],
+      scopeOk: true,
+      protectionAllowsMerge: true,
+    },
+    acceptanceMapped: acceptanceMapped(`MVP-012\n## Acceptance\n${criterion}`, "MVP-012"),
+  });
+  assert.ok(unmapped.failures.some((failure) => failure.id === 3));
+  const repairCreate = selectRecoveredPullRequest([], recoveryExpected, {
+    allowCreate: false,
+    entries,
+    changedPaths: ["backend/test/verification.http.test.js"],
+  });
+  assert.equal(repairCreate.error, "repair pull request was not found");
+  assert.equal(repairCreate.create, undefined);
 });
