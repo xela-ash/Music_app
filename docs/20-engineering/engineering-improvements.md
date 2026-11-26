@@ -3204,7 +3204,7 @@ Copy this template for each new entry:
 | Recommended timing | If the workflow starts publishing state after a non-zero tick. |
 | Status | PROPOSED |
 | Related GitHub Issue | None |
-| Related PR | The orchestrator queue pull request |
+| Related PR | [#115](https://github.com/xela-ash/Music_app/pull/115) |
 | Resolution | — |
 
 ## 6. Findings already owned elsewhere (cross-reference only)
