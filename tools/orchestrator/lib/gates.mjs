@@ -26,6 +26,15 @@ export function mergeCommand(prNumber) {
   return args;
 }
 
+export function acceptanceMapped(body, issueId) {
+  return typeof body === "string"
+    && typeof issueId === "string"
+    && issueId.length > 0
+    && body.includes(issueId)
+    && /acceptance/i.test(body)
+    && /\b[\w./-]+\.test\.[A-Za-z0-9]+\b/.test(body);
+}
+
 export function secretOrEditorPath(filePath) {
   const normalized = String(filePath || "").replaceAll("\\", "/");
   const base = normalized.split("/").pop() || "";
