@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.47 |
-| Last Reviewed | 2026-11-24 |
+| Version | 0.7.49 |
+| Last Reviewed | 2026-11-26 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -203,6 +203,8 @@ Copy this template for each new entry:
 | [ENG-IMP-096](#eng-imp-096-verification-access-lifetime-is-not-configured) | Verification access lifetime is not configured | Security, Configuration | Low | PROPOSED |
 | [ENG-IMP-097](#eng-imp-097-verification-status-enum-is-still-four-values) | Verification status enum is still four values | Identity verification | Medium | PROPOSED |
 | [ENG-IMP-098](#eng-imp-098-an-administrator-can-decide-their-own-verification) | An Administrator can decide their own verification | Authorization, Identity verification | Low | PROPOSED |
+| [ENG-IMP-099](#eng-imp-099-the-issue-index-still-lists-merged-mvp-011-and-mvp-012-as-ready) | The issue index still lists merged MVP-011 and MVP-012 as READY | Documentation | Low | PROPOSED |
+| [ENG-IMP-100](#eng-imp-100-a-failed-merge-gate-is-not-retained-for-the-next-tick) | A failed merge gate is not retained for the next tick | Orchestrator | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -3145,6 +3147,66 @@ Copy this template for each new entry:
 | Related PR | The MVP-012 pull request |
 | Resolution | — |
 
+### ENG-IMP-099 The issue index still lists merged MVP-011 and MVP-012 as READY
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-099 |
+| Title | The issue index still lists merged MVP-011 and MVP-012 as READY |
+| Date identified | 2026-11-26 |
+| Identified by | Orchestrator queue phase 1 |
+| Category | Documentation |
+| Affected subsystem | Implementation planning index |
+| Current state | `docs/19-implementation-planning/github-issue-index.md` Section 4 still says `MVP-011` and `MVP-012` are READY. GitHub issue #13 is open. Pull request #110 merged `MVP-011` into `main` on 2026-11-04. Pull request #112 merged `MVP-012` into `main` on 2026-11-26, and issue #14 is closed. |
+| Evidence / problem | A read-only `queue-dry-run` on 2026-11-26 selected `MVP-020` only after treating pull requests #110 and #112 as completion evidence. The index was not edited. Agents do not change `docs/19-implementation-planning/` to match an implementation. |
+| Suggested improvement | A human updates the two execution rows and closes issue #13 after confirming pull request #110. |
+| Expected benefit | The planning index and GitHub agree with the commits already on `main`. |
+| Risk of doing nothing | A reader of the index can think `MVP-011` is still the next item. The cloud queue does not, because it reads pull requests. |
+| Implementation risk | Low. Documentation and one issue close. |
+| Estimated scope | S. Two index rows and issue #13. |
+| Dependencies | None. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | When a human next edits the issue index. |
+| Status | PROPOSED |
+| Related GitHub Issue | #13 |
+| Related PR | #110, #112 |
+| Resolution | — |
+
+### ENG-IMP-100 A failed merge gate is not retained for the next tick
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-100 |
+| Title | A failed merge gate is not retained for the next tick |
+| Date identified | 2026-11-26 |
+| Identified by | Independent review of the orchestrator queue |
+| Category | Orchestrator |
+| Affected subsystem | Cloud controller |
+| Current state | A gate failure can be reduced to `status: blocked` while `phase` stays `gates`. The queue then treats a blocked open pull request as `escalate`. The scheduled workflow does not publish that write, because the tick exits 1 before the publish step. The next tick therefore reloads the previous state and can evaluate CI again. |
+| Evidence / problem | Independent review of the queue change. The current workflow hides the transition. A later change that publishes state after a failed tick would stop re-reading current-head CI. |
+| Suggested improvement | Keep `phase: gates` when the only result is a failed or unavailable gate, and publish that record only when the next tick should escalate. |
+| Expected benefit | A failed gate stays a gate check until the repair limit or an explicit escalation. |
+| Risk of doing nothing | None while a failed tick skips the publish step. |
+| Implementation risk | Low, once the publish rule and the queue rule are changed together. |
+| Estimated scope | S. One reducer branch and a test. |
+| Dependencies | None. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None while the failed tick is not published. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | If the workflow starts publishing state after a non-zero tick. |
+| Status | PROPOSED |
+| Related GitHub Issue | None |
+| Related PR | [#115](https://github.com/xela-ash/Music_app/pull/115) |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3236,3 +3298,5 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.45 | 2026-11-04 | Added `ENG-IMP-093` (PROPOSED): the orphan and deletion workers are not scheduled, and the sweep does not emit every §18.4 candidate kind. Not authorized. | Engineering |
 | 0.7.46 | 2026-11-05 | Reconciled the orchestrator branch with `main` after MVP-011. `ENG-IMP-094` and `ENG-IMP-095` are IMPLEMENTED by the cloud-controller gates: omitted review flags and secret-shaped paths fail closed. Neither entry authorizes further work. | Engineering |
 | 0.7.47 | 2026-11-24 | Added `ENG-IMP-096`, `ENG-IMP-097`, and `ENG-IMP-098` (all PROPOSED) from MVP-012. None are authorized. | Engineering |
+| 0.7.48 | 2026-11-26 | Added `ENG-IMP-099` (PROPOSED). The issue index still lists merged `MVP-011` and `MVP-012` as READY. Not authorized. | Engineering |
+| 0.7.49 | 2026-11-26 | Added `ENG-IMP-100` (PROPOSED). A failed merge gate is not retained when a later workflow publishes a failed tick. Not authorized. | Engineering |

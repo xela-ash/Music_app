@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: arm records running without launching an agent. tick polls one cloud agent. prove launches one read-only agent. stop releases a finished run without cancelling it, and cancels an active run only after that cancel is acknowledged.
+        description: arm records running without launching an agent. dry-run reports the next issue and does not create an agent or pull request. tick polls one cloud agent. prove launches one read-only agent. stop releases a finished run without cancelling it, and cancels an active run only after that cancel is acknowledged.
         required: true
         type: choice
         options:
           - tick
+          - dry-run
           - prove
           - stop
           - arm
@@ -45,7 +46,7 @@ jobs:
           node-version: "22"
 
       - name: Refuse a missing Cursor key
-        if: inputs.action != 'arm'
+        if: inputs.action != 'arm' && inputs.action != 'dry-run'
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
@@ -72,7 +73,6 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           ORCHESTRATOR_STATE_DIR: ${{ runner.temp }}/orchestrator-state
           GITHUB_RUN_ID: ${{ github.run_id }}
-          ORCHESTRATOR_CLOUD_TRIAL: ${{ vars.ORCHESTRATOR_CLOUD_TRIAL }}
         run: |
           set -euo pipefail
           action="${{ github.event.inputs.action || 'tick' }}"

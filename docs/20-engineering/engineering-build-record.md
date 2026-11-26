@@ -6,7 +6,7 @@
 | Type | Reference (REF): implementation record, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.23.2 |
+| Version | 0.23.4 |
 | Last Reviewed | 2026-11-26 |
 | Applies To | The implemented state of `backend/`, `frontend/`, `docker-compose.yml`, and supporting tooling |
 | Supersedes / Superseded By | None |
@@ -104,11 +104,11 @@ Verified against the repository at commit `2defbea` (branch `docs/specification-
 |---|---|
 | Purpose | Local-first monorepo with two independently installed applications and a containerized database |
 | Implementation status | Implemented for local development |
-| Important files | `README.md` (setup), `docker-compose.yml`, `.gitignore`, `.github/workflows/ci.yml`, `backend/package.json` + `package-lock.json` (npm), `frontend/package.json` + `pnpm-lock.yaml` + `pnpm-workspace.yaml` (pnpm), `AGENTS.md`, `docs/` |
+| Important files | `README.md` (setup), `docker-compose.yml`, `.gitignore`, `.github/workflows/ci.yml`, `.github/workflows/orchestrator.yml`, `tools/orchestrator/`, `backend/package.json` + `package-lock.json` (npm), `frontend/package.json` + `pnpm-lock.yaml` + `pnpm-workspace.yaml` (pnpm), `AGENTS.md`, `docs/` |
 | External dependencies | Docker (PostgreSQL 16 image), Node.js (README: "v20+", no pin), npm, pnpm |
 | Operational considerations | `.env` and `.env.*` are gitignored and `backend/.env.example` is tracked. `.vscode/` is untracked and not part of the repository. Backend `node_modules` stopped being tracked in `d908ed1`. |
 | Known limitations | No shared code between tiers. No workspace-level scripts. No formatter configuration. No application-manifest toolchain pin ([ENG-IMP-008](engineering-improvements.md#eng-imp-008-toolchain-versions-are-not-pinned)). CI pins Node.js 22.14.0 and pnpm 12.5.1 for the workflow only. Backend lint is still absent ([ENG-IMP-004](engineering-improvements.md#eng-imp-004-no-backend-lint-and-no-repository-formatter)), so the lint job runs `frontend` `pnpm lint` only. |
-| Last materially changed | MVP-004 (2026-10-06): `.github/workflows/ci.yml` |
+| Last materially changed | Orchestrator queue (2026-11-26): the cloud controller selects the next AUTONOMOUS-READY issue from GitHub pull-request evidence. CI workflow file is unchanged since MVP-004. |
 
 ### 4.3 Backend application
 
@@ -987,6 +987,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | [#114](https://github.com/xela-ash/Music_app/pull/114) on `cursor/orchestrator-stop-finished-run-c6ae` |
 | Status | ACTIVE |
 
+### EDR-031 Select the next cloud issue from verified pull requests
+
+| Field | Value |
+|---|---|
+| ID | EDR-031 |
+| Date | 2026-11-26 |
+| Issue | No MVP item. Phase 1 of the cloud controller queue. |
+| Decision | Replace the single `ORCHESTRATOR_CLOUD_TRIAL` id with a dependency-ordered queue. A pull request merged into `main` whose title contains one MVP id as a whole token is completion evidence. The controller records that evidence, resumes one open implementation pull request, and otherwise selects the earliest dependency-ready `AUTONOMOUS-READY` item. Missing or contradictory GitHub data selects nothing. |
+| Context | The controller could dispatch only the MVP id named by `ORCHESTRATOR_CLOUD_TRIAL`. The issue index still says `MVP-011` and `MVP-012` are READY. Pull request #110 merged `MVP-011` on 2026-11-04 and issue #13 is still open. Pull request #112 merged `MVP-012` on 2026-11-26 and issue #14 is closed. `orchestrator/controller-state` has an empty `items` object, so a trial pointed at either id would implement it again. Unattended merge stays off. The controller stays stopped until `arm`. |
+| Options considered | (1) Keep the trial variable and set it to `MVP-020`. That is another single-id trial, and it still treats an open issue as unfinished after a merged pull request. (2) Treat every closed issue as merged and every open issue as unfinished. Issue #13 would be implemented again. (3) Edit the issue index and close issue #13 from this change. The index is planning material under `docs/19-implementation-planning/`, which this implementation does not edit. (4) Chosen: reconcile on each tick from the issue snapshot and the pull-request snapshot. Trust a single-id merged title over a stale index row. Fail closed when the snapshot is incomplete, a label contradicts the index classification, a closed issue has no merged pull request, or more than one open implementation pull request matches. |
+| Chosen approach | `assessQueue` is the only selector for a cloud tick. `queue-dry-run` and `dry-run` print the same decision and do not create an agent, open a pull request, or write state. A stopped tick writes verified corrections and does not dispatch. An armed tick still creates one fresh agent per role, keeps the repair limit, and refuses merge unless `ORCHESTRATOR_ALLOW_MERGE` is `true`. This workflow does not set that variable. Gate evaluation is unchanged, including the current-head check and the rejection of human-decision, external-dependency, and orchestrator-path diffs. |
+| Why | The next eligible work is `MVP-020` only because `MVP-011` and `MVP-012` are already on `main`. Selecting from the index alone would start `MVP-011` again. The queue has to keep working after the laptop is offline, and it has to stop when GitHub cannot prove the order. |
+| Trade-offs | A merged pull request whose title names two unsettled ids fails the tick. A merged title that names two items already merged in the index, such as pull request #95, is ignored. A pull request the controller already recorded is the same item even when a later title edit removes the MVP id. An open pull request whose title has no MVP id is still that item when its body names one unsettled id. A merged body mention is not completion evidence. The issue index and issue #13 stay unchanged (`ENG-IMP-099`). A stopped hourly tick will commit the two corrections onto `orchestrator/controller-state` once this change is on `main`. That commit does not arm the controller and does not create an agent. |
+| Affected components | `tools/orchestrator/lib/reconcile.mjs`, `tools/orchestrator/lib/cloud-tick.mjs`, `tools/orchestrator/lib/github.mjs`, `tools/orchestrator/cli.mjs`, `tools/orchestrator/config.mjs`, `.github/workflows/orchestrator.yml`, `tools/orchestrator/test/queue.test.mjs` |
+| Reversal / migration considerations | No schema and no product data migration. Restoring `ORCHESTRATOR_CLOUD_TRIAL` would select one id again. Deleting the corrections on the state branch does not delete pull requests #110 or #112. |
+| Related specification IDs | None. This does not change product authorization or money movement. |
+| Related PR / commit | [#115](https://github.com/xela-ash/Music_app/pull/115) on `cursor/orchestrator-queue-phase-1-737d` |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -1021,6 +1040,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-028](#edr-028-administrator-decision-on-the-four-status-enum) | Administrator decision on the four-status enum | ACTIVE | 2026-11-24 |
 | [EDR-029](#edr-029-recover-a-finished-implementation-that-has-no-pull-request) | Recover a finished implementation that has no pull request | ACTIVE | 2026-11-24 |
 | [EDR-030](#edr-030-release-a-finished-cloud-run-without-cancelling-it) | Release a finished cloud run without cancelling it | ACTIVE | 2026-11-26 |
+| [EDR-031](#edr-031-select-the-next-cloud-issue-from-verified-pull-requests) | Select the next cloud issue from verified pull requests | ACTIVE | 2026-11-26 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -1094,6 +1114,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-11-26 | Orchestrator recovery hardening (no MVP item) | A deleted file does not satisfy an acceptance-test mapping. The issue id cannot continue into another letter or digit. A written recovered body is read back before it is kept. A missing reported branch does not select another branch. The acceptance merge gate is unchanged. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-029 | None | [#113](https://github.com/xela-ash/Music_app/pull/113) | The hardening commit on `orchestrator-pr-recovery` |
 | 2026-11-26 | MVP-012 review / GitHub issue #14 | A document-access grant cannot be redeemed after `expires_at`. The byte response sets `X-Content-Type-Options: nosniff`. | Identity verification, testing | None | None | None | `SEC-VERIFY-007`, `AUD-IDENTITY-003` | `backend/test/verification.http.test.js` | EDR-028 | None | [#112](https://github.com/xela-ash/Music_app/pull/112) | The hardening commit on `cursor/musicapp-mvp-012-implementer-00d0` |
 | 2026-11-26 | Orchestrator stop (no MVP item) | Stop reads the recorded run. A finished, errored, cancelled, or expired run is released without cancel. An active run is cleared only after the cancel response echoes its id and a following read of that run shows `CANCELLED`. Usage history, proof, and recorded work stay. Unattended merge stays off. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-030 | None | [#114](https://github.com/xela-ash/Music_app/pull/114) | The stop commit on `cursor/orchestrator-stop-finished-run-c6ae` |
+| 2026-11-26 | Orchestrator queue (no MVP item) | The cloud tick selects the next dependency-ready AUTONOMOUS-READY issue from live GitHub issues and merged pull requests. `MVP-011` is recorded from pull request #110 even though issue #13 is open. `MVP-012` is recorded from pull request #112. The read-only dry run does not create an agent or a pull request. Unattended merge stays off. The daily dispatch cap, token ceiling, repair limit, and stop control stay. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/queue.test.mjs` | EDR-031 | `ENG-IMP-099`, `ENG-IMP-100` | [#115](https://github.com/xela-ash/Music_app/pull/115) | `61cb8d6` on `cursor/orchestrator-queue-phase-1-737d` |
 
 ## 8. Version history
 
@@ -1163,3 +1184,4 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.23.1 | 2026-11-26 | Recorded the MVP-012 review hardening: expired document-access grants stay unused, and document bytes send `X-Content-Type-Options: nosniff`. EDR-028. | Engineering |
 | 0.23.2 | 2026-11-26 | Reconciled MVP-012 with `main` after #113; kept EDR-028 and EDR-029. No application behavior changed by the reconciliation. | Engineering |
 | 0.23.3 | 2026-11-26 | Recorded orchestrator stop for a finished cloud run. EDR-030. No product behavior changed. | Engineering |
+| 0.23.4 | 2026-11-26 | Recorded the dependency-ordered cloud queue. EDR-031. Section 4.2 names the orchestrator. No product behavior changed. | Engineering |

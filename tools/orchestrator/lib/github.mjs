@@ -14,6 +14,12 @@ function runGh(args) {
   return result.stdout;
 }
 
+function parseSnapshot(stdout, label) {
+  const parsed = JSON.parse(stdout);
+  if (!Array.isArray(parsed)) throw new Error(`${label} snapshot is not an array`);
+  return parsed;
+}
+
 export function fetchOpenIssueSnapshot() {
   const stdout = runGh([
     "issue",
@@ -23,11 +29,27 @@ export function fetchOpenIssueSnapshot() {
     "--state",
     "all",
     "--limit",
-    "100",
+    String(config.issueSnapshotLimit),
     "--json",
     "number,title,state,labels",
   ]);
-  return JSON.parse(stdout);
+  return parseSnapshot(stdout, "issue");
+}
+
+export function fetchPullRequestSnapshot() {
+  const stdout = runGh([
+    "pr",
+    "list",
+    "--repo",
+    config.repo,
+    "--state",
+    "all",
+    "--limit",
+    String(config.pullSnapshotLimit),
+    "--json",
+    "number,title,body,state,mergedAt,baseRefName,isDraft",
+  ]);
+  return parseSnapshot(stdout, "pull request");
 }
 
 const PENDING = /^(PENDING|QUEUED|IN_PROGRESS|WAITING|EXPECTED|REQUESTED|)$/i;

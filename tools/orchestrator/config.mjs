@@ -10,4 +10,6 @@ export const config = {
   cloudRepoUrl: "https://github.com/xela-ash/Music_app",
   requiredChecks: ["lint", "frontend-test", "backend-test", "migration-dry-run"],
   indexPath: "docs/19-implementation-planning/github-issue-index.md",
+  issueSnapshotLimit: 100,
+  pullSnapshotLimit: 200,
 };
