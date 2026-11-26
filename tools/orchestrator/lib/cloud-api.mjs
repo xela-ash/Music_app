@@ -129,22 +129,38 @@ export function canonicalRepository(value) {
   return `https://github.com/${owner}/${repo}`;
 }
 
-export function pushedBranch(git, repoUrl) {
+function repositoryBranchRows(git, repoUrl) {
   const expected = canonicalRepository(repoUrl);
-  if (!expected) return null;
+  if (!expected) return [];
   const branches = Array.isArray(git?.branches) ? git.branches : [];
-  let branch = null;
+  return branches.filter((row) => {
+    if (!row || typeof row !== "object") return false;
+    if (canonicalRepository(row.repoUrl) !== expected) return false;
+    return typeof row.branch === "string" && row.branch.length > 0 && row.branch !== "main";
+  });
+}
+
+export function hasRepositoryBranch(git, repoUrl) {
+  return repositoryBranchRows(git, repoUrl).length > 0;
+}
+
+export function pushedBranch(git, repoUrl, requiredBranch) {
+  const rows = repositoryBranchRows(git, repoUrl);
+  if (requiredBranch !== undefined && (typeof requiredBranch !== "string" || requiredBranch.length === 0 || requiredBranch === "main")) {
+    return null;
+  }
+  const names = [];
+  for (const row of rows) {
+    if (!names.includes(row.branch)) names.push(row.branch);
+  }
+  const branch = requiredBranch || (names.length === 1 ? names[0] : null);
+  if (!branch || !names.includes(branch)) return null;
   let pr = null;
-  for (const row of branches) {
-    if (!row || typeof row !== "object") continue;
-    if (canonicalRepository(row.repoUrl) !== expected) continue;
-    if (typeof row.branch !== "string" || row.branch.length === 0 || row.branch === "main") continue;
-    if (!branch) branch = row.branch;
+  for (const row of rows) {
     if (row.branch !== branch) continue;
     const number = pullNumber(row.prUrl);
-    if (number && canonicalRepository(row.prUrl) === expected && !pr) pr = number;
+    if (number && canonicalRepository(row.prUrl) === canonicalRepository(repoUrl) && !pr) pr = number;
   }
-  if (!branch) return null;
   return { branch, pr };
 }
 

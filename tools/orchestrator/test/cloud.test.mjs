@@ -3,7 +3,7 @@ import test from "node:test";
 import { createCloudClient, createOrRecover, interpretCloudRun, pushedBranch, usageTokens } from "../lib/cloud-api.mjs";
 import { agentIdFor, executeCloudTick, reduceCloudTick } from "../lib/cloud-tick.mjs";
 import { acceptanceMapped, evaluateGates } from "../lib/gates.mjs";
-import { ensurePullRequest, selectRecoveredPullRequest, verifyRecoveredPullRequest } from "../lib/github.mjs";
+import { containsIssueId, ensurePullRequest, selectRecoveredPullRequest, survivingChangedPaths, verifyRecoveredPullRequest } from "../lib/github.mjs";
 
 const now = Date.parse("2026-11-05T00:00:00Z");
 
@@ -591,7 +591,14 @@ test("repair does not create a pull request when the stored number is missing", 
     title: "MVP-0120",
     body: `MVP-0120\n\n## Acceptance\n- ${criterion}\n  Test: backend/test/verification.http.test.js`,
   };
+  assert.equal(containsIssueId("MVP-012a recovered", "MVP-012"), false);
+  assert.equal(containsIssueId("[MVP-012] routes", "MVP-012"), true);
+  assert.equal(verifyRecoveredPullRequest({ ...lookalike, title: "MVP-012a", body: lookalike.body.replaceAll("MVP-0120", "MVP-012a") }, recoveryExpected), false);
   assert.equal(verifyRecoveredPullRequest(lookalike, recoveryExpected), false);
+  assert.deepEqual(survivingChangedPaths([
+    { filename: "backend/test/verification.http.test.js", status: "removed" },
+    { filename: "backend/src/verification/routes.js", status: "modified" },
+  ]), ["backend/src/verification/routes.js"]);
   assert.equal(selectRecoveredPullRequest([lookalike], recoveryExpected, { allowCreate: false, changedPaths: paths }).error, "repair pull request was not found");
   const missingFile = selectRecoveredPullRequest([verifiedPull], recoveryExpected, {
     allowCreate: false,
@@ -686,4 +693,137 @@ test("a recovered pull request maps every acceptance criterion and the merge gat
   });
   assert.equal(repairCreate.error, "repair pull request was not found");
   assert.equal(repairCreate.create, undefined);
+
+  let removedOnly;
+  try {
+    ensurePullRequest({
+      issue: "MVP-012",
+      issueNumber: 14,
+      branch: "cursor/musicapp-mvp-012-implementer-00d0",
+      commit: head,
+      allowCreate: true,
+      acceptance: entries,
+    }, {
+      runGh(args) {
+        if (args[0] === "issue") return JSON.stringify({ body: issueBody });
+        if (args[0] === "pr" && args[1] === "list") {
+          return JSON.stringify([{
+            ...verifiedPull,
+            body: `MVP-012\n\n## Acceptance\n- ${criterion}\n  Test: backend/test/verification.http.test.js`,
+          }]);
+        }
+        if (args[0] === "api") {
+          return JSON.stringify({ files: [{ filename: "backend/test/verification.http.test.js", status: "removed" }] });
+        }
+        throw new Error(`unexpected gh ${args.join(" ")}`);
+      },
+    });
+    removedOnly = new Error("deleted test file was accepted");
+  } catch (error) {
+    removedOnly = error;
+  }
+  assert.equal(removedOnly.message, "acceptance mapping is missing");
+});
+
+test("an edited recovered body is read back and a missing branch is not guessed", async () => {
+  const issueBody = `# Acceptance Criteria\n\n- [ ] ${criterion}\n`;
+  const entries = [{ criterion, test: "backend/test/verification.http.test.js" }];
+  const calls = [];
+  const number = await ensurePullRequest({
+    issue: "MVP-012",
+    issueNumber: 14,
+    branch: "cursor/musicapp-mvp-012-implementer-00d0",
+    commit: head,
+    allowCreate: true,
+    acceptance: entries,
+  }, {
+    runGh(args) {
+      calls.push(args[1] || args[0]);
+      if (args[0] === "issue") return JSON.stringify({ body: issueBody });
+      if (args[0] === "pr" && args[1] === "list") {
+        return JSON.stringify([{ ...verifiedPull, body: "MVP-012\n\n## Acceptance\n- pending" }]);
+      }
+      if (args[0] === "api") {
+        return JSON.stringify({ files: [{ filename: "backend/test/verification.http.test.js", status: "added" }] });
+      }
+      if (args[0] === "pr" && args[1] === "edit") return "";
+      if (args[0] === "pr" && args[1] === "view") return JSON.stringify(verifiedPull);
+      throw new Error(`unexpected gh ${args.join(" ")}`);
+    },
+  });
+  assert.equal(number, 112);
+  assert.ok(calls.includes("edit"));
+  assert.ok(calls.includes("view"));
+
+  let stale;
+  try {
+    ensurePullRequest({
+      issue: "MVP-012",
+      issueNumber: 14,
+      branch: "cursor/musicapp-mvp-012-implementer-00d0",
+      commit: head,
+      allowCreate: true,
+      acceptance: entries,
+    }, {
+      runGh(args) {
+        if (args[0] === "issue") return JSON.stringify({ body: issueBody });
+        if (args[0] === "pr" && args[1] === "list") {
+          return JSON.stringify([{ ...verifiedPull, body: "MVP-012\n\n## Acceptance\n- pending" }]);
+        }
+        if (args[0] === "api") {
+          return JSON.stringify({ files: [{ filename: "backend/test/verification.http.test.js", status: "modified" }] });
+        }
+        if (args[0] === "pr" && args[1] === "edit") return "";
+        if (args[0] === "pr" && args[1] === "view") {
+          return JSON.stringify({ ...verifiedPull, body: "MVP-012\n\n## Acceptance\n- pending" });
+        }
+        throw new Error(`unexpected gh ${args.join(" ")}`);
+      },
+    });
+    stale = new Error("stale body was accepted");
+  } catch (error) {
+    stale = error;
+  }
+  assert.equal(stale.message, "acceptance mapping is missing");
+
+  const omitted = noPullRequest.replace(`,"branch":"cursor/musicapp-mvp-012-implementer-00d0"`, "");
+  const guessed = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: omitted,
+      git: {
+        branches: [
+          { repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/other" },
+          { repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0" },
+        ],
+      },
+    },
+    usageTokens: 1,
+  }));
+  assert.equal(guessed.effect.reason, "pull request identity does not match");
+  assert.equal(guessed.state.items["MVP-012"].branch, undefined);
+  assert.equal(guessed.effect.dispatch, undefined);
+
+  const named = reduceCloudTick(base({
+    state: {
+      dispatches: [],
+      dispatch: { issue: "MVP-012", role: "implementer", attempt: 1, agentId: "bc-impl", runId: "run-a" },
+    },
+    observation: {
+      disposition: "finished",
+      result: noPullRequest,
+      git: {
+        branches: [
+          { repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/other" },
+          { repoUrl: "https://github.com/xela-ash/Music_app", branch: "cursor/musicapp-mvp-012-implementer-00d0" },
+        ],
+      },
+    },
+    usageTokens: 1,
+  }));
+  assert.equal(named.effect.branch, "cursor/musicapp-mvp-012-implementer-00d0");
 });

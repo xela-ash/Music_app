@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { config } from "../config.mjs";
-import { createOrRecover, interpretCloudRun, pushedBranch, usageTokens } from "./cloud-api.mjs";
+import { createOrRecover, hasRepositoryBranch, interpretCloudRun, pushedBranch, usageTokens } from "./cloud-api.mjs";
 import { extractCompletedWithoutPullRequest, extractReport } from "./runner.mjs";
 import { recordItem } from "./state.mjs";
 
@@ -273,7 +273,6 @@ function shaOrNull(value) {
 function recoverMissingPullRequest(previous, finished, pending, git) {
   const issue = previous.dispatch.issue;
   const role = previous.dispatch.role;
-  const pushed = pushedBranch(git, config.cloudRepoUrl);
   const recorded = finished.items?.[issue]?.pr;
   const attempt = {
     role,
@@ -300,11 +299,13 @@ function recoverMissingPullRequest(previous, finished, pending, git) {
     return blockedRecovery(finished, issue, "commit sha does not match", attempt, head, commit);
   }
   const reportedBranch = recoveryBranch(pending.branch);
-  const branch = recoveryBranch(pushed?.branch);
-  if (!branch || (reportedBranch && reportedBranch !== branch)) {
+  const confirmed = reportedBranch ? pushedBranch(git, config.cloudRepoUrl, reportedBranch) : null;
+  const branch = recoveryBranch(confirmed?.branch);
+  if (!reportedBranch || !branch || reportedBranch !== branch) {
+    const sawGitBranch = hasRepositoryBranch(git, config.cloudRepoUrl);
     const reason = role === "repair"
       ? "repair pull request was not found"
-      : (pushed || reportedBranch ? "pull request identity does not match" : "completed without pull request");
+      : (sawGitBranch || reportedBranch ? "pull request identity does not match" : "completed without pull request");
     return blockedRecovery(finished, issue, reason, attempt, head, commit);
   }
   const candidate = role === "repair" && Number.isInteger(recorded) && recorded > 0 ? recorded : null;

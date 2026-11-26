@@ -167,7 +167,19 @@ export function recoveredPullRequestBody({ issue, branch, commit, entries }) {
 
 export function containsIssueId(text, issue) {
   if (typeof issue !== "string" || !/^MVP-\d+$/.test(issue)) return false;
-  return new RegExp(`(?:^|[^A-Za-z0-9])${issue}(?!\\d)`).test(String(text || ""));
+  const token = issue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[^A-Za-z0-9])${token}(?![A-Za-z0-9])`).test(String(text || ""));
+}
+
+export function survivingChangedPaths(files) {
+  if (!Array.isArray(files)) return [];
+  const paths = [];
+  for (const file of files) {
+    if (!file || typeof file !== "object" || file.status === "removed") continue;
+    const name = typeof file.filename === "string" ? file.filename : file.path;
+    if (typeof name === "string" && name.length > 0) paths.push(name);
+  }
+  return paths;
 }
 
 export function acceptanceCriteriaMapped(body, issue, criteria, changedPaths) {
@@ -271,7 +283,7 @@ export function ensurePullRequest(effect, dependencies = {}) {
     "api",
     `repos/${config.repo}/compare/main...${effect.commit}`,
   ]));
-  const changedPaths = (compare.files || []).map((file) => file.filename).filter(Boolean);
+  const changedPaths = survivingChangedPaths(compare.files);
   const selected = selectRecoveredPullRequest(listed, {
     repoUrl: config.cloudRepoUrl,
     branch: effect.branch,
@@ -288,6 +300,7 @@ export function ensurePullRequest(effect, dependencies = {}) {
   if (selected.number) return selected.number;
   if (selected.update) {
     exec(["pr", "edit", String(selected.update), "--repo", config.repo, "--body", selected.body]);
+    confirmRecoveredPullRequest(exec, selected.update, effect, criteria, changedPaths);
     return selected.update;
   }
   if (selected.create !== true || effect.allowCreate !== true) {
@@ -310,6 +323,11 @@ export function ensurePullRequest(effect, dependencies = {}) {
   const match = url.match(/\/pull\/(\d+)\s*$/);
   if (!match) throw new Error("pull request recovery failed");
   const number = Number(match[1]);
+  confirmRecoveredPullRequest(exec, number, effect, criteria, changedPaths);
+  return number;
+}
+
+function confirmRecoveredPullRequest(exec, number, effect, criteria, changedPaths) {
   const viewed = JSON.parse(exec([
     "pr",
     "view",
@@ -331,7 +349,6 @@ export function ensurePullRequest(effect, dependencies = {}) {
   if (!acceptanceCriteriaMapped(viewed.body, effect.issue, criteria, changedPaths)) {
     throw new Error("acceptance mapping is missing");
   }
-  return number;
 }
 
 export function loadGateFacts({ item, pr, review, dependenciesMerged }) {
