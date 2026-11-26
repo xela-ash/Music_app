@@ -1,6 +1,15 @@
 import { createHash } from "node:crypto";
 import { config } from "../config.mjs";
-import { createOrRecover, hasRepositoryBranch, interpretCloudRun, pushedBranch, usageTokens } from "./cloud-api.mjs";
+import {
+  agentHasNoActiveRun,
+  cancellationAcknowledged,
+  cloudRunActivity,
+  createOrRecover,
+  hasRepositoryBranch,
+  interpretCloudRun,
+  pushedBranch,
+  usageTokens,
+} from "./cloud-api.mjs";
 import { extractCompletedWithoutPullRequest, extractReport } from "./runner.mjs";
 import { recordItem } from "./state.mjs";
 
@@ -16,8 +25,21 @@ function recentDispatches(state, now) {
   return (state.dispatches || []).filter((row) => now - Date.parse(row.at) < DAY_MS);
 }
 
-function halt(state, mode, cancel) {
-  return { state, effect: { type: "halt", mode, cancel } };
+function halt(state, mode, cancel, reason) {
+  return { state, effect: { type: "halt", mode, cancel, ...(reason ? { reason } : {}) } };
+}
+
+function releaseDispatch(state) {
+  return { ...state, dispatch: null };
+}
+
+function stopActivity(observation) {
+  if (observation?.activity === "active" || observation?.activity === "terminal" || observation?.activity === "unknown") {
+    return observation.activity;
+  }
+  if (observation?.disposition === "pending") return "active";
+  if (observation?.disposition === "finished" || observation?.disposition === "failed") return "terminal";
+  return "unknown";
 }
 
 export function reduceCloudTick({
@@ -42,11 +64,21 @@ export function reduceCloudTick({
     return { state: current, effect: { type: "blocked", reason: "missing controller run id" } };
   }
   if (action === "stop" || control?.mode === "stopped" || control?.mode === "paused") {
-    return halt(
-      { ...current, dispatch: null },
-      action === "stop" ? "stopped" : control.mode,
-      Boolean(current.dispatch?.runId),
-    );
+    const mode = action === "stop" ? "stopped" : control.mode;
+    if (!current.dispatch?.runId) {
+      return halt(releaseDispatch(current), mode, false);
+    }
+    if (!observation) {
+      return { state: current, effect: { type: "inspect", mode, dispatch: current.dispatch } };
+    }
+    const activity = stopActivity(observation);
+    if (activity === "terminal") {
+      return halt(releaseDispatch(current), mode, false, "finished run released");
+    }
+    if (activity === "active") {
+      return { state: current, effect: { type: "halt", mode, cancel: true } };
+    }
+    return { state: current, effect: { type: "blocked", reason: observation.reason || "missing agent status" } };
   }
   if (current.lock && current.lock.runId !== controllerRunId && Date.parse(current.lock.until) > now) {
     return { state: current, effect: { type: "blocked", reason: "another controller run holds the lock" } };
@@ -206,8 +238,70 @@ function createForItem(state, item, now, gates, allowMerge) {
   return createEffect(state, { issue: item.id, role: "implementer", attempt: 1 }, now);
 }
 
+async function readIdleAgent(client, agentId) {
+  if (typeof client?.getAgent !== "function") return false;
+  try {
+    return agentHasNoActiveRun(await client.getAgent(agentId));
+  } catch {
+    return false;
+  }
+}
+
+async function releaseFinishedOrCancel(client, state, mode) {
+  const dispatch = state.dispatch;
+  if (!dispatch?.runId) return halt(releaseDispatch(state), mode, false);
+  let run;
+  try {
+    run = await client.getRun(dispatch.agentId, dispatch.runId);
+  } catch {
+    if (await readIdleAgent(client, dispatch.agentId)) {
+      return halt(releaseDispatch(state), mode, false, "finished run released");
+    }
+    return { state, effect: { type: "blocked", reason: "API error" } };
+  }
+  const activity = cloudRunActivity(run);
+  if (activity === "terminal") {
+    return halt(releaseDispatch(state), mode, false, "finished run released");
+  }
+  if (activity !== "active") {
+    return { state, effect: { type: "blocked", reason: "missing agent status" } };
+  }
+  let cancellation;
+  try {
+    cancellation = await client.cancelRun(dispatch.agentId, dispatch.runId);
+  } catch (error) {
+    if (error?.status === 409) {
+      try {
+        const again = await client.getRun(dispatch.agentId, dispatch.runId);
+        if (cloudRunActivity(again) === "terminal") {
+          return halt(releaseDispatch(state), mode, false, "finished run released");
+        }
+      } catch {
+        return { state, effect: { type: "blocked", reason: "API error" } };
+      }
+    }
+    return { state, effect: { type: "blocked", reason: "API error" } };
+  }
+  if (!cancellationAcknowledged(cancellation, dispatch.runId)) {
+    return { state, effect: { type: "blocked", reason: "cancellation was not acknowledged" } };
+  }
+  let confirmed;
+  try {
+    confirmed = await client.getRun(dispatch.agentId, dispatch.runId);
+  } catch {
+    return { state, effect: { type: "blocked", reason: "API error" } };
+  }
+  if (confirmed?.status !== "CANCELLED") {
+    return { state, effect: { type: "blocked", reason: "cancellation was not acknowledged" } };
+  }
+  return halt(releaseDispatch(state), mode, false, "cancellation acknowledged");
+}
+
 export async function executeCloudTick({ client, promptFor, openPullRequest, ...input }) {
   const planned = reduceCloudTick(input);
+  if (planned.effect.type === "inspect" || (planned.effect.type === "halt" && planned.effect.cancel)) {
+    return releaseFinishedOrCancel(client, planned.state, planned.effect.mode || "stopped");
+  }
   if (planned.effect.type === "poll") {
     let run;
     let usage;
@@ -243,13 +337,6 @@ export async function executeCloudTick({ client, promptFor, openPullRequest, ...
       const created = await createOrRecover(client, body);
       const dispatch = { ...planned.effect.dispatch, runId: created.run.id, status: created.run.status || "CREATING" };
       return { state: { ...planned.state, dispatch }, effect: { type: "dispatched", dispatch, recovered: Boolean(created.recovered) } };
-    } catch {
-      return { state: planned.state, effect: { type: "blocked", reason: "API error" } };
-    }
-  }
-  if (planned.effect.type === "halt" && planned.effect.cancel && input.state.dispatch?.runId) {
-    try {
-      await client.cancelRun(input.state.dispatch.agentId, input.state.dispatch.runId);
     } catch {
       return { state: planned.state, effect: { type: "blocked", reason: "API error" } };
     }

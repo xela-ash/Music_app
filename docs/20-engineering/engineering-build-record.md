@@ -968,6 +968,25 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | Related PR / commit | The orchestrator pull-request recovery pull request |
 | Status | ACTIVE |
 
+### EDR-030 Release a finished cloud run without cancelling it
+
+| Field | Value |
+|---|---|
+| ID | EDR-030 |
+| Date | 2026-11-26 |
+| Issue | No MVP item. Controller stop for the stale MVP-012 dispatch. |
+| Decision | `stop` reads the recorded run before it changes the dispatch. A terminal run is released without `POST /cancel`. An active run is cancelled, and the dispatch is cleared only after the cancel response echoes that run id and a following read shows `CANCELLED`. Usage history, proof, and recorded item work stay. |
+| Context | GitHub Actions run [45758092660](https://github.com/xela-ash/Music_app/actions/runs/45758092660) dispatched `action=stop` and exited with `API error`. `orchestrator/controller-state` still records implementer `bc-06f0032e-ea1b-4be1-a8e3-5ea69c503d70` and run `run-bd20a206-7e0d-4f75-9ee2-1e08b6904835` as `RUNNING`. That agent is `IDLE`, and pull request #112 is merged. Cancel on a terminal run returns `409 run_not_cancellable`. The cancel response body is `{ id }` and does not include a status. Unattended merge stays off. |
+| Options considered | (1) Treat every cancel error as success and clear the dispatch. An active run that the API refused would disappear from the controller while it kept working. (2) Keep calling cancel first. A finished run fails the tick, so the state branch is not published and the stale `RUNNING` row remains. (3) Chosen: read the run. Release `FINISHED`, `ERROR`, `CANCELLED`, and `EXPIRED` without cancel. If that read fails and the agent is `IDLE`, `ERROR`, `ARCHIVED`, or `EXPIRED`, release the same way. For `CREATING`, `RUNNING`, or `WAITING_FOR_BACKGROUND_WORK`, cancel, require the echoed run id, then require a following read of `CANCELLED` before clearing the dispatch. A `409` is a release only when a following read is already terminal. |
+| Chosen approach | `reduceCloudTick` does not drop a live `runId` before that read. `executeCloudTick` performs the read and the cancel. The returned state copies `dispatches`, `usageTokens`, `proof`, `items`, and `lock`, and sets `dispatch` to null only on release. `start` stays disabled. The workflow does not set `ORCHESTRATOR_ALLOW_MERGE`, and stop does not call `gh pr merge` or open a pull request. |
+| Why | The recorded run had already finished. Cancelling it is what made stop fail closed, so the durable branch kept the old `RUNNING` dispatch. Clearing an active dispatch before the API shows `CANCELLED` would hide a run that is still working. |
+| Trade-offs | A cancel that is accepted but not yet visible as `CANCELLED` leaves the dispatch in place until a later stop. A run status the controller does not recognize fails closed and does not cancel. Stop does not grade the finished reply, so it does not open a review or another implementation. |
+| Affected components | `tools/orchestrator/lib/cloud-tick.mjs`, `tools/orchestrator/lib/cloud-api.mjs`, `tools/orchestrator/test/cloud.test.mjs`, `tools/orchestrator/README.md`, `.github/workflows/orchestrator.yml` |
+| Reversal / migration considerations | No schema and no product data migration. Restoring a blind cancel makes a finished run fail stop again. The controller state branch is not rewritten by this change. |
+| Related specification IDs | None. This does not change product authorization or money movement. |
+| Related PR / commit | The orchestrator stop pull request |
+| Status | ACTIVE |
+
 ### 6.3 EDR index
 
 | ID | Title | Status | Date |
@@ -1001,6 +1020,7 @@ Write an EDR for a significant **implementation** decision that does not belong 
 | [EDR-027](#edr-027-internal-retention-holds-deletion-worker-and-orphan-sweep) | Internal retention holds, deletion worker, and orphan sweep | ACTIVE | 2026-11-03 |
 | [EDR-028](#edr-028-administrator-decision-on-the-four-status-enum) | Administrator decision on the four-status enum | ACTIVE | 2026-11-24 |
 | [EDR-029](#edr-029-recover-a-finished-implementation-that-has-no-pull-request) | Recover a finished implementation that has no pull request | ACTIVE | 2026-11-24 |
+| [EDR-030](#edr-030-release-a-finished-cloud-run-without-cancelling-it) | Release a finished cloud run without cancelling it | ACTIVE | 2026-11-26 |
 
 No EDRs were created for choices that predate this record. None of the pre-existing choices in Section 5 has a recorded rationale that could fill an EDR's *Why* and *Options considered* fields without invention. Setting up these engineering-control documents is a documentation-structure decision, already recorded where Governance requires it ([Governance §4.1](../00-governance/README.md#41-engineering-control-documents), version 1.3.0). MVP-001's characterization file used Node's built-in test runner only so the acceptance snapshot could run. EDR-003 is the runner decision.
 
@@ -1072,6 +1092,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 2026-11-25 | Orchestrator recovery identity (no MVP item) | A recovered pull request is adopted only when the repository, branch, full commit SHA, and issue id match. Repair does not create a pull request when that number is missing. The recovered body maps each acceptance criterion to a test file in the commit. The acceptance merge gate is unchanged. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-029 | None | [#113](https://github.com/xela-ash/Music_app/pull/113) | The identity commit on `orchestrator-pr-recovery` |
 | 2026-11-25 | Orchestrator recovery identity review (no MVP item) | The issue id must match as a whole token. A git pull-request number does not reject another verified pull request. An existing body is adopted only when every cited test file is in the commit. The acceptance merge gate is unchanged. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-029 | None | [#113](https://github.com/xela-ash/Music_app/pull/113) | The review-repair commit on `orchestrator-pr-recovery` |
 | 2026-11-26 | Orchestrator recovery hardening (no MVP item) | A deleted file does not satisfy an acceptance-test mapping. The issue id cannot continue into another letter or digit. A written recovered body is read back before it is kept. A missing reported branch does not select another branch. The acceptance merge gate is unchanged. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-029 | None | [#113](https://github.com/xela-ash/Music_app/pull/113) | The hardening commit on `orchestrator-pr-recovery` |
+| 2026-11-26 | Orchestrator stop (no MVP item) | Stop reads the recorded run. A finished, errored, cancelled, or expired run is released without cancel. An active run is cleared only after the cancel response echoes its id and a following read shows `CANCELLED`. Usage history, proof, and recorded work stay. Unattended merge stays off. | Repository tooling | None | None | None | No product authorization change | `tools/orchestrator/test/cloud.test.mjs` | EDR-030 | None | The orchestrator stop pull request | The stop commit on `cursor/orchestrator-stop-finished-run-c6ae` |
 | 2026-11-26 | MVP-012 review / GitHub issue #14 | A document-access grant cannot be redeemed after `expires_at`. The byte response sets `X-Content-Type-Options: nosniff`. | Identity verification, testing | None | None | None | `SEC-VERIFY-007`, `AUD-IDENTITY-003` | `backend/test/verification.http.test.js` | EDR-028 | None | [#112](https://github.com/xela-ash/Music_app/pull/112) | The hardening commit on `cursor/musicapp-mvp-012-implementer-00d0` |
 
 ## 8. Version history
@@ -1138,6 +1159,7 @@ This section is append-only. Add one row per meaningful implementation issue, ne
 | 0.22.18 | 2026-11-25 | Recorded exact pull-request recovery identity, repair without a duplicate pull request, and acceptance-to-test mapping. EDR-029. No product behavior changed. | Engineering |
 | 0.22.19 | 2026-11-25 | Recorded the review repair for whole issue ids, non-blocking git pull-request numbers, and test files that must be in the commit. EDR-029. No product behavior changed. | Engineering |
 | 0.22.20 | 2026-11-26 | Recorded recovery hardening: deleted files, alphanumeric issue tokens, recovered-body read-back, and fail-closed branch selection. EDR-029. No product behavior changed. | Engineering |
+| 0.22.21 | 2026-11-26 | Recorded orchestrator stop for a finished cloud run. EDR-030. No product behavior changed. | Engineering |
 | 0.23.0 | 2026-11-24 | Recorded MVP-012: identity verification submit, Administrator decision, audited document access, migration `025`, and EDR-028. Sections 4.1, 4.3, 4.6, 4.8, 4.9, 4.19, and 4.20. | Engineering |
 | 0.23.1 | 2026-11-26 | Recorded the MVP-012 review hardening: expired document-access grants stay unused, and document bytes send `X-Content-Type-Options: nosniff`. EDR-028. | Engineering |
 | 0.23.2 | 2026-11-26 | Reconciled MVP-012 with `main` after #113; kept EDR-028 and EDR-029. No application behavior changed by the reconciliation. | Engineering |
