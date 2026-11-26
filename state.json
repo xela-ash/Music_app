@@ -2,7 +2,7 @@
   "version": 1,
   "baseline": "42f7570aed008a369fd63795b86df4d2544b456f",
   "items": {},
-  "updatedAt": "2026-11-24T07:14:30.849Z",
+  "updatedAt": "2026-11-26T05:38:42.120Z",
   "dispatches": [
     {
       "issue": "proof",
@@ -19,16 +19,7 @@
     "runId": "45346428861",
     "until": "2026-11-24T07:34:27.046Z"
   },
-  "dispatch": {
-    "issue": "MVP-012",
-    "role": "implementer",
-    "attempt": 1,
-    "prUrl": null,
-    "agentId": "bc-06f0032e-ea1b-4be1-a8e3-5ea69c503d70",
-    "runId": "run-bd20a206-7e0d-4f75-9ee2-1e08b6904835",
-    "status": "RUNNING",
-    "at": "2026-11-24T07:14:27.046Z"
-  },
+  "dispatch": null,
   "usageTokens": 33031,
   "proof": {
     "result": "ACK",
