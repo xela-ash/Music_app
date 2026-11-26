@@ -47,7 +47,7 @@ export function fetchPullRequestSnapshot() {
     "--limit",
     String(config.pullSnapshotLimit),
     "--json",
-    "number,title,state,mergedAt,baseRefName,isDraft",
+    "number,title,body,state,mergedAt,baseRefName,isDraft",
   ]);
   return parseSnapshot(stdout, "pull request");
 }

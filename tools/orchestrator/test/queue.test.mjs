@@ -347,12 +347,86 @@ test("a merged status title that names two settled items is not completion evide
   assert.match(open.conflicts.join("\n"), /more than one MVP id/);
 });
 
+test("a recorded pull request is kept when its title omits the MVP id", () => {
+  const resumed = liveQueue({
+    state: controllerState({
+      items: { "MVP-020": { status: "implemented", phase: "review", pr: 130, attempts: [] } },
+    }),
+    pulls: [
+      pull({ number: 110, title: "[MVP-011] Asset retention, hold, and deletion engine", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+      pull({ number: 130, title: "recovered implementation", state: "OPEN", mergedAt: null, body: "notes without an id" }),
+    ],
+  });
+  assert.equal(resumed.ok, true);
+  assert.equal(resumed.selection.item.id, "MVP-020");
+  assert.equal(resumed.intendedAction, "review");
+  const merged = liveQueue({
+    state: controllerState({
+      items: { "MVP-011": { status: "implemented", phase: "gates", pr: 110, attempts: [] } },
+    }),
+    pulls: [
+      pull({ number: 110, title: "asset retention", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+    ],
+  });
+  assert.equal(merged.ok, true);
+  assert.equal(merged.state.items["MVP-011"].status, "merged");
+  assert.equal(merged.selection.item.id, "MVP-020");
+  const wrongTitle = liveQueue({
+    state: controllerState({
+      items: { "MVP-020": { status: "implemented", phase: "review", pr: 131, attempts: [] } },
+    }),
+    pulls: [
+      pull({ number: 110, title: "[MVP-011] Asset retention, hold, and deletion engine", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+      pull({ number: 131, title: "[MVP-021] Deliverable validation", state: "OPEN", mergedAt: null }),
+    ],
+  });
+  assert.equal(wrongTitle.ok, false);
+  assert.match(wrongTitle.conflicts.join("\n"), /title matches MVP-021/);
+});
+
+test("an open pull request is not implemented again when only its body names the issue", () => {
+  const resumed = liveQueue({
+    pulls: [
+      pull({ number: 110, title: "[MVP-011] Asset retention, hold, and deletion engine", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+      pull({
+        number: 130,
+        title: "recovered implementation",
+        state: "OPEN",
+        mergedAt: null,
+        body: "Implements MVP-020\nDepends on MVP-011",
+      }),
+    ],
+  });
+  assert.equal(resumed.ok, true);
+  assert.equal(resumed.selection.item.id, "MVP-020");
+  assert.equal(resumed.intendedAction, "review");
+  const ambiguous = liveQueue({
+    pulls: [
+      pull({ number: 110, title: "[MVP-011] Asset retention, hold, and deletion engine", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+      pull({
+        number: 131,
+        title: "two features",
+        state: "OPEN",
+        mergedAt: null,
+        body: "MVP-020 and MVP-021",
+      }),
+    ],
+  });
+  assert.equal(ambiguous.ok, false);
+  assert.match(ambiguous.conflicts.join("\n"), /body matches more than one unsettled MVP id/);
+});
+
 test("lookalike titles and body-only mentions are not merge evidence", () => {
   const lookalike = liveQueue({
     issues: issuesFrom(items, { "MVP-012": { state: "CLOSED" } }),
     pulls: [
       pull({ number: 110, title: "[MVP-0110] not this item", state: "MERGED" }),
-      pull({ number: 111, title: "retention notes", state: "MERGED" }),
+      pull({ number: 111, title: "retention notes", state: "MERGED", body: "See MVP-011 for the merged work." }),
       pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
     ],
   });

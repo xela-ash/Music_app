@@ -75,8 +75,13 @@ function matchingIds(title, items) {
 
 function pushGroup(map, id, pull) {
   const list = map.get(id) || [];
+  if (list.some((candidate) => candidate.number === pull.number)) return;
   list.push(pull);
   map.set(id, list);
+}
+
+function grouped(map, id, pull) {
+  return (map.get(id) || []).some((candidate) => candidate.number === pull.number);
 }
 
 export function assessQueue({ items, issues, pulls, state, issueLimit = config.issueSnapshotLimit, pullLimit = config.pullSnapshotLimit }) {
@@ -130,6 +135,48 @@ export function assessQueue({ items, issues, pulls, state, issueLimit = config.i
     }
     if (pull.state === "MERGED") pushGroup(mergedById, ids[0], pull);
     else if (pull.state === "OPEN") pushGroup(openById, ids[0], pull);
+  }
+  const settled = (id) => {
+    const item = items.find((candidate) => candidate.id === id);
+    const live = byNumber.get(item?.issue);
+    return (mergedById.get(id) || []).length > 0 || (item?.execution === "MERGED" && live?.state === "CLOSED");
+  };
+  for (const pull of pulls) {
+    if (pullProblem(pull) || pull.state !== "OPEN") continue;
+    if (matchingIds(pull.title, items).length > 0) continue;
+    const bodyIds = matchingIds(pull.body, items).filter((id) => !settled(id));
+    if (bodyIds.length > 1) {
+      conflicts.push(`pull request #${pull.number} body matches more than one unsettled MVP id`);
+      continue;
+    }
+    if (bodyIds.length !== 1) continue;
+    if (pull.baseRefName !== "main") {
+      conflicts.push(`${bodyIds[0]} pull request #${pull.number} is not based on main`);
+      continue;
+    }
+    pushGroup(openById, bodyIds[0], pull);
+  }
+  for (const item of items) {
+    const record = state?.items?.[item.id];
+    if (!record?.pr) continue;
+    const pull = pulls.find((candidate) => candidate.number === record.pr);
+    if (!pull || pullProblem(pull)) continue;
+    const titleIds = matchingIds(pull.title, items);
+    if (titleIds.length > 1) {
+      conflicts.push(`${item.id} records pull request #${pull.number}, whose title matches more than one MVP id`);
+      continue;
+    }
+    if (titleIds.length === 1 && titleIds[0] !== item.id) {
+      conflicts.push(`${item.id} records pull request #${pull.number}, whose title matches ${titleIds[0]}`);
+      continue;
+    }
+    if (grouped(mergedById, item.id, pull) || grouped(openById, item.id, pull)) continue;
+    if (pull.baseRefName !== "main") {
+      conflicts.push(`${item.id} pull request #${pull.number} is not based on main`);
+      continue;
+    }
+    if (pull.state === "MERGED") pushGroup(mergedById, item.id, pull);
+    else if (pull.state === "OPEN") pushGroup(openById, item.id, pull);
   }
   for (const [id, list] of openById) {
     if (list.length > 1) conflicts.push(`${id} has more than one open implementation pull request`);
@@ -226,6 +273,9 @@ export function assessQueue({ items, issues, pulls, state, issueLimit = config.i
       if (recorded.state === "CLOSED") {
         holds.push({ item, reason: `pull request #${record.pr} is closed and not merged` });
         continue;
+      }
+      if (recorded.state === "OPEN" || recorded.state === "MERGED") {
+        return stopped(state, [`${item.id} records pull request #${record.pr}, which is ${recorded.state} and is not attributed to this item`], reconciled);
       }
       return stopped(state, [`${item.id} records pull request #${record.pr}, which is not an open or merged implementation`], reconciled);
     }
