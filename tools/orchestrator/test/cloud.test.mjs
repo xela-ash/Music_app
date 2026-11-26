@@ -73,22 +73,38 @@ test("recovery reuses the unpublished cloud agent id", () => {
   assert.equal(retry.state.dispatches.length, created.state.dispatches.length);
 });
 
-test("stop cancels an active agent and a later tick does not create one", () => {
+test("stop keeps an active dispatch until cancellation and a later tick does not create one", () => {
   const running = reduceCloudTick(base({ action: "prove" }));
   const withRun = {
     ...running.state,
     dispatch: { ...running.state.dispatch, runId: "run-live" },
   };
-  const stopped = reduceCloudTick(base({ state: withRun, action: "stop" }));
-  assert.equal(stopped.effect.type, "halt");
-  assert.equal(stopped.effect.cancel, true);
+  const inspected = reduceCloudTick(base({ state: withRun, action: "stop" }));
+  assert.equal(inspected.effect.type, "inspect");
+  assert.equal(inspected.state.dispatch.runId, "run-live");
+  const active = reduceCloudTick(base({
+    state: withRun,
+    action: "stop",
+    observation: { disposition: "pending", status: "RUNNING" },
+  }));
+  assert.equal(active.effect.cancel, true);
+  assert.equal(active.state.dispatch.runId, "run-live");
+  const released = reduceCloudTick(base({
+    state: withRun,
+    action: "stop",
+    observation: { disposition: "finished", status: "FINISHED" },
+  }));
+  assert.equal(released.effect.cancel, false);
+  assert.equal(released.state.dispatch, null);
+  assert.equal(released.state.dispatches.length, withRun.dispatches.length);
   const later = reduceCloudTick(base({
-    state: stopped.state,
+    state: released.state,
     control: { mode: "stopped" },
     action: "prove",
   }));
   assert.equal(later.effect.type, "halt");
   assert.equal(later.effect.cancel, false);
+  assert.notEqual(later.effect.type, "create");
 });
 
 test("review and repair are different cloud agents from implementation", () => {
@@ -826,4 +842,260 @@ test("an edited recovered body is read back and a missing branch is not guessed"
     usageTokens: 1,
   }));
   assert.equal(named.effect.branch, "cursor/musicapp-mvp-012-implementer-00d0");
+});
+
+const staleRunId = "run-bd20a206-7e0d-4f75-9ee2-1e08b6904835";
+const staleAgentId = "bc-06f0032e-ea1b-4be1-a8e3-5ea69c503d70";
+
+function staleDispatchState() {
+  return {
+    items: {
+      "MVP-011": { status: "merged", phase: "done", pr: 110, attempts: [{ role: "implementer", sessionId: "bc-older" }] },
+    },
+    dispatches: [
+      { issue: "proof", role: "proof", at: "2026-11-24T06:25:39.951Z" },
+      { issue: "MVP-012", role: "implementer", at: "2026-11-24T07:14:27.046Z" },
+    ],
+    usageTokens: 33031,
+    proof: { result: "ACK", agentId: "bc-43809325-7e8c-42cf-a8f5-13a3817715b3" },
+    lock: { runId: "45346428861", until: "2026-11-24T07:34:27.046Z" },
+    dispatch: {
+      issue: "MVP-012",
+      role: "implementer",
+      attempt: 1,
+      prUrl: null,
+      agentId: staleAgentId,
+      runId: staleRunId,
+      status: "RUNNING",
+      at: "2026-11-24T07:14:27.046Z",
+    },
+  };
+}
+
+function assertHistoryKept(before, after) {
+  assert.deepEqual(after.dispatches, before.dispatches);
+  assert.equal(after.usageTokens, before.usageTokens);
+  assert.deepEqual(after.proof, before.proof);
+  assert.deepEqual(after.items, before.items);
+  assert.deepEqual(after.lock, before.lock);
+}
+
+test("stop releases a finished run without cancelling and keeps history", async () => {
+  for (const status of ["FINISHED", "ERROR", "CANCELLED", "EXPIRED"]) {
+    const before = staleDispatchState();
+    const calls = [];
+    const result = await executeCloudTick({
+      ...base({ state: before, action: "stop", allowMerge: false }),
+      client: {
+        async getRun(agentId, runId) {
+          calls.push(["getRun", agentId, runId]);
+          return { id: runId, status, result: "merged through pull request 112" };
+        },
+        async cancelRun() {
+          throw new Error("finished run must not be cancelled");
+        },
+        async createAgent() {
+          throw new Error("stop must not dispatch");
+        },
+      },
+      promptFor: () => "implement",
+    });
+    assert.equal(result.effect.type, "halt");
+    assert.equal(result.effect.cancel, false);
+    assert.equal(result.effect.reason, "finished run released");
+    assert.equal(result.state.dispatch, null);
+    assert.notEqual(result.effect.type, "merge");
+    assertHistoryKept(before, result.state);
+    assert.deepEqual(calls, [["getRun", staleAgentId, staleRunId]]);
+  }
+});
+
+test("stop releases an idle agent when the run read fails and does not cancel", async () => {
+  const before = staleDispatchState();
+  const calls = [];
+  const result = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        calls.push("getRun");
+        throw Object.assign(new Error("Cloud Agents API 404"), { status: 404 });
+      },
+      async getAgent(agentId) {
+        calls.push(["getAgent", agentId]);
+        return { id: agentId, status: "IDLE", latestRunId: staleRunId };
+      },
+      async cancelRun() {
+        throw new Error("idle agent must not be cancelled");
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(result.effect.reason, "finished run released");
+  assert.equal(result.state.dispatch, null);
+  assertHistoryKept(before, result.state);
+  assert.deepEqual(calls, ["getRun", ["getAgent", staleAgentId]]);
+
+  const transient = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        throw Object.assign(new Error("Cloud Agents API 500"), { status: 500 });
+      },
+      async getAgent() {
+        return { id: staleAgentId, status: "IDLE", latestRunId: staleRunId };
+      },
+      async cancelRun() {
+        throw new Error("a failed read must not cancel");
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(transient.effect.reason, "API error");
+  assert.equal(transient.state.dispatch.runId, staleRunId);
+  assertHistoryKept(before, transient.state);
+
+  const otherRun = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        throw Object.assign(new Error("Cloud Agents API 404"), { status: 404 });
+      },
+      async getAgent() {
+        return { id: staleAgentId, status: "IDLE", latestRunId: "run-other" };
+      },
+      async cancelRun() {
+        throw new Error("another run must not be cancelled");
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(otherRun.effect.reason, "API error");
+  assert.equal(otherRun.state.dispatch.runId, staleRunId);
+  assertHistoryKept(before, otherRun.state);
+});
+
+test("stop of an active run clears the dispatch only after cancellation is acknowledged", async () => {
+  const before = staleDispatchState();
+  const calls = [];
+  const runs = [
+    { id: staleRunId, status: "RUNNING" },
+    { id: staleRunId, status: "CANCELLED" },
+  ];
+  const result = await executeCloudTick({
+    ...base({ state: before, action: "stop", allowMerge: false }),
+    client: {
+      async getRun(agentId, runId) {
+        calls.push(["getRun", agentId, runId]);
+        return runs.shift();
+      },
+      async cancelRun(agentId, runId) {
+        calls.push(["cancel", agentId, runId]);
+        return { id: runId };
+      },
+      async createAgent() {
+        throw new Error("stop must not dispatch");
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(result.effect.type, "halt");
+  assert.equal(result.effect.reason, "cancellation acknowledged");
+  assert.equal(result.state.dispatch, null);
+  assert.notEqual(result.effect.type, "merge");
+  assertHistoryKept(before, result.state);
+  assert.deepEqual(calls, [
+    ["getRun", staleAgentId, staleRunId],
+    ["cancel", staleAgentId, staleRunId],
+    ["getRun", staleAgentId, staleRunId],
+  ]);
+});
+
+test("stop keeps an active dispatch when cancellation is not acknowledged", async () => {
+  const before = staleDispatchState();
+  const mismatched = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        return { id: staleRunId, status: "RUNNING" };
+      },
+      async cancelRun() {
+        return { id: "run-other" };
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(mismatched.effect.type, "blocked");
+  assert.equal(mismatched.effect.reason, "cancellation was not acknowledged");
+  assert.equal(mismatched.state.dispatch.runId, staleRunId);
+  assert.equal(mismatched.state.dispatch.status, "RUNNING");
+  assertHistoryKept(before, mismatched.state);
+
+  const stillRunning = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        return { id: staleRunId, status: "RUNNING" };
+      },
+      async cancelRun() {
+        return { id: staleRunId };
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(stillRunning.effect.reason, "cancellation was not acknowledged");
+  assert.equal(stillRunning.state.dispatch.agentId, staleAgentId);
+  assertHistoryKept(before, stillRunning.state);
+
+  const refused = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        return { id: staleRunId, status: "RUNNING" };
+      },
+      async cancelRun() {
+        throw Object.assign(new Error("Cloud Agents API 500"), { status: 500 });
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(refused.effect.reason, "API error");
+  assert.equal(refused.state.dispatch.runId, staleRunId);
+  assertHistoryKept(before, refused.state);
+});
+
+test("a cancel conflict releases the dispatch only when the run is already terminal", async () => {
+  const before = staleDispatchState();
+  let reads = 0;
+  const finishedDuringCancel = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        reads += 1;
+        return { id: staleRunId, status: reads === 1 ? "RUNNING" : "FINISHED", result: "done" };
+      },
+      async cancelRun() {
+        throw Object.assign(new Error("Cloud Agents API 409"), { status: 409, body: { code: "run_not_cancellable" } });
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(finishedDuringCancel.effect.reason, "finished run released");
+  assert.equal(finishedDuringCancel.state.dispatch, null);
+  assertHistoryKept(before, finishedDuringCancel.state);
+
+  const stillActive = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        return { id: staleRunId, status: "WAITING_FOR_BACKGROUND_WORK" };
+      },
+      async cancelRun() {
+        throw Object.assign(new Error("Cloud Agents API 409"), { status: 409 });
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(stillActive.effect.reason, "API error");
+  assert.equal(stillActive.state.dispatch.status, "RUNNING");
+  assertHistoryKept(before, stillActive.state);
 });

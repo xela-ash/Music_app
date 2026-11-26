@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: arm records running without launching an agent. tick polls one cloud agent. prove launches one read-only agent. stop cancels the active run.
+        description: arm records running without launching an agent. tick polls one cloud agent. prove launches one read-only agent. stop releases a finished run without cancelling it, and cancels an active run only after that cancel is acknowledged.
         required: true
         type: choice
         options:

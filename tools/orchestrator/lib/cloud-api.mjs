@@ -1,5 +1,6 @@
 const ACTIVE = new Set(["CREATING", "RUNNING", "WAITING_FOR_BACKGROUND_WORK"]);
-const FAILED = new Set(["ERROR", "CANCELLED", "EXPIRED"]);
+const TERMINAL = new Set(["FINISHED", "ERROR", "CANCELLED", "EXPIRED"]);
+const IDLE_AGENT = new Set(["IDLE", "ERROR", "ARCHIVED", "EXPIRED"]);
 
 export function createCloudClient({ fetchImpl, apiKey, baseUrl = "https://api.cursor.com" }) {
   if (!apiKey || typeof apiKey !== "string") {
@@ -92,8 +93,29 @@ export function interpretCloudRun(run) {
     }
     return { disposition: "finished", status: run.status, result: run.result, git: run.git || null };
   }
-  if (FAILED.has(run.status)) return { disposition: "failed", reason: `run ${run.status}`, status: run.status };
+  if (TERMINAL.has(run.status)) return { disposition: "failed", reason: `run ${run.status}`, status: run.status };
   return { disposition: "invalid", reason: "missing agent status" };
+}
+
+export function cloudRunActivity(run) {
+  if (!run || typeof run !== "object" || typeof run.status !== "string") return "unknown";
+  if (ACTIVE.has(run.status)) return "active";
+  if (TERMINAL.has(run.status)) return "terminal";
+  return "unknown";
+}
+
+export function cancellationAcknowledged(response, runId) {
+  return Boolean(
+    response
+    && typeof response === "object"
+    && typeof runId === "string"
+    && runId.length > 0
+    && response.id === runId,
+  );
+}
+
+export function agentHasNoActiveRun(agent) {
+  return Boolean(agent && typeof agent === "object" && typeof agent.status === "string" && IDLE_AGENT.has(agent.status));
 }
 
 function pullNumber(url) {
