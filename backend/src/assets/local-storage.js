@@ -239,6 +239,11 @@ function inspect(key) {
   };
 }
 
+function readObject(key) {
+  assertKey(key);
+  return fs.readFileSync(path.join(objectDir(key), "final"));
+}
+
 function readPrefix(key, length) {
   const finalPath = path.join(objectDir(key), "final");
   const stat = fs.statSync(finalPath);
@@ -287,6 +292,7 @@ module.exports = {
   writePart,
   completeMultipart,
   inspect,
+  readObject,
   readPrefix,
   abortObject,
   deleteObject,

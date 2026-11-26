@@ -39,6 +39,9 @@ const MESSAGE_TOMBSTONE = "message.tombstone";
 const ASSET_UPLOAD = "asset.upload";
 const ROLE_ASSIGN = "role.assign";
 const ROLE_REVOKE = "role.revoke";
+const VERIFICATION_SUBMIT = "verification.submit";
+const VERIFICATION_READ = "verification.read";
+const VERIFICATION_DECIDE = "verification.decide";
 
 function participantWhereSql(alias) {
   return `${alias}.buyer_user_id = $1 OR EXISTS (SELECT 1 FROM project_participants pp WHERE pp.project_id = ${alias}.id AND pp.user_id = $1 AND pp.category = 'seller' AND pp.status = 'active')`;
@@ -204,6 +207,36 @@ function authorizeAssetUpload(actor, resource) {
   return deny(404, "Project not found");
 }
 
+function authorizeVerificationSubmit(actor, resource) {
+  if (!resource || resource.ownerUserId !== actor.id) {
+    return deny(403, "Forbidden");
+  }
+  return allow();
+}
+
+function authorizeVerificationRead(actor, resource) {
+  if (!resource) {
+    return deny(404, "Verification not found");
+  }
+  if (resource.queue === true) {
+    if (!hasActiveAdministrator(resource)) {
+      return deny(403, "Forbidden");
+    }
+    return allow();
+  }
+  if (resource.ownerUserId === actor.id || hasActiveAdministrator(resource)) {
+    return allow();
+  }
+  return deny(404, "Verification not found");
+}
+
+function authorizeVerificationDecide(resource) {
+  if (!hasActiveAdministrator(resource)) {
+    return deny(403, "Forbidden");
+  }
+  return allow();
+}
+
 function authorize(actor, action, resource) {
   const id = actorId(actor);
   if (!id) {
@@ -250,6 +283,15 @@ function authorize(actor, action, resource) {
   if (action === ROLE_ASSIGN || action === ROLE_REVOKE) {
     return authorizeRoleCommand(resource);
   }
+  if (action === VERIFICATION_SUBMIT) {
+    return authorizeVerificationSubmit(principal, resource);
+  }
+  if (action === VERIFICATION_READ) {
+    return authorizeVerificationRead(principal, resource);
+  }
+  if (action === VERIFICATION_DECIDE) {
+    return authorizeVerificationDecide(resource);
+  }
   return deny(403, "Forbidden");
 }
 
@@ -271,6 +313,9 @@ module.exports = {
   ASSET_UPLOAD,
   ROLE_ASSIGN,
   ROLE_REVOKE,
+  VERIFICATION_SUBMIT,
+  VERIFICATION_READ,
+  VERIFICATION_DECIDE,
   participantWhereSql,
   authorize,
 };

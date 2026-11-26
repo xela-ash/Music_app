@@ -100,8 +100,8 @@ async function createReadyAsset({ withBinding = false } = {}) {
 
 async function bindVerificationDocument(userId, assetId) {
   const verification = await pool.query(
-    `INSERT INTO profile_verifications (external_id, user_id, status)
-     VALUES ($1, $2, 'submitted')
+    `INSERT INTO profile_verifications (external_id, user_id, status, submitted_at)
+     VALUES ($1, $2, 'submitted', clock_timestamp())
      RETURNING id`,
     [hexId("ver"), userId]
   );

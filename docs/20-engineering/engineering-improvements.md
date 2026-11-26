@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.44 |
-| Last Reviewed | 2026-11-03 |
+| Version | 0.7.47 |
+| Last Reviewed | 2026-11-24 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -200,6 +200,9 @@ Copy this template for each new entry:
 | [ENG-IMP-093](#eng-imp-093-orphan-sweep-does-not-schedule-itself-or-emit-every-18-4-candidate) | Orphan sweep does not schedule itself or emit every §18.4 candidate | Assets | Medium | PROPOSED |
 | [ENG-IMP-094](#eng-imp-094-merge-gates-treat-omitted-review-flags-as-clear) | Merge gates treat omitted review flags as clear | Orchestrator | Low | IMPLEMENTED |
 | [ENG-IMP-095](#eng-imp-095-orchestrator-scope-gate-does-not-name-secret-paths) | Orchestrator scope gate does not name secret paths | Orchestrator | Low | IMPLEMENTED |
+| [ENG-IMP-096](#eng-imp-096-verification-access-lifetime-is-not-configured) | Verification access lifetime is not configured | Security, Configuration | Low | PROPOSED |
+| [ENG-IMP-097](#eng-imp-097-verification-status-enum-is-still-four-values) | Verification status enum is still four values | Identity verification | Medium | PROPOSED |
+| [ENG-IMP-098](#eng-imp-098-an-administrator-can-decide-their-own-verification) | An Administrator can decide their own verification | Authorization, Identity verification | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -3052,6 +3055,96 @@ Copy this template for each new entry:
 | Related PR | [#111](https://github.com/xela-ash/Music_app/pull/111) |
 | Resolution | Gate 14 rejects secret-shaped paths and orchestrator workflow changes. |
 
+### ENG-IMP-096 Verification access lifetime is not configured
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-096 |
+| Title | Verification access lifetime is not configured |
+| Date identified | 2026-11-24 |
+| Identified by | MVP-012 implementation |
+| Category | Security, Configuration |
+| Affected subsystem | Identity verification |
+| Current state | `POST /verifications/:externalId/documents/:documentExternalId/access` returns 503 unless `VERIFICATION_ACCESS_TTL_SECONDS` is a positive safe integer. |
+| Evidence / problem | verification.md `BR-IDENTITY-014` requires a time-limited retrieval URL and does not set the lifetime. Choosing one would invent a product threshold. |
+| Suggested improvement | Record the lifetime in the verification specification, then require that value instead of an environment variable. |
+| Expected benefit | Operators would not have to pick a number the specification left open. |
+| Risk of doing nothing | Document retrieval stays unavailable until an operator sets the variable. |
+| Implementation risk | Low once a duration is specified. |
+| Estimated scope | S. One configuration read. |
+| Dependencies | verification.md §34.1 does not own this number; it is the same class of gap as `ENG-IMP-068`. |
+| Product behavior impact | Yes. The lifetime is user-visible. |
+| Specification impact | Yes. The duration needs a product decision. |
+| Migration impact | No |
+| Security impact | Fail closed. A guessed long lifetime would widen the window of a stolen grant. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | When Product sets document-access duration. |
+| Status | PROPOSED |
+| Related GitHub Issue | #14 |
+| Related PR | The MVP-012 pull request |
+| Resolution | — |
+
+### ENG-IMP-097 Verification status enum is still four values
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-097 |
+| Title | Verification status enum is still four values |
+| Date identified | 2026-11-24 |
+| Identified by | MVP-012 implementation |
+| Category | Identity verification |
+| Affected subsystem | Identity verification |
+| Current state | `verification_status` is still `not_started`, `submitted`, `approved`, and `rejected`. There is no `expires_at`. |
+| Evidence / problem | users.md §8.2 defines eight statuses. verification.md §34.1 item 3 leaves the approval validity period open, so expiry cannot be stored without inventing a duration. Under Review and Additional Information Required have no separate enum values. |
+| Suggested improvement | Add the missing statuses and an expiry column only after the validity period is decided. |
+| Expected benefit | Approval, expiry, and revocation would match the canonical state machine. |
+| Risk of doing nothing | An approved verification does not expire. |
+| Implementation risk | Medium. Existing rows and the decision route would need a migration. |
+| Estimated scope | M. Schema plus transition edges. |
+| Dependencies | verification.md §34.1 item 3. `BR-IDENTITY-007`. |
+| Product behavior impact | Yes |
+| Specification impact | Yes. The period is an open question. |
+| Migration impact | Yes |
+| Security impact | An approved identity remains approved until a later decision. |
+| Performance impact | None |
+| Priority suggestion | Medium |
+| Recommended timing | After the validity period is recorded in verification.md. |
+| Status | PROPOSED |
+| Related GitHub Issue | #14 |
+| Related PR | The MVP-012 pull request |
+| Resolution | — |
+
+### ENG-IMP-098 An Administrator can decide their own verification
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-098 |
+| Title | An Administrator can decide their own verification |
+| Date identified | 2026-11-24 |
+| Identified by | MVP-012 implementation |
+| Category | Authorization, Identity verification |
+| Affected subsystem | Identity verification |
+| Current state | `verification.decide` allows any live Administrator, including the owner of the attempt. |
+| Evidence / problem | verification.md §11.1 names a Reviewer and does not say the owner is excluded. §18's segregation rule is for appeals, which this item does not build. |
+| Suggested improvement | If Product wants segregation, deny a decision where `reviewed_by` would equal `profile_verifications.user_id`. |
+| Expected benefit | An Administrator could not approve their own identity. |
+| Risk of doing nothing | The sole bootstrapped Administrator can approve their own submission. |
+| Implementation risk | Low. One comparison, after a product rule exists. |
+| Estimated scope | S. One authorization check and a test. |
+| Dependencies | A product rule that does not exist in verification.md §11 or §22. |
+| Product behavior impact | Yes |
+| Specification impact | Yes |
+| Migration impact | No |
+| Security impact | Self-approval is possible for an Administrator. |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | If Product closes verification.md §34.1 item 2 with a segregation rule. |
+| Status | PROPOSED |
+| Related GitHub Issue | #14 |
+| Related PR | The MVP-012 pull request |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3142,3 +3235,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.44 | 2026-11-03 | Added `ENG-IMP-092` (PROPOSED): seeded retention policy grace seconds are an engineering placeholder until Product/Compliance records durations. Not authorized. | Engineering |
 | 0.7.45 | 2026-11-04 | Added `ENG-IMP-093` (PROPOSED): the orphan and deletion workers are not scheduled, and the sweep does not emit every §18.4 candidate kind. Not authorized. | Engineering |
 | 0.7.46 | 2026-11-05 | Reconciled the orchestrator branch with `main` after MVP-011. `ENG-IMP-094` and `ENG-IMP-095` are IMPLEMENTED by the cloud-controller gates: omitted review flags and secret-shaped paths fail closed. Neither entry authorizes further work. | Engineering |
+| 0.7.47 | 2026-11-24 | Added `ENG-IMP-096`, `ENG-IMP-097`, and `ENG-IMP-098` (all PROPOSED) from MVP-012. None are authorized. | Engineering |
