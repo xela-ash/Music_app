@@ -4,12 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.mjs";
 import { applyGitHubIssues, findStatusConflicts, loadIssueIndex } from "./lib/catalog.mjs";
-import { ensurePullRequest, fetchOpenIssueSnapshot, loadGateFacts, waitForRequiredChecks } from "./lib/github.mjs";
+import { ensurePullRequest, fetchOpenIssueSnapshot, fetchPullRequestSnapshot, loadGateFacts, waitForRequiredChecks } from "./lib/github.mjs";
 import { createCloudClient } from "./lib/cloud-api.mjs";
 import { executeCloudTick } from "./lib/cloud-tick.mjs";
+import { evaluateGates } from "./lib/gates.mjs";
 import { dryRunNextAction, invocationArgs, proveFreshContext, runDryItem, runImplementationLoop } from "./lib/loop.mjs";
 import { cloudProofPrompt, implementPrompt, repairPrompt, reviewPrompt } from "./lib/prompts.mjs";
-import { selectNext, skippedReadyItems } from "./lib/queue.mjs";
+import { assessQueue, queueDryRunReport } from "./lib/reconcile.mjs";
 import { agentLogDir, resolveAgentBin, runAgent } from "./lib/runner.mjs";
 import {
   loadControl,
@@ -50,6 +51,30 @@ function loadCatalog() {
   return { indexItems, liveItems, conflicts, github };
 }
 
+function loadAuthoritativeQueue() {
+  const indexItems = loadIssueIndex(path.join(root, config.indexPath));
+  const state = loadState(root);
+  try {
+    const issues = fetchOpenIssueSnapshot();
+    const pulls = fetchPullRequestSnapshot();
+    const queue = assessQueue({ items: indexItems, issues, pulls, state });
+    return { ...queue, github: queue.ok ? "checked" : "contradictory" };
+  } catch (error) {
+    const queue = assessQueue({ items: indexItems, issues: null, pulls: null, state });
+    return {
+      ...queue,
+      github: "unavailable",
+      conflicts: [`authoritative GitHub data is unavailable: ${String(error.message || "unknown").slice(0, 300)}`],
+      reasons: [`authoritative GitHub data is unavailable: ${String(error.message || "unknown").slice(0, 300)}`],
+    };
+  }
+}
+
+function dependenciesMerged(item, items) {
+  const byId = new Map(items.map((candidate) => [candidate.id, candidate]));
+  return item.dependencies.every((id) => byId.get(id)?.execution === "MERGED");
+}
+
 function makeRunner(workspace = root) {
   const bin = resolveAgentBin();
   return async (invocation) => {
@@ -71,22 +96,28 @@ function flag(name) {
 }
 
 function statusReport() {
-  const catalog = loadCatalog();
-  const state = loadState(root);
+  const queue = loadAuthoritativeQueue();
   const control = loadControl(root);
   const proof = loadProof(root);
-  const next = catalog.conflicts.length === 0 ? selectNext(catalog.liveItems, state) : null;
+  const report = queueDryRunReport({
+    queue,
+    controlMode: control.mode,
+    mergeEnabled: process.env.ORCHESTRATOR_ALLOW_MERGE === "true",
+  });
   return {
     command: "status",
     baseline: config.baseline,
     head: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
     control: control.mode,
-    github: catalog.github,
-    conflicts: catalog.conflicts,
+    github: queue.github,
+    conflicts: queue.conflicts,
     freshContextProved: Boolean(proof?.proved),
-    next: next ? { id: next.id, issue: next.issue, title: next.title } : null,
-    skipped: skippedReadyItems(catalog.liveItems, state),
-    items: state.items,
+    next: report.next,
+    intendedAction: report.intendedAction,
+    reasons: report.reasons,
+    corrections: report.corrections,
+    skipped: report.blockers,
+    items: queue.state.items,
   };
 }
 
@@ -101,19 +132,36 @@ async function prove() {
   emit({ command: "prove-fresh", ...outcome });
 }
 
+function reportQueue(commandName) {
+  const queue = loadAuthoritativeQueue();
+  const control = loadControl(root);
+  const report = queueDryRunReport({
+    queue,
+    controlMode: control.mode,
+    mergeEnabled: process.env.ORCHESTRATOR_ALLOW_MERGE === "true",
+  });
+  emit({ ...report, command: commandName });
+  if (!queue.ok) process.exitCode = 1;
+}
+
 async function dryRun() {
+  if (!process.argv.includes("--agent")) {
+    reportQueue("dry-run");
+    return;
+  }
   const before = gitPorcelain();
-  const catalog = loadCatalog();
-  if (catalog.conflicts.length > 0) {
-    emit({ command: "dry-run", status: "blocked", conflicts: catalog.conflicts });
+  const queue = loadAuthoritativeQueue();
+  if (!queue.ok || queue.intendedAction !== "implement" || !queue.selection?.item) {
+    emit({
+      command: "dry-run",
+      status: "blocked",
+      conflicts: queue.conflicts,
+      reason: queue.reasons[0] || "read-only queue did not select a new implementation",
+    });
     process.exitCode = 1;
     return;
   }
-  const item = selectNext(catalog.liveItems, loadState(root));
-  if (!item) {
-    emit({ command: "dry-run", status: "idle", reason: "No dependency-ready AUTONOMOUS-READY issue" });
-    return;
-  }
+  const item = queue.selection.item;
   const outcome = await runDryItem(makeRunner(), item);
   const after = gitPorcelain();
   const dirty = before !== after;
@@ -259,14 +307,22 @@ function promptForDispatch(catalog, dispatch) {
 
 async function tick() {
   const action = flag("--action") || "tick";
-  if (!["tick", "prove", "stop", "arm"].includes(action)) {
-    emit({ command: "tick", status: "refused", reason: "--action must be tick, prove, stop, or arm" });
+  if (!["tick", "prove", "stop", "arm", "dry-run"].includes(action)) {
+    emit({ command: "tick", status: "refused", reason: "--action must be tick, prove, stop, arm, or dry-run" });
     process.exitCode = 2;
     return;
   }
   if (action === "arm") {
     saveControl(root, "running", null);
-    emit({ command: "tick", status: "armed", reason: "Product dispatch stays off until ORCHESTRATOR_CLOUD_TRIAL is set. Merge stays off." });
+    emit({
+      command: "tick",
+      status: "armed",
+      reason: "Arm records that later ticks may run. It does not launch an agent and it does not enable merge. A later tick selects from the dependency-ordered queue.",
+    });
+    return;
+  }
+  if (action === "dry-run") {
+    reportQueue("queue-dry-run");
     return;
   }
   const controllerRunId = process.env.GITHUB_RUN_ID || "";
@@ -275,30 +331,113 @@ async function tick() {
     process.exitCode = 1;
     return;
   }
-  const catalog = loadCatalog();
-  const state = loadState(root);
   const control = action === "stop" ? { mode: "stopped" } : loadControl(root);
-  if (action !== "stop" && control.mode !== "running") {
-    emit({ command: "tick", status: "halt", reason: `control is ${control.mode}` });
+  if (action === "stop") {
+    const state = loadState(root);
+    const client = process.env.CURSOR_API_KEY
+      ? createCloudClient({ fetchImpl: globalThis.fetch, apiKey: process.env.CURSOR_API_KEY })
+      : { cancelRun: async () => {} };
+    const result = await executeCloudTick({
+      client,
+      state,
+      control: { mode: "running" },
+      action,
+      controllerRunId,
+      item: null,
+      allowMerge: false,
+      promptFor: () => "",
+      openPullRequest: async () => {
+        throw new Error("pull request recovery failed");
+      },
+    });
+    saveState(root, result.state);
+    if (result.effect.type !== "blocked") saveControl(root, "stopped", null);
+    const failed = result.effect.type === "blocked";
+    emit({ command: "tick", status: result.effect.type, reason: result.effect.reason || "", recovered: Boolean(result.effect.recovered) });
+    if (failed) process.exitCode = 1;
     return;
   }
-  if (action !== "stop" && !process.env.CURSOR_API_KEY) {
+  if (action === "prove") {
+    if (control.mode !== "running") {
+      emit({ command: "tick", status: "halt", reason: `control is ${control.mode}` });
+      return;
+    }
+    if (!process.env.CURSOR_API_KEY) {
+      emit({ command: "tick", status: "blocked", reason: "CURSOR_API_KEY is required" });
+      process.exitCode = 1;
+      return;
+    }
+    const client = createCloudClient({ fetchImpl: globalThis.fetch, apiKey: process.env.CURSOR_API_KEY });
+    const result = await executeCloudTick({
+      client,
+      state: loadState(root),
+      control,
+      action,
+      controllerRunId,
+      item: null,
+      allowMerge: false,
+      promptFor: (dispatch) => promptForDispatch({ liveItems: [] }, dispatch),
+      openPullRequest: async () => {
+        throw new Error("pull request recovery failed");
+      },
+    });
+    saveState(root, result.state);
+    const failed = result.effect.type === "blocked";
+    emit({ command: "tick", status: result.effect.type, reason: result.effect.reason || "", recovered: Boolean(result.effect.recovered) });
+    if (failed) process.exitCode = 1;
+    return;
+  }
+  const queue = loadAuthoritativeQueue();
+  if (!queue.ok) {
+    emit({ command: "tick", status: "blocked", reason: queue.conflicts[0] || "authoritative GitHub data is unavailable", conflicts: queue.conflicts });
+    process.exitCode = 1;
+    return;
+  }
+  if (control.mode !== "running") {
+    if (queue.corrections.length > 0) saveState(root, queue.state);
+    emit({
+      command: "tick",
+      status: "halt",
+      reason: `control is ${control.mode}`,
+      corrections: queue.corrections,
+      next: queue.selection?.item ? { id: queue.selection.item.id, issue: queue.selection.item.issue } : null,
+      dispatched: false,
+    });
+    return;
+  }
+  if (!process.env.CURSOR_API_KEY) {
     emit({ command: "tick", status: "blocked", reason: "CURSOR_API_KEY is required" });
     process.exitCode = 1;
     return;
   }
-  const client = process.env.CURSOR_API_KEY
-    ? createCloudClient({ fetchImpl: globalThis.fetch, apiKey: process.env.CURSOR_API_KEY })
-    : { cancelRun: async () => {} };
-  const trialId = process.env.ORCHESTRATOR_CLOUD_TRIAL || "";
-  const item = trialId ? catalog.liveItems.find((candidate) => candidate.id === trialId) || null : null;
+  const catalog = { liveItems: queue.items };
+  let gates = null;
+  if (queue.intendedAction === "gates" && queue.selection?.item) {
+    const record = queue.state.items?.[queue.selection.item.id];
+    try {
+      gates = evaluateGates(loadGateFacts({
+        item: queue.selection.item,
+        pr: record.pr,
+        review: record.review,
+        dependenciesMerged: dependenciesMerged(queue.selection.item, queue.items),
+      }));
+    } catch (error) {
+      if (queue.corrections.length > 0) saveState(root, queue.state);
+      emit({ command: "tick", status: "blocked", reason: `CI evidence is unavailable: ${String(error.message || "unknown").slice(0, 300)}` });
+      process.exitCode = 1;
+      return;
+    }
+  }
+  const client = createCloudClient({ fetchImpl: globalThis.fetch, apiKey: process.env.CURSOR_API_KEY });
+  const item = queue.selection?.item || null;
   const result = await executeCloudTick({
     client,
-    state,
-    control: action === "stop" ? { mode: "running" } : control,
+    state: queue.state,
+    control,
     action,
     controllerRunId,
     item,
+    gates,
     allowMerge: process.env.ORCHESTRATOR_ALLOW_MERGE === "true",
     promptFor: (dispatch) => promptForDispatch(catalog, dispatch),
     openPullRequest: (effect) => {
@@ -307,7 +446,6 @@ async function tick() {
     },
   });
   saveState(root, result.state);
-  if (action === "stop" && result.effect.type !== "blocked") saveControl(root, "stopped", null);
   const failed = result.effect.type === "blocked";
   emit({ command: "tick", status: result.effect.type, reason: result.effect.reason || "", recovered: Boolean(result.effect.recovered) });
   if (failed) process.exitCode = 1;
@@ -325,6 +463,22 @@ function start() {
 async function once() {
   if (flag("--only") !== "MVP-011") {
     emit({ command: "once", status: "refused", reason: "This trial accepts only --only MVP-011." });
+    process.exitCode = 2;
+    return;
+  }
+  const queue = loadAuthoritativeQueue();
+  if (!queue.ok) {
+    emit({ command: "once", status: "blocked", conflicts: queue.conflicts });
+    process.exitCode = 1;
+    return;
+  }
+  const mvp = queue.items.find((item) => item.id === "MVP-011");
+  if (mvp?.execution === "MERGED" || queue.state.items?.["MVP-011"]?.status === "merged") {
+    emit({
+      command: "once",
+      status: "refused",
+      reason: "MVP-011 already has verified merged work. The controller will not implement it again.",
+    });
     process.exitCode = 2;
     return;
   }
@@ -348,6 +502,9 @@ const actions = {
   },
   "prove-fresh": prove,
   "dry-run": dryRun,
+  "queue-dry-run"() {
+    reportQueue("queue-dry-run");
+  },
   once,
   start,
   tick,
@@ -366,8 +523,10 @@ const actions = {
         "node tools/orchestrator/cli.mjs status",
         "node tools/orchestrator/cli.mjs prove-fresh",
         "node tools/orchestrator/cli.mjs dry-run",
+        "node tools/orchestrator/cli.mjs queue-dry-run",
         "node tools/orchestrator/cli.mjs once --only MVP-011 --workspace <clean main worktree>",
         "node tools/orchestrator/cli.mjs tick --action tick",
+        "node tools/orchestrator/cli.mjs tick --action dry-run",
         "node tools/orchestrator/cli.mjs start",
         "node tools/orchestrator/cli.mjs pause",
         "node tools/orchestrator/cli.mjs stop",

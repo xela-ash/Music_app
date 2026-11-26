@@ -6,8 +6,8 @@
 | Type | Reference (REF): engineering backlog, not a requirement specification |
 | Status | Proposed |
 | Owner | Engineering (interim: repository maintainers) |
-| Version | 0.7.47 |
-| Last Reviewed | 2026-11-24 |
+| Version | 0.7.48 |
+| Last Reviewed | 2026-11-26 |
 | Applies To | Technical improvements recommended by any human engineer or AI agent working in this repository |
 | Supersedes / Superseded By | None |
 
@@ -203,6 +203,7 @@ Copy this template for each new entry:
 | [ENG-IMP-096](#eng-imp-096-verification-access-lifetime-is-not-configured) | Verification access lifetime is not configured | Security, Configuration | Low | PROPOSED |
 | [ENG-IMP-097](#eng-imp-097-verification-status-enum-is-still-four-values) | Verification status enum is still four values | Identity verification | Medium | PROPOSED |
 | [ENG-IMP-098](#eng-imp-098-an-administrator-can-decide-their-own-verification) | An Administrator can decide their own verification | Authorization, Identity verification | Low | PROPOSED |
+| [ENG-IMP-099](#eng-imp-099-the-issue-index-still-lists-merged-mvp-011-and-mvp-012-as-ready) | The issue index still lists merged MVP-011 and MVP-012 as READY | Documentation | Low | PROPOSED |
 
 ### ENG-IMP-001 Migration runner cannot detect edited migrations and records applied state non-atomically
 
@@ -3145,6 +3146,36 @@ Copy this template for each new entry:
 | Related PR | The MVP-012 pull request |
 | Resolution | — |
 
+### ENG-IMP-099 The issue index still lists merged MVP-011 and MVP-012 as READY
+
+| Field | Value |
+|---|---|
+| ID | ENG-IMP-099 |
+| Title | The issue index still lists merged MVP-011 and MVP-012 as READY |
+| Date identified | 2026-11-26 |
+| Identified by | Orchestrator queue phase 1 |
+| Category | Documentation |
+| Affected subsystem | Implementation planning index |
+| Current state | `docs/19-implementation-planning/github-issue-index.md` Section 4 still says `MVP-011` and `MVP-012` are READY. GitHub issue #13 is open. Pull request #110 merged `MVP-011` into `main` on 2026-11-04. Pull request #112 merged `MVP-012` into `main` on 2026-11-26, and issue #14 is closed. |
+| Evidence / problem | A read-only `queue-dry-run` on 2026-11-26 selected `MVP-020` only after treating pull requests #110 and #112 as completion evidence. The index was not edited. Agents do not change `docs/19-implementation-planning/` to match an implementation. |
+| Suggested improvement | A human updates the two execution rows and closes issue #13 after confirming pull request #110. |
+| Expected benefit | The planning index and GitHub agree with the commits already on `main`. |
+| Risk of doing nothing | A reader of the index can think `MVP-011` is still the next item. The cloud queue does not, because it reads pull requests. |
+| Implementation risk | Low. Documentation and one issue close. |
+| Estimated scope | S. Two index rows and issue #13. |
+| Dependencies | None. |
+| Product behavior impact | No |
+| Specification impact | No |
+| Migration impact | No |
+| Security impact | None |
+| Performance impact | None |
+| Priority suggestion | Low |
+| Recommended timing | When a human next edits the issue index. |
+| Status | PROPOSED |
+| Related GitHub Issue | #13 |
+| Related PR | #110, #112 |
+| Resolution | — |
+
 ## 6. Findings already owned elsewhere (cross-reference only)
 
 The initial review confirmed the following gaps in the code. Each is already owned by a canonical specification or a plan item, so it is **not** duplicated as an `ENG-IMP` entry. Track and resolve each one where it is owned.
@@ -3236,3 +3267,4 @@ Commits that implemented register entries, so each entry's *Resolution* can cite
 | 0.7.45 | 2026-11-04 | Added `ENG-IMP-093` (PROPOSED): the orphan and deletion workers are not scheduled, and the sweep does not emit every §18.4 candidate kind. Not authorized. | Engineering |
 | 0.7.46 | 2026-11-05 | Reconciled the orchestrator branch with `main` after MVP-011. `ENG-IMP-094` and `ENG-IMP-095` are IMPLEMENTED by the cloud-controller gates: omitted review flags and secret-shaped paths fail closed. Neither entry authorizes further work. | Engineering |
 | 0.7.47 | 2026-11-24 | Added `ENG-IMP-096`, `ENG-IMP-097`, and `ENG-IMP-098` (all PROPOSED) from MVP-012. None are authorized. | Engineering |
+| 0.7.48 | 2026-11-26 | Added `ENG-IMP-099` (PROPOSED). The issue index still lists merged `MVP-011` and `MVP-012` as READY. Not authorized. | Engineering |

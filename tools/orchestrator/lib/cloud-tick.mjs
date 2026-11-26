@@ -94,13 +94,18 @@ export function reduceCloudTick({
     return { state: locked, effect: { type: "create", dispatch: locked.dispatch } };
   }
   if (locked.dispatch) return observeDispatch(locked, observation, usageTokens);
-  const pendingRecovery = item && locked.items?.[item.id]?.phase === "recover-pr" && locked.items[item.id].status !== "blocked";
-  if (action !== "prove" && pendingRecovery) return createForItem(locked, item, now, gates, allowMerge);
+  if (action !== "prove" && item) {
+    const phase = locked.items?.[item.id]?.phase;
+    const blocked = locked.items?.[item.id]?.status === "blocked";
+    if (phase === "escalate" || phase === "gates" || (phase === "recover-pr" && !blocked)) {
+      return createForItem(locked, item, now, gates, allowMerge);
+    }
+  }
   if (recentDispatches(locked, now).length >= config.maxCloudDispatchesPerDay) {
     return { state: locked, effect: { type: "blocked", reason: "daily cloud dispatch limit reached" } };
   }
   if (action === "prove") return createEffect(locked, { issue: "proof", role: "proof", attempt: locked.dispatches.length + 1 }, now);
-  if (!item) return { state: locked, effect: { type: "idle", reason: "cloud product trial is not enabled" } };
+  if (!item) return { state: locked, effect: { type: "idle", reason: "no eligible autonomous issue" } };
   return createForItem(locked, item, now, gates, allowMerge);
 }
 
@@ -195,6 +200,9 @@ function acceptsRole(dispatchRole, reportRole) {
 function createForItem(state, item, now, gates, allowMerge) {
   const record = state.items?.[item.id];
   const phase = record?.phase || "implement";
+  if (phase === "escalate") {
+    return { state, effect: { type: "blocked", reason: record?.blocker || "implementation pull request needs escalation" } };
+  }
   if (phase === "recover-pr") {
     if (record?.status === "blocked" || !recoveryBranch(record?.branch)) {
       return { state, effect: { type: "blocked", reason: record?.blocker || "completed without pull request" } };
