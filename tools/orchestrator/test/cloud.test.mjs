@@ -934,6 +934,44 @@ test("stop releases an idle agent when the run read fails and does not cancel", 
   assert.equal(result.state.dispatch, null);
   assertHistoryKept(before, result.state);
   assert.deepEqual(calls, ["getRun", ["getAgent", staleAgentId]]);
+
+  const transient = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        throw Object.assign(new Error("Cloud Agents API 500"), { status: 500 });
+      },
+      async getAgent() {
+        return { id: staleAgentId, status: "IDLE", latestRunId: staleRunId };
+      },
+      async cancelRun() {
+        throw new Error("a failed read must not cancel");
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(transient.effect.reason, "API error");
+  assert.equal(transient.state.dispatch.runId, staleRunId);
+  assertHistoryKept(before, transient.state);
+
+  const otherRun = await executeCloudTick({
+    ...base({ state: before, action: "stop" }),
+    client: {
+      async getRun() {
+        throw Object.assign(new Error("Cloud Agents API 404"), { status: 404 });
+      },
+      async getAgent() {
+        return { id: staleAgentId, status: "IDLE", latestRunId: "run-other" };
+      },
+      async cancelRun() {
+        throw new Error("another run must not be cancelled");
+      },
+    },
+    promptFor: () => "implement",
+  });
+  assert.equal(otherRun.effect.reason, "API error");
+  assert.equal(otherRun.state.dispatch.runId, staleRunId);
+  assertHistoryKept(before, otherRun.state);
 });
 
 test("stop of an active run clears the dispatch only after cancellation is acknowledged", async () => {

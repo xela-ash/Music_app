@@ -238,10 +238,13 @@ function createForItem(state, item, now, gates, allowMerge) {
   return createEffect(state, { issue: item.id, role: "implementer", attempt: 1 }, now);
 }
 
-async function readIdleAgent(client, agentId) {
+async function readIdleAgent(client, agentId, runId) {
   if (typeof client?.getAgent !== "function") return false;
   try {
-    return agentHasNoActiveRun(await client.getAgent(agentId));
+    const agent = await client.getAgent(agentId);
+    if (!agentHasNoActiveRun(agent)) return false;
+    if (typeof agent.latestRunId === "string" && agent.latestRunId.length > 0 && agent.latestRunId !== runId) return false;
+    return true;
   } catch {
     return false;
   }
@@ -253,8 +256,8 @@ async function releaseFinishedOrCancel(client, state, mode) {
   let run;
   try {
     run = await client.getRun(dispatch.agentId, dispatch.runId);
-  } catch {
-    if (await readIdleAgent(client, dispatch.agentId)) {
+  } catch (error) {
+    if (error?.status === 404 && await readIdleAgent(client, dispatch.agentId, dispatch.runId)) {
       return halt(releaseDispatch(state), mode, false, "finished run released");
     }
     return { state, effect: { type: "blocked", reason: "API error" } };
@@ -291,7 +294,7 @@ async function releaseFinishedOrCancel(client, state, mode) {
   } catch {
     return { state, effect: { type: "blocked", reason: "API error" } };
   }
-  if (confirmed?.status !== "CANCELLED") {
+  if (confirmed?.id !== dispatch.runId || confirmed?.status !== "CANCELLED") {
     return { state, effect: { type: "blocked", reason: "cancellation was not acknowledged" } };
   }
   return halt(releaseDispatch(state), mode, false, "cancellation acknowledged");
