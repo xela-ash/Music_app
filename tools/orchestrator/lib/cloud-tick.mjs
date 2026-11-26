@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { config } from "../config.mjs";
-import { createOrRecover, interpretCloudRun, usageTokens } from "./cloud-api.mjs";
-import { extractReport } from "./runner.mjs";
+import { createOrRecover, hasRepositoryBranch, interpretCloudRun, pushedBranch, usageTokens } from "./cloud-api.mjs";
+import { extractCompletedWithoutPullRequest, extractReport } from "./runner.mjs";
 import { recordItem } from "./state.mjs";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -62,6 +62,8 @@ export function reduceCloudTick({
     return { state: locked, effect: { type: "create", dispatch: locked.dispatch } };
   }
   if (locked.dispatch) return observeDispatch(locked, observation, usageTokens);
+  const pendingRecovery = item && locked.items?.[item.id]?.phase === "recover-pr" && locked.items[item.id].status !== "blocked";
+  if (action !== "prove" && pendingRecovery) return createForItem(locked, item, now, gates, allowMerge);
   if (recentDispatches(locked, now).length >= config.maxCloudDispatchesPerDay) {
     return { state: locked, effect: { type: "blocked", reason: "daily cloud dispatch limit reached" } };
   }
@@ -84,7 +86,9 @@ function observeDispatch(state, observation, usageTokens) {
     return { state, effect: { type: "blocked", reason: "missing usage" } };
   }
   const report = extractReport(observation.result);
-  if (!report || !acceptsRole(state.dispatch.role, report.role)) {
+  const pending = report ? null : extractCompletedWithoutPullRequest(observation.result);
+  const accepted = report || (pending && pending.issue === state.dispatch.issue ? pending : null);
+  if (!accepted || !acceptsRole(state.dispatch.role, accepted.role)) {
     return {
       state: recordItem(
         { ...state, usageTokens: (state.usageTokens || 0) + usageTokens, dispatch: null },
@@ -99,6 +103,7 @@ function observeDispatch(state, observation, usageTokens) {
     usageTokens: (state.usageTokens || 0) + usageTokens,
     dispatch: null,
   };
+  if (pending) return recoverMissingPullRequest(state, finished, pending, observation.git);
   if (state.dispatch.role === "proof") {
     return { state: { ...finished, proof: { result: report.result, agentId: state.dispatch.agentId } }, effect: { type: "idle", reason: "proof recorded" } };
   }
@@ -158,6 +163,24 @@ function acceptsRole(dispatchRole, reportRole) {
 function createForItem(state, item, now, gates, allowMerge) {
   const record = state.items?.[item.id];
   const phase = record?.phase || "implement";
+  if (phase === "recover-pr") {
+    if (record?.status === "blocked" || !recoveryBranch(record?.branch)) {
+      return { state, effect: { type: "blocked", reason: record?.blocker || "completed without pull request" } };
+    }
+    return {
+      state,
+      effect: {
+        type: "open-pr",
+        issue: item.id,
+        branch: record.branch,
+        head: record.head || null,
+        commit: record.commit || null,
+        candidate: record.candidate || null,
+        allowCreate: record.allowCreate === true,
+        acceptance: record.acceptance || [],
+      },
+    };
+  }
   if (phase === "gates") {
     if (!gates) return { state, effect: { type: "blocked", reason: "missing CI evidence" } };
     if (!gates.passed) return { state: recordItem(state, item.id, { status: "blocked", blocker: "merge gates failed" }), effect: { type: "blocked", reason: "merge gates failed" } };
@@ -183,7 +206,7 @@ function createForItem(state, item, now, gates, allowMerge) {
   return createEffect(state, { issue: item.id, role: "implementer", attempt: 1 }, now);
 }
 
-export async function executeCloudTick({ client, promptFor, ...input }) {
+export async function executeCloudTick({ client, promptFor, openPullRequest, ...input }) {
   const planned = reduceCloudTick(input);
   if (planned.effect.type === "poll") {
     let run;
@@ -201,6 +224,7 @@ export async function executeCloudTick({ client, promptFor, ...input }) {
       usageTokens: usage,
     });
   }
+  if (planned.effect.type === "open-pr") return openRecoveredPullRequest(planned, openPullRequest);
   if (planned.effect.type === "create") {
     const prompt = promptFor(planned.effect.dispatch);
     if (!prompt || prompt.startsWith("-")) {
@@ -210,7 +234,7 @@ export async function executeCloudTick({ client, promptFor, ...input }) {
       agentId: planned.effect.dispatch.agentId,
       name: `musicapp ${planned.effect.dispatch.issue} ${planned.effect.dispatch.role}`.slice(0, 100),
       mode: planned.effect.dispatch.role === "implementer" || planned.effect.dispatch.role === "repair" ? "agent" : "plan",
-      autoCreatePR: false,
+      autoCreatePR: planned.effect.dispatch.role === "implementer",
       workOnCurrentBranch: false,
       prompt: { text: prompt },
       repos: [{ url: config.cloudRepoUrl, ...(planned.effect.dispatch.prUrl ? { prUrl: planned.effect.dispatch.prUrl } : { startingRef: "main" }) }],
@@ -231,6 +255,141 @@ export async function executeCloudTick({ client, promptFor, ...input }) {
     }
   }
   return planned;
+}
+
+const SHA = /^[0-9a-f]{40}$/i;
+
+function recoveryBranch(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 200) return null;
+  if (value === "main" || value === "cursor/branch" || value.startsWith("-") || value.includes("..")) return null;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)) return null;
+  return value;
+}
+
+function shaOrNull(value) {
+  return typeof value === "string" && SHA.test(value) ? value : null;
+}
+
+function recoverMissingPullRequest(previous, finished, pending, git) {
+  const issue = previous.dispatch.issue;
+  const role = previous.dispatch.role;
+  const recorded = finished.items?.[issue]?.pr;
+  const attempt = {
+    role,
+    sessionId: previous.dispatch.agentId,
+    exitCode: 0,
+    at: new Date().toISOString(),
+  };
+  const head = shaOrNull(pending.head);
+  const commit = shaOrNull(pending.commit);
+  if (pending.blockers.length > 0) {
+    return {
+      state: recordItem(finished, issue, {
+        status: "blocked",
+        phase: "recover-pr",
+        blocker: "completed without pull request",
+        head,
+        commit,
+        attempt,
+      }),
+      effect: { type: "blocked", reason: "completed without pull request" },
+    };
+  }
+  if (!head || !commit || head.toLowerCase() !== commit.toLowerCase()) {
+    return blockedRecovery(finished, issue, "commit sha does not match", attempt, head, commit);
+  }
+  const reportedBranch = recoveryBranch(pending.branch);
+  const confirmed = reportedBranch ? pushedBranch(git, config.cloudRepoUrl, reportedBranch) : null;
+  const branch = recoveryBranch(confirmed?.branch);
+  if (!reportedBranch || !branch || reportedBranch !== branch) {
+    const sawGitBranch = hasRepositoryBranch(git, config.cloudRepoUrl);
+    const reason = role === "repair"
+      ? "repair pull request was not found"
+      : (sawGitBranch || reportedBranch ? "pull request identity does not match" : "completed without pull request");
+    return blockedRecovery(finished, issue, reason, attempt, head, commit);
+  }
+  const candidate = role === "repair" && Number.isInteger(recorded) && recorded > 0 ? recorded : null;
+  const acceptance = acceptanceEntries(pending.acceptance);
+  return {
+    state: recordItem(finished, issue, {
+      status: "implemented",
+      phase: "recover-pr",
+      branch,
+      head,
+      commit,
+      candidate,
+      allowCreate: role === "implementer",
+      acceptance,
+      attempt,
+    }),
+    effect: {
+      type: "open-pr",
+      issue,
+      branch,
+      head,
+      commit,
+      candidate,
+      allowCreate: role === "implementer",
+      acceptance,
+    },
+  };
+}
+
+function acceptanceEntries(value) {
+  if (!Array.isArray(value)) return [];
+  const entries = [];
+  for (const entry of value) {
+    if (!entry || typeof entry.criterion !== "string" || typeof entry.test !== "string") return [];
+    const criterion = entry.criterion.trim();
+    const test = entry.test.trim();
+    if (!criterion || !/^[\w./-]+\.test\.[A-Za-z0-9]+$/.test(test)) return [];
+    entries.push({ criterion, test });
+  }
+  return entries;
+}
+
+function blockedRecovery(finished, issue, reason, attempt, head, commit) {
+  return {
+    state: recordItem(finished, issue, {
+      status: "blocked",
+      phase: "recover-pr",
+      blocker: reason,
+      head,
+      commit,
+      attempt,
+    }),
+    effect: { type: "blocked", reason },
+  };
+}
+
+async function openRecoveredPullRequest(planned, openPullRequest) {
+  if (typeof openPullRequest !== "function") {
+    return { state: planned.state, effect: { type: "blocked", reason: "pull request recovery failed" } };
+  }
+  let pr;
+  try {
+    pr = await openPullRequest(planned.effect);
+  } catch (error) {
+    const clear = new Set([
+      "repair pull request was not found",
+      "acceptance mapping is missing",
+      "commit sha does not match",
+      "pull request identity does not match",
+    ]);
+    return { state: planned.state, effect: { type: "blocked", reason: clear.has(error?.message) ? error.message : "pull request recovery failed" } };
+  }
+  if (!Number.isInteger(pr) || pr <= 0) {
+    return { state: planned.state, effect: { type: "blocked", reason: "pull request recovery failed" } };
+  }
+  return {
+    state: recordItem(planned.state, planned.effect.issue, {
+      status: "implemented",
+      phase: "review",
+      pr,
+      head: planned.effect.head || planned.state.items?.[planned.effect.issue]?.head,
+    }),
+    effect: { type: "advanced", phase: "review", pr },
+  };
 }
 
 function createEffect(state, target, now) {
