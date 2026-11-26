@@ -27,7 +27,7 @@ The prompt names the issue, its dependencies, and the specification and engineer
 
 `queue-dry-run` and `dry-run` read GitHub and the controller state and print the next issue, the selection reasons, the blockers, and the action a later tick would take. They do not create an agent, open a pull request, or write state. `dry-run --agent` is the older ask-mode agent and runs only when that report selects a new implementation.
 
-Preferred order is `MVP-011`, then `MVP-012`, then the next dependency-ready `AUTONOMOUS-READY` item. A verified merged pull request counts as merged even when the GitHub issue is still open. A blocked item is recorded and skipped. `HUMAN-DECISION-REQUIRED` and `EXTERNAL-DEPENDENCY` items are reported and are not merged by this tool.
+Preferred order is `MVP-011`, then `MVP-012`, then the next dependency-ready `AUTONOMOUS-READY` item. A verified merged pull request counts as merged even when the GitHub issue is still open. The controller also keeps a pull request number it has already recorded when the title no longer contains the MVP id. An open pull request whose body names one unsettled MVP id is resumed. A merged mention in a body is not completion. A GitHub `blocked` label is skipped and is not written as a new controller record. `HUMAN-DECISION-REQUIRED` and `EXTERNAL-DEPENDENCY` items are reported and are not merged by this tool.
 
 ## Retries and merge
 
