@@ -643,6 +643,7 @@ async function redeemDocumentAccess(actorId, token, requestCorrelationId, db = p
         "content-type": document.file_mime_type,
         "content-disposition": 'attachment; filename="verification-document"',
         "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff",
       },
     };
   } catch (err) {

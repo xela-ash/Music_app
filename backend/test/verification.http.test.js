@@ -278,6 +278,7 @@ describe("MVP-012 identity verification routes", { concurrency: 1, timeout: 3000
     const downloaded = await request("GET", access.json.access.path, { token: owner.token, raw: true });
     assert.equal(downloaded.status, 200, downloaded.text);
     assert.equal(downloaded.headers.get("content-type"), "image/png");
+    assert.equal(downloaded.headers.get("x-content-type-options"), "nosniff");
     assert.deepEqual(downloaded.buffer, image);
     const replay = await request("GET", access.json.access.path, { token: owner.token, raw: true });
     assert.equal(replay.status, 404, replay.text);
@@ -394,5 +395,44 @@ describe("MVP-012 identity verification routes", { concurrency: 1, timeout: 3000
     assert.equal(adminAccess.status, 201, adminAccess.text);
     const stolen = await request("GET", adminAccess.json.access.path, { token: outsider.token, raw: true });
     assert.equal(stolen.status, 404, stolen.text);
+  });
+
+  it("refuses a document-access grant after it expires", async () => {
+    const subject = await signupAndLogin(nextId("expired-grant"));
+    const asset = await readyImage(subject.userId, Buffer.from("expired-grant-bytes"));
+    const submitted = await request("POST", "/verifications", {
+      token: subject.token,
+      body: submission(asset.external_id, "front"),
+    });
+    assert.equal(submitted.status, 201, submitted.text);
+    const verificationId = submitted.json.verification.external_id;
+    const documentId = submitted.json.verification.documents[0].external_id;
+    const previous = process.env.VERIFICATION_ACCESS_TTL_SECONDS;
+    process.env.VERIFICATION_ACCESS_TTL_SECONDS = "1";
+    const access = await request(
+      "POST",
+      `/verifications/${verificationId}/documents/${documentId}/access`,
+      { token: subject.token }
+    );
+    process.env.VERIFICATION_ACCESS_TTL_SECONDS = previous;
+    assert.equal(access.status, 201, access.text);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const expired = await request("GET", access.json.access.path, { token: subject.token, raw: true });
+    assert.equal(expired.status, 404, expired.text);
+    const token = access.json.access.path.split("/").pop();
+    const grant = await pool.query(
+      `SELECT used_at FROM verification_access_grants WHERE token_hash = $1`,
+      [crypto.createHash("sha256").update(token).digest("hex")]
+    );
+    assert.equal(grant.rowCount, 1);
+    assert.equal(grant.rows[0].used_at, null);
+    const audit = await pool.query(
+      `SELECT event.id
+       FROM verification_audit_events event
+       JOIN verification_documents document ON document.id = event.document_id
+       WHERE document.external_id = $1 AND event.event_type = 'AUD-IDENTITY-003'`,
+      [documentId]
+    );
+    assert.equal(audit.rowCount, 0);
   });
 });
