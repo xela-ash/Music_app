@@ -136,26 +136,6 @@ export function assessQueue({ items, issues, pulls, state, issueLimit = config.i
     if (pull.state === "MERGED") pushGroup(mergedById, ids[0], pull);
     else if (pull.state === "OPEN") pushGroup(openById, ids[0], pull);
   }
-  const settled = (id) => {
-    const item = items.find((candidate) => candidate.id === id);
-    const live = byNumber.get(item?.issue);
-    return (mergedById.get(id) || []).length > 0 || (item?.execution === "MERGED" && live?.state === "CLOSED");
-  };
-  for (const pull of pulls) {
-    if (pullProblem(pull) || pull.state !== "OPEN") continue;
-    if (matchingIds(pull.title, items).length > 0) continue;
-    const bodyIds = matchingIds(pull.body, items).filter((id) => !settled(id));
-    if (bodyIds.length > 1) {
-      conflicts.push(`pull request #${pull.number} body matches more than one unsettled MVP id`);
-      continue;
-    }
-    if (bodyIds.length !== 1) continue;
-    if (pull.baseRefName !== "main") {
-      conflicts.push(`${bodyIds[0]} pull request #${pull.number} is not based on main`);
-      continue;
-    }
-    pushGroup(openById, bodyIds[0], pull);
-  }
   for (const item of items) {
     const record = state?.items?.[item.id];
     if (!record?.pr) continue;
@@ -177,6 +157,26 @@ export function assessQueue({ items, issues, pulls, state, issueLimit = config.i
     }
     if (pull.state === "MERGED") pushGroup(mergedById, item.id, pull);
     else if (pull.state === "OPEN") pushGroup(openById, item.id, pull);
+  }
+  const settled = (id) => {
+    const item = items.find((candidate) => candidate.id === id);
+    const live = byNumber.get(item?.issue);
+    return (mergedById.get(id) || []).length > 0 || (item?.execution === "MERGED" && live?.state === "CLOSED");
+  };
+  for (const pull of pulls) {
+    if (pullProblem(pull) || pull.state !== "OPEN") continue;
+    if (matchingIds(pull.title, items).length > 0) continue;
+    const bodyIds = matchingIds(pull.body, items).filter((id) => !settled(id));
+    if (bodyIds.length > 1) {
+      conflicts.push(`pull request #${pull.number} body matches more than one unsettled MVP id`);
+      continue;
+    }
+    if (bodyIds.length !== 1) continue;
+    if (pull.baseRefName !== "main") {
+      conflicts.push(`${bodyIds[0]} pull request #${pull.number} is not based on main`);
+      continue;
+    }
+    pushGroup(openById, bodyIds[0], pull);
   }
   for (const [id, list] of openById) {
     if (list.length > 1) conflicts.push(`${id} has more than one open implementation pull request`);

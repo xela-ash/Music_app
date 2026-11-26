@@ -418,7 +418,40 @@ test("an open pull request is not implemented again when only its body names the
     ],
   });
   assert.equal(ambiguous.ok, false);
+  assert.equal(ambiguous.selection, null);
   assert.match(ambiguous.conflicts.join("\n"), /body matches more than one unsettled MVP id/);
+  const recordedMerge = liveQueue({
+    state: controllerState({
+      items: { "MVP-011": { status: "merged", phase: "merged", pr: 110, attempts: [] } },
+    }),
+    pulls: [
+      pull({ number: 110, title: "asset retention", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+      pull({
+        number: 130,
+        title: "recovered implementation",
+        state: "OPEN",
+        mergedAt: null,
+        body: "Implements MVP-020\nDepends on MVP-011",
+      }),
+    ],
+  });
+  assert.equal(recordedMerge.ok, true);
+  assert.equal(recordedMerge.selection.item.id, "MVP-020");
+  assert.equal(recordedMerge.intendedAction, "review");
+  const settledBody = liveQueue({
+    state: controllerState({
+      items: { "MVP-011": { status: "merged", phase: "merged", pr: 110, attempts: [] } },
+    }),
+    pulls: [
+      pull({ number: 110, title: "asset retention", state: "MERGED" }),
+      pull({ number: 112, title: "[MVP-012] Identity verification routes", state: "MERGED", mergedAt: "2026-11-26T04:52:31Z" }),
+      pull({ number: 131, title: "status note", state: "OPEN", mergedAt: null, body: "MVP-011 is already merged" }),
+    ],
+  });
+  assert.equal(settledBody.ok, true);
+  assert.equal(settledBody.selection.item.id, "MVP-020");
+  assert.equal(settledBody.intendedAction, "implement");
 });
 
 test("lookalike titles and body-only mentions are not merge evidence", () => {
